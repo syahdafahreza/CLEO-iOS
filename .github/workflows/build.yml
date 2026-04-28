@@ -59,7 +59,8 @@ jobs:
             -framework SystemConfiguration \
             -framework UIKit \
             -lobjc \
-            -ldl
+            -ldl \
+            -lc++
 
           echo "Dylib created successfully"
           file target/aarch64-apple-ios/release/libcleo.dylib

@@ -105,8 +105,10 @@ impl log::Log for Logger {
 
 static MSG_SENDER: OnceCell<Mutex<std::sync::mpsc::Sender<Message>>> = OnceCell::new();
 
-fn panic_hook(info: &std::panic::PanicInfo) {
-    let message = info.message().to_string();
+fn panic_hook(info: &std::panic::PanicHookInfo) {
+    let message = info
+        .payload_as_str()
+        .unwrap_or("no message, sorry :/");
 
     let aslr_slide = crate::hook::get_game_aslr_offset();
     let time = chrono::Local::now();

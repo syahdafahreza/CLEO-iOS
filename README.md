@@ -22,7 +22,7 @@ Selamat datang di CLEO iOS! Ini adalah mod menu dan *script loader* legendaris u
 
 ### 🌟 Changelog (Pembaruan Terbaru)
 - **Dukungan Rootless Jailbreak**: CLEO sekarang mendukung jailbreak *rootless* secara native (seperti Dopamine, palera1n rootless). Paket `.deb` sekarang tersedia khusus untuk arsitektur *rootless* maupun *rootful*!
-- **Perbaikan Kompatibilitas Build**: Memperbarui basis kode (*codebase*) agar kompatibel dengan versi Rust *nightly* modern (memperbaiki error fitur yang sudah usang seperti `drain_filter`, `panic_info_message`, dll).
+- **Perbaikan Kompatibilitas Build**: Memperbarui basis kode (*codebase*) agar kompatibel dengan versi Rust *nightly* modern. Termasuk memperbaiki perubahan pada *panic hook* (`PanicInfo` menjadi `PanicHookInfo` dan penggunaan `payload_as_str()`) serta menghapus *feature gates* usang (seperti `drain_filter`, `panic_info_message`, dll).
 - **Otomatisasi CI/CD GitHub Actions**: Membangun *workflow* untuk otomatis mem-build dan memaketkan file `.deb` langsung dari GitHub. Setiap ada pembaruan kode, versi `.deb` yang siap instal akan langsung tersedia di GitHub Actions!
 
 ### Fitur
@@ -139,7 +139,7 @@ Silakan bergabung dengan [Server Discord](https://discord.gg/cXwkTUasJU) kami at
 
 ## Changelog (Latest Updates)
 - **Rootless Jailbreak Support**: Full support for rootless jailbreaks (e.g., Dopamine, palera1n rootless). Dedicated `.deb` packages are now automatically built and provided for both rootful and rootless environments.
-- **Build Compatibility Fixes**: Fixed code to compile with the latest Rust nightly versions (removed deprecated feature gates like `panic_info_message`, `cstr_from_bytes_until_nul`, and updated `drain_filter` to `extract_if`).
+- **Build Compatibility Fixes**: Fixed code to compile with the latest Rust nightly versions. This includes adapting to the new panic hook API (`PanicHookInfo` and `payload_as_str()`) and removing deprecated feature gates (like `panic_info_message`, `cstr_from_bytes_until_nul`, and `drain_filter`).
 - **CI/CD Automation**: Added a GitHub Actions workflow to automatically build and package `.deb` files directly from source on every push and release.
 
 ## Languages

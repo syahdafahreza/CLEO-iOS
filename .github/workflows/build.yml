@@ -1,0 +1,130 @@
+name: Build CLEO iOS
+
+on:
+  push:
+    branches: [main, master]
+    tags: ['*']
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-latest
+    strategy:
+      matrix:
+        variant: [rootful, rootless]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust nightly with iOS target
+        uses: dtolnay/rust-toolchain@nightly
+        with:
+          targets: aarch64-apple-ios
+
+      - name: Cache Cargo registry & build
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock', '**/Cargo.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Install build tools
+        run: |
+          brew install ldid dpkg
+
+      - name: Build static library
+        run: |
+          cargo build --target aarch64-apple-ios --release
+
+      - name: Link static library to dylib
+        run: |
+          SDK_PATH=$(xcrun --sdk iphoneos --show-sdk-path)
+          echo "Using iOS SDK at: $SDK_PATH"
+
+          clang -fpic -shared -Wl,-all_load \
+            target/aarch64-apple-ios/release/libcleo.a \
+            -o target/aarch64-apple-ios/release/libcleo.dylib \
+            -isysroot "$SDK_PATH" \
+            -target arm64-apple-ios \
+            -framework CoreFoundation \
+            -framework Security
+
+          echo "Dylib created successfully"
+          file target/aarch64-apple-ios/release/libcleo.dylib
+
+      - name: Sign dylib with ldid
+        run: |
+          ldid -S target/aarch64-apple-ios/release/libcleo.dylib
+          echo "Dylib signed successfully"
+
+      - name: Package .deb (${{ matrix.variant }})
+        run: |
+          set -e
+          VARIANT="${{ matrix.variant }}"
+          PKG_DIR=$(mktemp -d)
+
+          # Create DEBIAN directory
+          mkdir -p "$PKG_DIR/DEBIAN"
+          cp "deb/control.${VARIANT}" "$PKG_DIR/DEBIAN/control"
+
+          # Create dylib installation directory
+          if [ "$VARIANT" = "rootless" ]; then
+            DYLIB_DIR="$PKG_DIR/var/jb/Library/MobileSubstrate/DynamicLibraries"
+          else
+            DYLIB_DIR="$PKG_DIR/Library/MobileSubstrate/DynamicLibraries"
+          fi
+
+          mkdir -p "$DYLIB_DIR"
+
+          # Copy dylib and plist
+          cp target/aarch64-apple-ios/release/libcleo.dylib "$DYLIB_DIR/CLEO.dylib"
+          cp deb/cleo.plist "$DYLIB_DIR/CLEO.plist"
+
+          # Build .deb
+          DEB_NAME="cleo.${VARIANT}.deb"
+          dpkg-deb -Z xz -b "$PKG_DIR" "$DEB_NAME"
+
+          echo "Built $DEB_NAME"
+          dpkg-deb --info "$DEB_NAME"
+          dpkg-deb --contents "$DEB_NAME"
+
+          # Cleanup
+          rm -rf "$PKG_DIR"
+
+      - name: Upload .deb artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: cleo-${{ matrix.variant }}-deb
+          path: "cleo.${{ matrix.variant }}.deb"
+          if-no-files-found: error
+
+  release:
+    name: Create GitHub Release
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            artifacts/cleo-rootful-deb/cleo.rootful.deb
+            artifacts/cleo-rootless-deb/cleo.rootless.deb
+          generate_release_notes: true
+          draft: false
+          prerelease: ${{ contains(github.ref, 'alpha') }}

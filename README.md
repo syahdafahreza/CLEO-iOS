@@ -1,8 +1,9 @@
 <h1 style="text-align: center">CLEO iOS</h1>
 
-<!-- I love badges :D -->
-
 <div style="text-align: center">
+  <p>
+    <a href="#-bahasa-indonesia">🇮🇩 Bahasa Indonesia</a> | <a href="#-english">🇬🇧 English</a>
+  </p>
   <p>
     <a href="https://discord.gg/cXwkTUasJU">
     <img src="https://img.shields.io/discord/767478053139775528?color=7289DA&amp;label=DISCORD&amp;style=for-the-badge" alt="Discord">
@@ -12,6 +13,117 @@
   </p>
   <p><a href="https://discord.gg/cXwkTUasJU"><strong>Join the Discord server for support, info and script suggestions</strong></a></p>
 </div>
+
+---
+
+<h2 id="-bahasa-indonesia">🇮🇩 Bahasa Indonesia</h2>
+
+Selamat datang di CLEO iOS! Ini adalah mod menu dan *script loader* legendaris untuk GTA: San Andreas di iOS. 
+
+### 🌟 Changelog (Pembaruan Terbaru)
+- **Dukungan Rootless Jailbreak**: CLEO sekarang mendukung jailbreak *rootless* secara native (seperti Dopamine, palera1n rootless). Paket `.deb` sekarang tersedia khusus untuk arsitektur *rootless* maupun *rootful*!
+- **Perbaikan Kompatibilitas Build**: Memperbarui basis kode (*codebase*) agar kompatibel dengan versi Rust *nightly* modern (memperbaiki error fitur yang sudah usang seperti `drain_filter`, `panic_info_message`, dll).
+- **Otomatisasi CI/CD GitHub Actions**: Membangun *workflow* untuk otomatis mem-build dan memaketkan file `.deb` langsung dari GitHub. Setiap ada pembaruan kode, versi `.deb` yang siap instal akan langsung tersedia di GitHub Actions!
+
+### Fitur
+- Dukungan File
+  - Skrip CSA (Otomatis jalan)
+  - Skrip CSI (Bisa dipanggil dari menu)
+  - Ekstensi bahasa FXT
+- Memuat Mod (*Mod loading*)
+  - Modifikasi file arsip (`.img`)
+  - Penggantian file secara otomatis tanpa merusak aplikasi asli
+- Menu Cheat interaktif
+- Mendukung opsi 60 FPS
+
+### Bahasa
+CLEO tersedia dalam beberapa bahasa. Semua terjemahan dibuat oleh tim relawan yang luar biasa. Jika Anda bisa berbahasa yang belum ada di daftar ini, silakan hubungi (*ping*) saya di server Discord atau kirim pesan (DM) ke saya!
+- Arabic / العربيه (oleh RAiZOK)
+- Czech / čeština (oleh tharryz)
+- Dutch / Nederlands (oleh wewewer1)
+- English
+- Khmer / ខ្មែរ (oleh ODIN)
+- Simplified Chinese / 中文（简体） (oleh tharryz)
+- Slovak / slovenčina (oleh tharryz)
+- Spanish / Español (oleh Bruno Melo)
+- Thai / ภาษาไทย (oleh Flylarb The BMO)
+- Turkish / Türkçe (oleh AYZM)
+- Vietnamese / Tiếng Việt (oleh tharryz)
+
+### Cara Instalasi (Sangat Mudah!)
+1. Unduh file `.deb` dari [Halaman Rilis Terbaru](https://github.com/squ1dd13/CLEO-iOS/releases/latest) atau dari tab *Actions* (jika ingin versi *development* terbaru). 
+   > **PENTING:** Pastikan Anda memilih versi `rootless` (untuk Dopamine/palera1n rootless) atau `rootful` sesuai dengan tipe jailbreak yang Anda gunakan di iPhone.
+2. Instal `.deb` tersebut menggunakan *package manager* bawaan (seperti Sileo atau Zebra), alat baris perintah seperti `dpkg`, atau cukup melalui aplikasi **Filza File Manager**.
+
+Saat permainan dibuka, CLEO otomatis memeriksa (jika lebih dari lima jam) apakah ada rilis pembaruan baru. Jika ada, pesan akan muncul dan mengarahkan Anda ke rilis terbaru. Cukup instal `.deb` yang baru di atas yang lama untuk memperbarui tanpa menghapus mod Anda!
+
+### Membuka Menu
+Menu CLEO digunakan untuk mengontrol skrip, *cheat*, dan pengaturan CLEO.
+- **Cara buka:** Cukup **usap (swipe) layar ke bawah**. Menu ini tersedia di mana saja di dalam game GTA.
+- **Tab Opsi:** Berisi beberapa pengaturan CLEO (seperti pengunci FPS). Opsi yang menyala berwarna **hijau (On)** dan mati berwarna **putih (Off)**.
+
+<p align="center">
+  <img src="images/tab_options.png" width="70%" title="The Options tab">
+</p>
+
+### Panduan Memasang Skrip Mod
+1. Cari skrip mod CLEO yang ingin Anda gunakan.
+2. Buka folder data aplikasi GTA. Menggunakan **Filza** adalah cara termudah: buka `/var/mobile/Containers/Data/Application` dan cari folder `GTA: SA`.
+3. Buka folder `Documents` di dalamnya.
+4. Buat folder baru bernama `CLEO`.
+5. Letakkan file `.csi`, `.csa`, atau `.fxt` mod Anda ke dalam folder `CLEO` tersebut.
+
+#### Skrip CSI (Dijalankan Manual)
+Skrip dengan format `.csi` tidak akan jalan sebelum Anda menyuruhnya. Buka menu CLEO dan pergi ke tab **CSI**.
+- Ketuk nama skrip untuk mengubah dari *Not running* (Putih) ke *Running* (Hijau).
+- Jika nama skrip berwarna **Oranye**, artinya ada masalah dengan skrip tersebut (seperti kodenya dibuat untuk Android, atau duplikat). Anda tetap bisa mencoba menjalankannya, namun bersiaplah jika game menjadi *crash*.
+
+<p align="center">
+  <img src="images/tab_csi.png" width="70%" title="The CSI script tab.">
+</p>
+
+#### Skrip CSA (Jalan Otomatis)
+Skrip dengan format `.csa` otomatis berjalan ketika game dimuat. Anda bisa menonaktifkannya di tab **CSA** jika membuat *crash*. Skrip bermasalah akan langsung dinonaktifkan dan berwarna Oranye.
+
+<p align="center">
+  <img src="images/tab_csa.png" width="70%" title="The CSA menu.">
+</p>
+
+### Panduan Memasang Mod Mobil/Senjata (Arsip `.img`)
+Banyak mod mengubah model 3D seperti mobil (disimpan di file `gta3.img`). Alih-alih repot membongkar file `.img` game, CLEO memudahkannya:
+1. Buat folder di dalam folder `CLEO` dengan nama arsip, misalnya: `gta3.img`
+2. Masukkan file mod Anda (misalnya `clover.dff`) ke dalam folder tersebut.
+Selesai! Struktur akan terlihat seperti ini:
+```
+CLEO
+│    ...
+└─── gta3.img
+     └── clover.dff
+```
+CLEO otomatis akan mengganti model mobil tersebut di dalam permainan.
+
+### Mengganti File Permainan Asli (Swapping)
+Untuk mengganti file konfigurasi seperti `handling.cfg` atau `timecyc.dat` tanpa menimpa file aslinya:
+1. Buat folder bernama `Replace` di dalam folder `CLEO`.
+2. Taruh mod Anda di dalam folder tersebut.
+Jika sewaktu-waktu ingin menghapus mod, cukup hapus file dari folder `Replace`.
+
+### Daftar Cheat
+Tab **Cheats** di menu memungkinkan Anda mengaktifkan berbagai cheat yang sudah tersedia.
+- **Biru**: Antre menyala (akan menyala ketika menu ditutup)
+- **Merah**: Antre mati (akan nonaktif ketika menu ditutup)
+Gunakan *cheat* dengan bijak karena beberapa *cheat* tidak stabil dan bisa menyebabkan kerusakan *save file*.
+
+<p align="center">
+  <img src="images/tab_cheats.png" width="70%" title="The cheat menu.">
+</p>
+
+### Butuh Bantuan?
+Silakan bergabung dengan [Server Discord](https://discord.gg/cXwkTUasJU) kami atau buat isu baru di GitHub jika Anda menemukan *bug* atau *crash*. Laporkan masalah agar kami dapat segera memperbaikinya!
+
+---
+
+<h2 id="-english">🇬🇧 English</h2>
 
 ## Features
 
@@ -24,6 +136,11 @@
   - Automatic file replacement
 - Cheat menu
 - 60 FPS
+
+## Changelog (Latest Updates)
+- **Rootless Jailbreak Support**: Full support for rootless jailbreaks (e.g., Dopamine, palera1n rootless). Dedicated `.deb` packages are now automatically built and provided for both rootful and rootless environments.
+- **Build Compatibility Fixes**: Fixed code to compile with the latest Rust nightly versions (removed deprecated feature gates like `panic_info_message`, `cstr_from_bytes_until_nul`, and updated `drain_filter` to `extract_if`).
+- **CI/CD Automation**: Added a GitHub Actions workflow to automatically build and package `.deb` files directly from source on every push and release.
 
 ## Languages
 
@@ -45,18 +162,14 @@ or DM me on Discord and you can be come a translator!
 
 ## Installation
 
-1. Download the .deb file from the [latest release](https://github.com/squ1dd13/CLEO-iOS/releases/latest).
-2. Install the .deb using a tool like `dpkg` or through an app like Filza.
+1. Download the .deb file from the [latest release](https://github.com/squ1dd13/CLEO-iOS/releases/latest) or from the GitHub Actions artifacts for the newest development build. Make sure to choose either the `rootless` or `rootful` .deb file based on your jailbreak type.
+2. Install the .deb using a package manager (like Sileo, Zebra), a tool like `dpkg`, or through an app like Filza.
 
 When the game is opened, if it has been at least five hours since the last check, CLEO will check to see if there is
 a new release available. If there is one, a message will be displayed with the option to go to the [release](https://github.com/squ1dd13/CLEO-iOS/releases/latest).
 
 To update CLEO, simply follow the above steps with the newer .deb. The package manager will handle the update,
 and your mods will remain in place.
-
-## Building
-
-Developers: see the bottom of the README for instructions on how to build CLEO.
 
 ## Menu
 
@@ -306,91 +419,41 @@ remember how to do something.
 
 ## Building
 
-**Ignore this section if you are not a developer.**
+CLEO can now be built easily via GitHub Actions, which provides `.deb` files for both `rootful` and `rootless` versions out-of-the-box. 
+
+If you prefer building manually, here are the steps:
 
 ### Rust setup
-You will need to install Rust on your system before compiling CLEO (since it's written in Rust).
+You will need to install Rust on your system before compiling CLEO.
 If you don't have it installed already, go to https://www.rust-lang.org/learn/get-started and
-follow the instructions there. If you do have it installed, it might be worth running `rustup
-update` to ensure you're on the latest version.
+follow the instructions there. If you do have it installed, run `rustup update` to ensure you're on the latest version.
 
-CLEO needs features that are only available in the `nightly` toolchain. If you get start a shell in
-the CLEO folder, you can use `rustup override set nightly` to set the toolchain to nightly for that
-directory.
+CLEO relies on some unstable features. Ensure you run `rustup override set nightly` to set the toolchain to nightly for the directory.
 
-You'll need to have the `aarch64-apple-ios` target too, so run `rustup target add
-aarch64-apple-ios` to set that up.
+You'll need the iOS target: `rustup target add aarch64-apple-ios`.
 
 ### `build.py`
 
-CLEO is typically built using the `build.py` script in the main directory. This script compiles
-the Rust code and produces a dynamic library (`.dylib`), but it can also do a couple of other
-things.
-* `--release` will build a release version of the tweak. If you don't specify this, the tweak
-  will be built in debug mode. The output of a release build is
-  `target/aarch64-apple-ios/release/cleo.dylib`. Debug builds go in
-  `target/aarch64-apple-ios/debug`.
-* `--package` will create `cleo.deb` in the same folder as `cleo.dylib`. This can be used to
-  install the tweak.
-* `--install` will install the tweak to a device. If you use `--package`, this will copy `cleo.deb`
-  to the device and install it. Otherwise, it will just copy `cleo.dylib` and `cleo.plist` onto the
-  device, overwriting the previous versions of those files. **If the device doesn't have CLEO
-  installed yet, use `--package` on the first install.**
-
-`build.py` relies on a few environment variables to work. In order to use `--install`, you must
-first set `CLEO_INSTALL_HOST` to either the hostname or IP address of the device the tweak should
-be installed to. There are other variables too, but the values for these depend on your platform.
+CLEO is typically built using the `build.py` script. This compiles the Rust code and packages a dynamic library (`.dylib`).
+* `--release` builds a release version.
+* `--package` creates `cleo.[variant].deb` alongside the `.dylib`. This is used for installation.
+* `--install` installs the tweak directly to a device if `CLEO_INSTALL_HOST` is set.
+* `--rootless` specifies that the tweak should be built and packaged for rootless jailbreaks. 
 
 See below for platform-specific instructions.
 
-### Linux
-On my Manjaro machine there was not a lot of setup required to build CLEO. The main thing you need
-is an iOS toolchain, because we need `clang` and `ldid` in order to create a .dylib from the .ar
-file that `rustc` gives us.
+### Linux / Windows (WSL)
+You need an iOS toolchain (like [Sam Bingner's Linux iOS toolchain](https://github.com/sbingner/llvm-project)) which contains `clang` and `ldid` to create a .dylib from the .ar archive produced by `rustc`.
 
-I use [Sam Bingner's Linux iOS toolchain](https://github.com/sbingner/llvm-project), which has
-worked for me on both Ubuntu and Manjaro, and I've been using it since the original C++ CLEO. You
-can install it by downloading the `.tar.lzma` file from the latest release and extracting it into a
-folder somewhere on your system.
-
-This toolchain contains both `ldid` and Apple's build of `clang`. Once you've extracted it, just
-set `CLEO_CLANG` and `CLEO_LDID` to the paths to those tools in the toolchain. They can be found
-inside the `bin` folder.
-
-For example, I use the following:
-* `CLEO_CLANG="/home/squ1dd13/projects/ios/toolchain/bin/clang"`
-* `CLEO_LDID="/home/squ1dd13/projects/ios/toolchain/bin/ldid"`
-
-You'll also need an iOS SDK. I currently build against an iOS 13.2 SDK. I can't remember where I
-got it from, but there are loads of places you can get iOS SDKs. You should end up with a folder
-called `iPhoneOSxx.x.sdk` (or just `iPhoneOS.sdk`). The path to this folder is what you should set
-`CLEO_IOS_SDK` to. Mine is `/home/squ1dd13/projects/ios/iPhoneOS.sdk`.
-
-I had to manually get `dpkg-deb` on my Manjaro system, but that was as simple as `yay -S dpkg`. If
-you don't have this already, you'll need to find out how to get it for your specific distro.
-
-Installation to a device requires `scp`, so make sure you have that too.
+You must set `CLEO_CLANG`, `CLEO_LDID`, and `CLEO_IOS_SDK` to point to these tools and your SDK.
 
 ### macOS
 
-`rustc` can produce `.dylib` files on macOS. `build.py` tells it to do that when it detects a macOS
-system, but for whatever reason, this override doesn't work and the build process goes the same as
-on Linux, producing an AR archive. You can change `crate-type = ["staticlib"]` to `crate-type =
-["cdylib"]` in `Cargo.toml`, and you will get a .dylib from `rustc`.
-
-If you don't already have it, you can get `dpkg` from Homebrew with `brew install dpkg`. This
-installs the `dpkg-deb` command. You don't need `clang` for building on macOS, but you will need
-`ldid`. This can be installed with `brew install ldid`. Once you have it, just set `CLEO_LDID` to
-the path to the installed executable.
-
-For some reason, versions of the tweak built with macOS crash on startup. It appears to be
-something to do with the panic hook that CLEO installs, but it's unclear as to what differs between
-Linux and macOS builds that would cause that.
-
-### Windows
-
-I'd recommend using WSL and following the Linux guide. If anyone gets CLEO built on Windows without
-using WSL, please feel free to add an explanation here.
+macOS is the officially supported build platform for CI. You'll need `ldid` and `dpkg`, which can be installed via Homebrew:
+```bash
+brew install ldid dpkg
+```
+Afterward, just use the `build.py` script to compile and generate your `.deb` file!
 
 ## Thanks to...
 

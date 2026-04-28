@@ -377,7 +377,8 @@ impl TouchInterface {
         const STALE_CUTOFF: f32 = 2.0;
 
         self.finished_touches
-            .drain_filter(|touch| (current_timestamp - touch.last_changed()) > STALE_CUTOFF);
+            .extract_if(.., |touch| (current_timestamp - touch.last_changed()) > STALE_CUTOFF)
+            .for_each(drop);
     }
 
     /// Checks if the user has carried out the menu trigger gesture. If they have, this will return

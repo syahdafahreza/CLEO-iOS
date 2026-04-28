@@ -21,9 +21,17 @@
 Selamat datang di CLEO iOS! Ini adalah mod menu dan *script loader* legendaris untuk GTA: San Andreas di iOS. 
 
 ### 🌟 Changelog (Pembaruan Terbaru)
+
+> ✅ **Build Terverifikasi** — Berhasil di-build di GitHub Actions menggunakan Rust 1.97.0-nightly pada macOS 15 arm64.
+
 - **Dukungan Rootless Jailbreak**: CLEO sekarang mendukung jailbreak *rootless* secara native (seperti Dopamine, palera1n rootless). Paket `.deb` sekarang tersedia khusus untuk arsitektur *rootless* maupun *rootful*!
-- **Perbaikan Kompatibilitas Build**: Memperbarui basis kode (*codebase*) agar kompatibel dengan versi Rust *nightly* modern. Termasuk memperbaiki perubahan pada *panic hook* (`PanicInfo` menjadi `PanicHookInfo` dan penggunaan `payload_as_str()`) serta menghapus *feature gates* usang (seperti `drain_filter`, `panic_info_message`, dll).
+- **Perbaikan Kompatibilitas Build**: Memperbarui basis kode (*codebase*) agar kompatibel dengan Rust *nightly* terbaru (1.97.0). Perubahan yang dilakukan:
+  - Migrasi *panic hook* API: `PanicInfo` → `PanicHookInfo` + penggunaan `payload_as_str()`
+  - Penghapusan *feature gates* usang: `panic_info_message`, `cstr_from_bytes_until_nul`
+  - Migrasi `drain_filter` → `extract_if` (sudah stabil di Rust 1.87+)
+  - Hanya tersisa 1 *nightly feature*: `map_try_insert`
 - **Otomatisasi CI/CD GitHub Actions**: Membangun *workflow* untuk otomatis mem-build dan memaketkan file `.deb` langsung dari GitHub. Setiap ada pembaruan kode, versi `.deb` yang siap instal akan langsung tersedia di GitHub Actions!
+- **Minimum iOS 10.0**: Target deployment minimum adalah iOS 10.0 (arm64).
 
 ### Fitur
 - Dukungan File
@@ -138,9 +146,17 @@ Silakan bergabung dengan [Server Discord](https://discord.gg/cXwkTUasJU) kami at
 - 60 FPS
 
 ## Changelog (Latest Updates)
+
+> ✅ **Build Verified** — Successfully compiled on GitHub Actions using Rust 1.97.0-nightly on macOS 15 arm64.
+
 - **Rootless Jailbreak Support**: Full support for rootless jailbreaks (e.g., Dopamine, palera1n rootless). Dedicated `.deb` packages are now automatically built and provided for both rootful and rootless environments.
-- **Build Compatibility Fixes**: Fixed code to compile with the latest Rust nightly versions. This includes adapting to the new panic hook API (`PanicHookInfo` and `payload_as_str()`) and removing deprecated feature gates (like `panic_info_message`, `cstr_from_bytes_until_nul`, and `drain_filter`).
+- **Build Compatibility Fixes**: Fixed code to compile with the latest Rust nightly (1.97.0). Changes include:
+  - Migrated panic hook API: `PanicInfo` → `PanicHookInfo` + `payload_as_str()`
+  - Removed deprecated feature gates: `panic_info_message`, `cstr_from_bytes_until_nul`
+  - Migrated `drain_filter` → `extract_if` (stable since Rust 1.87)
+  - Only 1 nightly feature remains: `map_try_insert`
 - **CI/CD Automation**: Added a GitHub Actions workflow to automatically build and package `.deb` files directly from source on every push and release.
+- **Minimum iOS 10.0**: Deployment target is iOS 10.0 (arm64).
 
 ## Languages
 

@@ -52,9 +52,14 @@ jobs:
             target/aarch64-apple-ios/release/libcleo.a \
             -o target/aarch64-apple-ios/release/libcleo.dylib \
             -isysroot "$SDK_PATH" \
-            -target arm64-apple-ios \
+            -target arm64-apple-ios10.0 \
             -framework CoreFoundation \
-            -framework Security
+            -framework Foundation \
+            -framework Security \
+            -framework SystemConfiguration \
+            -framework UIKit \
+            -lobjc \
+            -ldl
 
           echo "Dylib created successfully"
           file target/aarch64-apple-ios/release/libcleo.dylib

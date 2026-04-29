@@ -24,7 +24,7 @@ Selamat datang di CLEO iOS! Ini adalah mod menu dan *script loader* legendaris u
 
 > ✅ **Build Terverifikasi** — Berhasil di-build di GitHub Actions menggunakan Rust 1.97.0-nightly pada macOS 15 arm64.
 
-- **Dukungan Rootless Jailbreak**: CLEO sekarang mendukung jailbreak *rootless* secara native (seperti Dopamine, palera1n rootless). Paket `.deb` sekarang tersedia khusus untuk arsitektur *rootless* maupun *rootful*!
+- **Dukungan Rootless Jailbreak**: CLEO sekarang mendukung jailbreak *rootless* secara native (seperti Dopamine, palera1n rootless). Paket `.deb` sekarang tersedia khusus untuk arsitektur *rootless* maupun *rootful*! Terima kasih kepada **Syahda Fahreza** atas pembaruan basis kode agar kompatibel dengan rootless environment.
 - **Perbaikan Kompatibilitas Build**: Memperbarui basis kode (*codebase*) agar kompatibel dengan Rust *nightly* terbaru (1.97.0). Perubahan yang dilakukan:
   - Migrasi *panic hook* API: `PanicInfo` → `PanicHookInfo` + penggunaan `payload_as_str()`
   - Penghapusan *feature gates* usang: `panic_info_message`, `cstr_from_bytes_until_nul`
@@ -50,6 +50,7 @@ CLEO tersedia dalam beberapa bahasa. Semua terjemahan dibuat oleh tim relawan ya
 - Czech / čeština (oleh tharryz)
 - Dutch / Nederlands (oleh wewewer1)
 - English
+- Indonesian / Bahasa Indonesia (Gaul/Kekinian) (oleh Syahda Fahreza)
 - Khmer / ខ្មែរ (oleh ODIN)
 - Simplified Chinese / 中文（简体） (oleh tharryz)
 - Slovak / slovenčina (oleh tharryz)
@@ -149,7 +150,7 @@ Silakan bergabung dengan [Server Discord](https://discord.gg/cXwkTUasJU) kami at
 
 > ✅ **Build Verified** — Successfully compiled on GitHub Actions using Rust 1.97.0-nightly on macOS 15 arm64.
 
-- **Rootless Jailbreak Support**: Full support for rootless jailbreaks (e.g., Dopamine, palera1n rootless). Dedicated `.deb` packages are now automatically built and provided for both rootful and rootless environments.
+- **Rootless Jailbreak Support**: Full support for rootless jailbreaks (e.g., Dopamine, palera1n rootless). Dedicated `.deb` packages are now automatically built and provided for both rootful and rootless environments. Huge thanks to **Syahda Fahreza** for porting the tweak to the rootless environment!
 - **Build Compatibility Fixes**: Fixed code to compile with the latest Rust nightly (1.97.0). Changes include:
   - Migrated panic hook API: `PanicInfo` → `PanicHookInfo` + `payload_as_str()`
   - Removed deprecated feature gates: `panic_info_message`, `cstr_from_bytes_until_nul`
@@ -168,6 +169,7 @@ or DM me on Discord and you can be come a translator!
 * Czech / čeština (by tharryz)
 * Dutch / Nederlands (by wewewer1)
 * English
+* Indonesian / Bahasa Indonesia (Gaul/Kekinian) (by Syahda Fahreza)
 * Khmer / ខ្មែរ (by ODIN)
 * Simplified Chinese / 中文（简体） (by tharryz)
 * Slovak / slovenčina (by tharryz)
@@ -479,6 +481,7 @@ Afterward, just use the `build.py` script to compile and generate your `.deb` fi
   - Flylarb The BMO
   - ODIN
   - RAiZOK
+  - Syahda Fahreza
   - tharryz
   - wewewer1
 - [Seemann](https://github.com/x87) for offering support and info, and for letting this project

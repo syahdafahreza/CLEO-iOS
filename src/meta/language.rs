@@ -190,6 +190,7 @@ pub enum Language {
     Dutch,
     English,
     Galactic,
+    Indonesian,
     Khmer,
     Russian,
     Slovak,
@@ -209,6 +210,7 @@ impl Language {
             "cz" => Language::Czech,
             "nl" => Language::Dutch,
             "en" => Language::English,
+            "id" => Language::Indonesian,
             "mc" => Language::Galactic,
             "km" => Language::Khmer,
             "sk" => Language::Slovak,
@@ -228,6 +230,7 @@ impl Language {
             Language::Czech => "cz",
             Language::Dutch => "nl",
             Language::English => "en",
+            Language::Indonesian => "id",
             Language::Galactic => "mc",
             Language::Khmer => "km",
             Language::Russian => "ru",
@@ -249,6 +252,7 @@ impl Language {
             Language::Czech => include_str!("../../loc/cz.ftl"),
             Language::Dutch => include_str!("../../loc/nl.ftl"),
             Language::English => include_str!("../../loc/en.ftl"),
+            Language::Indonesian => include_str!("../../loc/id.ftl"),
             Language::Galactic => include_str!("../../loc/mc.ftl"),
             Language::Khmer => include_str!("../../loc/km.ftl"),
             Language::Russian => include_str!("../../loc/ru.ftl"),
@@ -301,6 +305,7 @@ impl Language {
             // seems to work OK.
             Language::Dutch
             | Language::English
+            | Language::Indonesian
             | Language::Galactic
             | Language::Russian
             | Language::Spanish
@@ -454,7 +459,10 @@ impl Language {
             Language::Arabic => Some(Language::Russian),
 
             // 260 million
-            Language::Russian => Some(Language::Turkish),
+            Language::Russian => Some(Language::Indonesian),
+
+            // 199 million
+            Language::Indonesian => Some(Language::Turkish),
 
             // 88 million
             Language::Turkish => Some(Language::Vietnamese),

@@ -4,9 +4,23 @@ Depends: mobilesubstrate (>= 0.9.7000)
 Provides: com.squ1dd13.csios, com.squ1dd13.zinc
 Conflicts: com.squ1dd13.csios, com.squ1dd13.zinc, com.brend0n.gtasa60fps
 Replaces: com.squ1dd13.csios, com.squ1dd13.zinc
-Version: 2.6.0
+Version: 2.6.1
 Architecture: iphoneos-arm64
-Description: CLEO for GTA:SA. Now with extra Rust!
+Description: CLEO for GTA:SA iOS. The legendary mod menu and script loader.
+ .
+ Features:
+  - File support: CSA scripts, CSI scripts, FXT language extensions
+  - Mod loading: Archive (.img) file modding, Automatic file replacement
+  - Cheat menu
+  - 60 FPS
+ .
+ Changelog (2.6.1):
+  - Rootless Jailbreak Support: Full support for rootless jailbreaks (Dopamine, palera1n rootless). Dedicated .deb packages are provided. Thanks to Syahda Fahreza!
+  - Build Compatibility Fixes: Fixed code to compile with the latest Rust nightly (1.97.0).
+  - CI/CD Automation: GitHub Actions workflow to automatically build and package .deb files.
+  - Minimum iOS 10.0 requirement.
+ .
+ Translators & Contributors: AYZM, Bruno Melo, Flylarb The BMO, ODIN, RAiZOK, Syahda Fahreza, tharryz, wewewer1, Seemann, Alexander Blade, DK22Pac, oliver#1219
 Maintainer: squ1dd13
 Author: squ1dd13
 Section: Tweaks

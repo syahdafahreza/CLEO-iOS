@@ -111,9 +111,9 @@ jobs:
           cp target/armv7s-apple-ios/release/libcleo.dylib "$DYLIB_DIR/CLEO.dylib"
           cp deb/cleo.plist "$DYLIB_DIR/CLEO.plist"
 
-          # Build .deb
+          # Build .deb with gzip compression (iOS 10 / 32-bit dpkg does not include xz/lzma tools by default)
           DEB_NAME="cleo.iphone5.deb"
-          dpkg-deb -Z xz -b "$PKG_DIR" "$DEB_NAME"
+          dpkg-deb -Z gzip -b "$PKG_DIR" "$DEB_NAME"
 
           echo "Built $DEB_NAME"
           dpkg-deb --info "$DEB_NAME"

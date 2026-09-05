@@ -33,6 +33,7 @@ fn show_yes_no_menu(
     callback_arg: usize,
     yes_fn: fn(usize),
     no_fn: fn(),
+) {
     #[cfg(target_pointer_width = "64")]
     {
         unsafe {

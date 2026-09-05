@@ -50,6 +50,7 @@ jobs:
 
       - name: Link static library to dylib (ARMv7s)
         run: |
+          set -ex
           SDK_PATH=$(xcrun --sdk iphoneos --show-sdk-path)
           echo "Using iOS SDK at: $SDK_PATH"
 
@@ -59,18 +60,19 @@ jobs:
           # Modern Xcode SDKs removed 32-bit (armv7/armv7s) architectures from .tbd files.
           # Apple's ld requires linking with libSystem for dylibs, so we provide an armv7s stub
           # so ld is satisfied at build time. On the actual iOS device dyld loads the real /usr/lib/libSystem.B.dylib.
-          cat << 'EOF' > "$STUB_DIR/libSystem.tbd"
---- !tapi-tbd-v2
-archs:           [ armv7, armv7s ]
-platform:        ios
-install-name:    /usr/lib/libSystem.B.dylib
-current-version: 1238.60.2
-compatibility-version: 1.0.0
-exports:
-  - archs:           [ armv7, armv7s ]
-    symbols:         [ ___error, _exit, _abort ]
-...
-EOF
+          printf '%s\n' \
+            '--- !tapi-tbd-v2' \
+            'archs:           [ armv7, armv7s ]' \
+            'platform:        ios' \
+            'install-name:    /usr/lib/libSystem.B.dylib' \
+            'current-version: 1238.60.2' \
+            'compatibility-version: 1.0.0' \
+            'exports:' \
+            '  - archs:           [ armv7, armv7s ]' \
+            '    symbols:         [ ___error, _exit, _abort ]' \
+            '...' > "$STUB_DIR/libSystem.tbd"
+
+          cat "$STUB_DIR/libSystem.tbd"
 
           echo "Linking static library to dylib via clang with stub libSystem..."
           clang -fpic -shared -Wl,-all_load \

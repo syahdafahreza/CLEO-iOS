@@ -22,6 +22,6 @@ pub fn init() {
     touch::init();
     resources::init();
 
-    // Start checking for updates in the background.
-    github::start_update_check_thread();
+    // Background update check thread is disabled on iPhone 5
+    // github::start_update_check_thread();
 }

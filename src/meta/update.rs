@@ -143,6 +143,6 @@ fn init_for_title(screen: *mut u8) {
 }
 
 pub fn init() {
-    log::info!("installing update hook...");
-    crate::targets::init_for_title::install(init_for_title);
+    log::info!("Update hook disabled on 32-bit iPhone 5 build.");
+    // crate::targets::init_for_title::install(init_for_title);
 }

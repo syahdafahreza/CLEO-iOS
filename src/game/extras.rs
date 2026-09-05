@@ -212,20 +212,18 @@ fn debug_shader(shader: Shader) {
     }
 }
 
-fn write_fragment_shader(mask: u32) {
-    // Write the shader into the buffer.
-    call_original!(crate::targets::write_fragment_shader, mask);
+// Shader dumping is disabled on GTA SA v1.09 armv7.
+// fn write_fragment_shader(mask: u32) {
+//     call_original!(crate::targets::write_fragment_shader, mask);
+//     let shader = Shader::Fragment(mask);
+//     debug_shader(shader);
+// }
 
-    let shader = Shader::Fragment(mask);
-    debug_shader(shader);
-}
-
-fn write_vertex_shader(mask: u32) {
-    call_original!(crate::targets::write_vertex_shader, mask);
-
-    let shader = Shader::Vertex(mask);
-    debug_shader(shader);
-}
+// fn write_vertex_shader(mask: u32) {
+//     call_original!(crate::targets::write_vertex_shader, mask);
+//     let shader = Shader::Vertex(mask);
+//     debug_shader(shader);
+// }
 
 fn set_loading_messages(msg_1: *const c_char, msg_2: *const c_char) {
     unsafe {

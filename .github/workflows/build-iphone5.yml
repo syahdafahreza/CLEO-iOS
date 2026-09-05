@@ -39,7 +39,7 @@ jobs:
         run: |
           brew install ldid dpkg
 
-      - name: Build static library (armv7s-apple-ios)
+      - name: Build library (armv7s-apple-ios)
         run: |
           # armv7s-apple-ios is the correct tier-3 Rust target for iPhone 5.
           # Note: 'armv7-apple-ios' does NOT exist in Rust's target list.
@@ -48,28 +48,34 @@ jobs:
             --target armv7s-apple-ios \
             --release
 
-      - name: Link static library to dylib (ARMv7s)
+      - name: Prepare dylib (ARMv7s)
         run: |
           SDK_PATH=$(xcrun --sdk iphoneos --show-sdk-path)
           echo "Using iOS SDK at: $SDK_PATH"
 
-          clang -fpic -shared -Wl,-all_load \
-            target/armv7s-apple-ios/release/libcleo.a \
-            -o target/armv7s-apple-ios/release/libcleo.dylib \
-            -isysroot "$SDK_PATH" \
-            -target armv7s-apple-ios10.0 \
-            -arch armv7s \
-            -framework CoreFoundation \
-            -framework Foundation \
-            -framework Security \
-            -framework SystemConfiguration \
-            -framework UIKit \
-            -lobjc \
-            -ldl \
-            -lc++
+          TARGET_DIR="target/armv7s-apple-ios/release"
 
-          echo "Dylib created successfully"
-          file target/armv7s-apple-ios/release/libcleo.dylib
+          # Check if cargo already built a cdylib (libcleo.dylib)
+          if [ -f "$TARGET_DIR/libcleo.dylib" ]; then
+            echo "Cargo successfully created $TARGET_DIR/libcleo.dylib directly!"
+          elif [ -f "$TARGET_DIR/libcleo.a" ]; then
+            echo "Linking static library to dylib via clang with -undefined dynamic_lookup..."
+            clang -fpic -shared -Wl,-all_load \
+              "$TARGET_DIR/libcleo.a" \
+              -o "$TARGET_DIR/libcleo.dylib" \
+              -target armv7s-apple-ios10.0 \
+              -arch armv7s \
+              -Wl,-undefined,dynamic_lookup \
+              -lobjc \
+              -lc++
+          else
+            echo "Error: Neither libcleo.dylib nor libcleo.a found in $TARGET_DIR!"
+            ls -la "$TARGET_DIR"
+            exit 1
+          fi
+
+          echo "Dylib ready:"
+          file "$TARGET_DIR/libcleo.dylib"
 
       - name: Sign dylib with ldid
         run: |

@@ -3,7 +3,7 @@
 # NOTE: Rust uses 'armv7s-apple-ios' (not 'armv7-apple-ios' which doesn't exist).
 
 [target.armv7s-apple-ios]
-rustflags = ["-C", "panic=abort"]
+rustflags = ["-C", "panic=abort", "-C", "link-arg=-undefined", "-C", "link-arg=dynamic_lookup"]
 
 [unstable]
 # Required for building std for tier-3 target armv7s-apple-ios

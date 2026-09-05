@@ -39,7 +39,7 @@ jobs:
         run: |
           brew install ldid dpkg
 
-      - name: Build library (armv7s-apple-ios)
+      - name: Build static library (armv7s-apple-ios)
         run: |
           # armv7s-apple-ios is the correct tier-3 Rust target for iPhone 5.
           # Note: 'armv7-apple-ios' does NOT exist in Rust's target list.
@@ -48,34 +48,44 @@ jobs:
             --target armv7s-apple-ios \
             --release
 
-      - name: Prepare dylib (ARMv7s)
+      - name: Link static library to dylib (ARMv7s)
         run: |
           SDK_PATH=$(xcrun --sdk iphoneos --show-sdk-path)
           echo "Using iOS SDK at: $SDK_PATH"
 
           TARGET_DIR="target/armv7s-apple-ios/release"
+          STUB_DIR=$(mktemp -d)
 
-          # Check if cargo already built a cdylib (libcleo.dylib)
-          if [ -f "$TARGET_DIR/libcleo.dylib" ]; then
-            echo "Cargo successfully created $TARGET_DIR/libcleo.dylib directly!"
-          elif [ -f "$TARGET_DIR/libcleo.a" ]; then
-            echo "Linking static library to dylib via clang with -undefined dynamic_lookup..."
-            clang -fpic -shared -Wl,-all_load \
-              "$TARGET_DIR/libcleo.a" \
-              -o "$TARGET_DIR/libcleo.dylib" \
-              -target armv7s-apple-ios10.0 \
-              -arch armv7s \
-              -Wl,-undefined,dynamic_lookup \
-              -lobjc \
-              -lc++
-          else
-            echo "Error: Neither libcleo.dylib nor libcleo.a found in $TARGET_DIR!"
-            ls -la "$TARGET_DIR"
-            exit 1
-          fi
+          # Modern Xcode SDKs removed 32-bit (armv7/armv7s) architectures from .tbd files.
+          # Apple's ld requires linking with libSystem for dylibs, so we provide an armv7s stub
+          # so ld is satisfied at build time. On the actual iOS device dyld loads the real /usr/lib/libSystem.B.dylib.
+          cat << 'EOF' > "$STUB_DIR/libSystem.tbd"
+--- !tapi-tbd-v2
+archs:           [ armv7, armv7s ]
+platform:        ios
+install-name:    /usr/lib/libSystem.B.dylib
+current-version: 1238.60.2
+compatibility-version: 1.0.0
+exports:
+  - archs:           [ armv7, armv7s ]
+    symbols:         [ ___error, _exit, _abort ]
+...
+EOF
 
-          echo "Dylib ready:"
+          echo "Linking static library to dylib via clang with stub libSystem..."
+          clang -fpic -shared -Wl,-all_load \
+            "$TARGET_DIR/libcleo.a" \
+            -o "$TARGET_DIR/libcleo.dylib" \
+            -target armv7s-apple-ios10.0 \
+            -arch armv7s \
+            -L"$STUB_DIR" \
+            -Wl,-undefined,dynamic_lookup \
+            -lobjc \
+            -lc++
+
+          echo "Dylib created successfully:"
           file "$TARGET_DIR/libcleo.dylib"
+          rm -rf "$STUB_DIR"
 
       - name: Sign dylib with ldid
         run: |

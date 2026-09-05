@@ -1,0 +1,9 @@
+# Cargo configuration for iPhone 5 (ARMv7, iOS 10.3.4) build.
+# This branch targets GTA SA v1.09 (32-bit armv7), rootful jailbreak.
+
+[target.armv7-apple-ios]
+rustflags = ["-C", "panic=abort"]
+
+[unstable]
+# Required for building std for tier-3 target armv7-apple-ios
+build-std = ["std", "panic_abort"]

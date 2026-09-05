@@ -35,7 +35,8 @@ impl Cheat {
     }
 
     fn get_function(&self) -> Option<fn()> {
-        let entry_address = 0x10065c358 + (self.index * 8);
+        // GTA SA v1.09 armv7: cheat function pointer table base
+        let entry_address = 0x0051b710 + (self.index * 8);
         let ptr = hook::slide::<*const *const u64>(entry_address);
 
         // The array pointer shouldn't be null, but we check it just in case.
@@ -54,7 +55,8 @@ impl Cheat {
 
     fn get_active_mut(&self) -> &'static mut bool {
         unsafe {
-            hook::slide::<*mut bool>(0x10072dda8 + self.index)
+            // GTA SA v1.09 armv7: cheat active flags array base
+            hook::slide::<*mut bool>(0x005abef4 + self.index)
                 .as_mut()
                 .unwrap()
         }

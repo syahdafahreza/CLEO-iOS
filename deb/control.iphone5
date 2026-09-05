@@ -1,0 +1,26 @@
+Package: com.squ1dd13.cleo
+Name: CLEO
+Depends: mobilesubstrate (>= 0.9.6000)
+Provides: com.squ1dd13.csios, com.squ1dd13.zinc
+Conflicts: com.squ1dd13.csios, com.squ1dd13.zinc, com.brend0n.gtasa60fps
+Replaces: com.squ1dd13.csios, com.squ1dd13.zinc
+Version: 2.6.1-iphone5
+Architecture: iphoneos-arm
+Description: CLEO for GTA:SA iOS (iPhone 5 / ARMv7, iOS 10.3.4, GTA SA v1.09 rootful).
+ .
+ Features:
+  - File support: CSA scripts, CSI scripts, FXT language extensions
+  - Mod loading: Archive (.img) file modding, Automatic file replacement
+  - Cheat menu
+  - 60 FPS
+ .
+ Changelog (2.6.1-iphone5):
+  - iPhone 5 Support: ARMv7 32-bit build for iOS 10.3.4, GTA SA v1.09.
+  - Rootful jailbreak only (socket-based jailbreaks).
+  - Installs to /Library/MobileSubstrate/DynamicLibraries/ (classic rootful path).
+  - Compatible with Cydia Substrate 0.9.6301 by saurik.
+ .
+ Translators & Contributors: AYZM, Bruno Melo, Flylarb The BMO, ODIN, RAiZOK, Syahda Fahreza, tharryz, wewewer1, Seemann, Alexander Blade, DK22Pac, oliver#1219
+Maintainer: squ1dd13
+Author: squ1dd13
+Section: Tweaks

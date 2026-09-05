@@ -46,7 +46,8 @@ pub struct ControllerState {
 impl ControllerState {
     pub fn _has_input(&self) -> bool {
         // eq: CControllerState::CheckForInput(...)
-        crate::hook::slide::<fn(*const ControllerState) -> bool>(0x100244118)(self)
+        // GTA SA v1.09 armv7
+        crate::hook::slide::<fn(*const ControllerState) -> bool>(0x001e28b4)(self)
     }
 }
 
@@ -61,7 +62,8 @@ fn update_pads() {
     crate::call_original!(crate::targets::update_pads);
 
     let (current_state, previous_state) = unsafe {
-        let ptr: *mut ControllerState = crate::hook::slide(0x1007baf5c);
+        // GTA SA v1.09 armv7: controller states array
+        let ptr: *mut ControllerState = crate::hook::slide(0x005f812c);
 
         let refs = (ptr.offset(0).as_mut(), ptr.offset(1).as_ref());
 

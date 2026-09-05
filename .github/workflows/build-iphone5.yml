@@ -1,0 +1,152 @@
+name: Build CLEO iOS — iPhone 5 (ARMv7)
+
+# Triggers ONLY on the For-iPhone-5 branch.
+# Branch 'main' is for iPhone 6S+ (arm64) and is NOT affected by this workflow.
+on:
+  push:
+    branches: [For-iPhone-5]
+    tags: ['*-iphone5']
+  pull_request:
+    branches: [For-iPhone-5]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout repository (For-iPhone-5 branch)
+        uses: actions/checkout@v4
+
+      - name: Install Rust nightly with rust-src (required for tier-3 armv7 target)
+        uses: dtolnay/rust-toolchain@nightly
+        with:
+          # rust-src is required for -Z build-std on tier-3 targets
+          components: rust-src
+
+      - name: Cache Cargo registry & build
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-armv7-${{ hashFiles('**/Cargo.lock', '**/Cargo.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-armv7-
+
+      - name: Install build tools
+        run: |
+          brew install ldid dpkg
+
+      - name: Build static library (armv7-apple-ios)
+        run: |
+          # armv7-apple-ios is a tier-3 target — requires nightly + build-std.
+          # .cargo/config.toml already configures [unstable] build-std.
+          cargo build \
+            --target armv7-apple-ios \
+            --release
+
+      - name: Link static library to dylib (ARMv7)
+        run: |
+          SDK_PATH=$(xcrun --sdk iphoneos --show-sdk-path)
+          echo "Using iOS SDK at: $SDK_PATH"
+
+          clang -fpic -shared -Wl,-all_load \
+            target/armv7-apple-ios/release/libcleo.a \
+            -o target/armv7-apple-ios/release/libcleo.dylib \
+            -isysroot "$SDK_PATH" \
+            -target armv7-apple-ios10.0 \
+            -arch armv7 \
+            -framework CoreFoundation \
+            -framework Foundation \
+            -framework Security \
+            -framework SystemConfiguration \
+            -framework UIKit \
+            -lobjc \
+            -ldl \
+            -lc++
+
+          echo "Dylib created successfully"
+          file target/armv7-apple-ios/release/libcleo.dylib
+
+      - name: Sign dylib with ldid
+        run: |
+          ldid -S target/armv7-apple-ios/release/libcleo.dylib
+          echo "Dylib signed successfully"
+
+      - name: Package .deb (iPhone 5 / rootful)
+        run: |
+          set -e
+          PKG_DIR=$(mktemp -d)
+
+          # DEBIAN control
+          mkdir -p "$PKG_DIR/DEBIAN"
+          cp "deb/control.iphone5" "$PKG_DIR/DEBIAN/control"
+
+          # Classic rootful path: /Library/MobileSubstrate/DynamicLibraries/
+          DYLIB_DIR="$PKG_DIR/Library/MobileSubstrate/DynamicLibraries"
+          mkdir -p "$DYLIB_DIR"
+
+          # Copy dylib and plist
+          cp target/armv7-apple-ios/release/libcleo.dylib "$DYLIB_DIR/CLEO.dylib"
+          cp deb/cleo.plist "$DYLIB_DIR/CLEO.plist"
+
+          # Build .deb
+          DEB_NAME="cleo.iphone5.deb"
+          dpkg-deb -Z xz -b "$PKG_DIR" "$DEB_NAME"
+
+          echo "Built $DEB_NAME"
+          dpkg-deb --info "$DEB_NAME"
+          dpkg-deb --contents "$DEB_NAME"
+
+          rm -rf "$PKG_DIR"
+
+      - name: Upload .deb artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: cleo-iphone5-deb
+          path: "cleo.iphone5.deb"
+          if-no-files-found: error
+
+  release:
+    name: Create GitHub Release (iPhone 5)
+    # Only runs when a tag ending in '-iphone5' is pushed, e.g. v2.6.1-iphone5
+    if: startsWith(github.ref, 'refs/tags/') && endsWith(github.ref, '-iphone5')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: cleo-iphone5-deb
+          path: artifacts
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/cleo.iphone5.deb
+          generate_release_notes: true
+          draft: false
+          prerelease: ${{ contains(github.ref, 'alpha') }}
+          name: "CLEO iOS — iPhone 5 ${{ github.ref_name }}"
+          body: |
+            ## CLEO iOS — iPhone 5 Build
+
+            **Target device**: iPhone 5 (Apple A6, ARMv7 32-bit)
+            **iOS**: 10.3.4
+            **GTA SA version**: v1.09 (gta3sa.app)
+            **Jailbreak**: Rootful only (socket-based jailbreaks)
+            **MobileSubstrate**: Compatible with Cydia Substrate >= 0.9.6000
+
+            ### Installation
+            1. Copy `cleo.iphone5.deb` to your iPhone 5
+            2. Install via `dpkg -i cleo.iphone5.deb` or Filza/Cydia
+            3. Respring your device
+            4. Launch GTA San Andreas
+
+            ### Log location
+            `/var/mobile/Documents/CLEO/cleo.log`

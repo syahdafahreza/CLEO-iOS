@@ -15,90 +15,97 @@ mod meta;
 mod targets {
     #![allow(clippy::unreadable_literal)]
 
+    // -------------------------------------------------------------------------
+    // Addresses are for GTA SA v1.09 (armv7 / 32-bit) on iPhone 5, iOS 10.3.4.
+    // TEXT segment base: 0x00004000  DATA segment base: 0x004A0000
+    // All community-sourced; verify via /var/mobile/Documents/CLEO/cleo.log.
+    // -------------------------------------------------------------------------
+
     use super::{c_char, create_hard_target, create_soft_target, Object, Sel};
 
-    create_soft_target!(script_tick, 0x1001d0f40, fn());
+    create_soft_target!(script_tick, 0x00159a88, fn());
 
-    create_soft_target!(process_touch, 0x1004e831c, fn(f32, f32, f64, f32, u64));
+    create_soft_target!(process_touch, 0x003f1e28, fn(f32, f32, f64, f32, u64));
 
     create_soft_target!(
         get_gxt_string,
-        0x10044142c,
+        0x0034f3c0,
         fn(usize, *const c_char) -> *const u16
     );
 
-    create_soft_target!(legal_splash, 0x1000d7cac, fn(*mut Object, sel: Sel));
-    create_soft_target!(legal_splash_german, 0x1000c6b40, fn(*mut Object, sel: Sel));
+    create_soft_target!(legal_splash, 0x000b3e6c, fn(*mut Object, sel: Sel));
+    create_soft_target!(legal_splash_german, 0x000a5d20, fn(*mut Object, sel: Sel));
 
     create_soft_target!(
         store_crash_fix,
-        0x100007c1c,
+        0x00007ad0,
         fn(*mut Object, Sel) -> *const Object
     );
 
     create_soft_target!(
         button_hack,
-        0x1004ebe70,
+        0x003f9004,
         fn(*const Object, Sel, *mut Object) -> *mut Object
     );
 
-    create_soft_target!(gen_plate, 0x10037ba2c, fn(*mut u8, i32) -> bool);
+    create_soft_target!(gen_plate, 0x002d3498, fn(*mut u8, i32) -> bool);
 
-    create_soft_target!(idle, 0x100242c20, fn(u64, u64));
+    create_soft_target!(idle, 0x001e1164, fn(u64, u64));
 
-    create_soft_target!(cycles_per_millisecond, 0x10026c9c0, fn() -> u32);
+    create_soft_target!(cycles_per_millisecond, 0x00208ef4, fn() -> u32);
 
-    create_soft_target!(do_game_state, 0x1004b6a54, fn());
+    create_soft_target!(do_game_state, 0x003c9d10, fn());
 
-    create_hard_target!(do_cheats, 0x1001a7f28, fn());
+    create_hard_target!(do_cheats, 0x001584ac, fn());
 
-    create_soft_target!(reset_before_start, 0x1002ce55c, fn());
+    create_soft_target!(reset_before_start, 0x00253f6c, fn());
 
     create_soft_target!(
         find_absolute_path,
-        0x1004e4c48,
+        0x003f0ea4,
         fn(i32, *const u8, i32) -> *const u8
     );
 
-    create_soft_target!(init_for_title, 0x100339b44, fn(*mut u8));
+    create_soft_target!(init_for_title, 0x002a8114, fn(*mut u8));
 
-    create_soft_target!(write_fragment_shader, 0x100137528, fn(u32));
+    // NOTE: write_fragment_shader and write_vertex_shader are NOT hooked on
+    // GTA SA v1.09 armv7 — the shader pipeline is different in this version.
+    // They were debug-only on arm64 too (cfg!(feature = "debug")), but the
+    // addresses don't exist in this binary.
 
-    create_soft_target!(write_vertex_shader, 0x100137cd0, fn(u32));
+    create_soft_target!(load_settings, 0x002542ec, fn(u64));
 
-    create_soft_target!(load_settings, 0x1002ce8e4, fn(u64));
+    create_hard_target!(display_fps, 0x001e0c94, fn());
 
-    create_hard_target!(display_fps, 0x100241cd8, fn());
-
-    create_soft_target!(update_pads, 0x100244908, fn());
+    create_soft_target!(update_pads, 0x001e2b48, fn());
 
     create_soft_target!(
         load_cd_directory,
-        0x1002f0e18,
+        0x00265550,
         fn(*const i8, archive_id: u32)
     );
 
     create_soft_target!(
         end_dragging,
-        0x1000cbd08,
+        0x000ad2e0,
         fn(*const Object, Sel, *mut Object, bool)
     );
 
     create_hard_target!(
         loading_messages,
-        0x1002b5a78,
+        0x002381cc,
         fn(*const c_char, *const c_char)
     );
 
-    create_soft_target!(reset_cheats, 0x1001a8194, fn());
+    create_soft_target!(reset_cheats, 0x001587fc, fn());
 
     create_soft_target!(
         height_above_ceiling,
-        0x1004801e0,
+        0x003b2a74,
         fn(usize, f32, usize) -> f32
     );
 
-    create_soft_target!(init_stage_three, 0x1002f9b20, fn(usize));
+    create_soft_target!(init_stage_three, 0x00269e54, fn(usize));
 }
 
 #[ctor]

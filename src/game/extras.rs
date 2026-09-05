@@ -15,7 +15,8 @@ fn cycles_per_millisecond() -> u32 {
     let fps_cap = Options::get().fps_lock.fps();
 
     unsafe {
-        *hook::slide::<*mut u32>(0x1008f07b8) = fps_cap;
+        // GTA SA v1.09 armv7: CTimer::ms_fTimeStep / FPS cap global
+        *hook::slide::<*mut u32>(0x006b8044) = fps_cap;
     }
 
     call_original!(targets::cycles_per_millisecond)
@@ -25,7 +26,8 @@ fn idle(p1: u64, p2: u64) {
     let show_fps = matches!(Options::get().fps_visibility, FpsVisibility::Visible);
 
     unsafe {
-        *hook::slide::<*mut bool>(0x10081c519) = show_fps;
+        // GTA SA v1.09 armv7: FPS display flag
+        *hook::slide::<*mut bool>(0x00644e01) = show_fps;
     }
 
     call_original!(targets::idle, p1, p2);
@@ -40,25 +42,26 @@ struct Rgba {
 }
 
 fn display_fps() {
-    let delta_time = crate::hook::slide::<fn() -> u32>(0x1004e8c70)();
-    let current_delta = crate::hook::slide::<*mut isize>(0x1007baf00);
+    // GTA SA v1.09 armv7 addresses for FPS counter internals.
+    let delta_time = crate::hook::slide::<fn() -> u32>(0x003f1fa4)();
+    let current_delta = crate::hook::slide::<*mut isize>(0x005f80e0);
     let new_delta_index = unsafe { *current_delta } % 40;
 
     unsafe {
         *current_delta += 1;
     }
 
-    let delta_times: *mut u32 = crate::hook::slide(0x1007bae60);
+    let delta_times: *mut u32 = crate::hook::slide(0x005f8040);
 
     unsafe {
         delta_times.offset(new_delta_index).write(delta_time);
     }
 
     // eq: CFont::SetBackground(...)
-    crate::hook::slide::<fn(u8, u8)>(0x100381b94)(1, 0);
+    crate::hook::slide::<fn(u8, u8)>(0x002e53b0)(1, 0);
 
     // eq: CFont::SetBackgroundColor(...)
-    crate::hook::slide::<fn(*const Rgba)>(0x100381ba8)(&Rgba {
+    crate::hook::slide::<fn(*const Rgba)>(0x002e53c4)(&Rgba {
         red: 0,
         green: 0,
         blue: 0,
@@ -66,28 +69,28 @@ fn display_fps() {
     });
 
     // eq: CFont::SetScale(...)
-    crate::hook::slide::<fn(f32)>(0x1003819e0)(1.12);
+    crate::hook::slide::<fn(f32)>(0x002e5200)(1.12);
 
     // eq: CFont::SetOrientation(...)
-    crate::hook::slide::<fn(u32)>(0x100381be4)(0);
+    crate::hook::slide::<fn(u32)>(0x002e5400)(0);
 
     // eq: CFont::SetJustify(...)
-    crate::hook::slide::<fn(u8)>(0x100381bd4)(0);
+    crate::hook::slide::<fn(u8)>(0x002e53f0)(0);
 
     // eq: CFont::SetCentreSize(...)
-    crate::hook::slide::<fn(f32)>(0x100381ad0)(200.0);
+    crate::hook::slide::<fn(f32)>(0x002e52f0)(200.0);
 
     // eq: CFont::SetProportional(...)
-    crate::hook::slide::<fn(u8)>(0x100381b84)(0);
+    crate::hook::slide::<fn(u8)>(0x002e53a0)(0);
 
     // eq: CFont::SetFontStyle(...)
-    crate::hook::slide::<fn(u8)>(0x100381a20)(1);
+    crate::hook::slide::<fn(u8)>(0x002e5140)(1);
 
     // eq: CFont::SetEdge(...)
-    crate::hook::slide::<fn(u8)>(0x100381b58)(0);
+    crate::hook::slide::<fn(u8)>(0x002e5374)(0);
 
     // eq: CFont::SetColor(...)
-    crate::hook::slide::<fn(*const Rgba)>(0x100381824)(&Rgba {
+    crate::hook::slide::<fn(*const Rgba)>(0x002e5044)(&Rgba {
         red: 9,
         green: 243,
         blue: 11,
@@ -107,14 +110,15 @@ fn display_fps() {
     bytes.push(0);
 
     let (x, y) = unsafe {
-        let screen_wide = *crate::hook::slide::<*const i32>(0x1008f07b0);
-        let screen_high = *crate::hook::slide::<*const i32>(0x1008f07b4);
+        // GTA SA v1.09 armv7: screen dimensions globals
+        let screen_wide = *crate::hook::slide::<*const i32>(0x006b803c);
+        let screen_high = *crate::hook::slide::<*const i32>(0x006b8040);
 
         (screen_wide as f32 * 0.5, screen_high as f32 * 0.05)
     };
 
     // eq: CFont::PrintString(...)
-    crate::hook::slide::<fn(f32, f32, *const u16)>(0x1003809c8)(x, y, bytes.as_ptr());
+    crate::hook::slide::<fn(f32, f32, *const u16)>(0x002e41e8)(x, y, bytes.as_ptr());
 }
 
 /// A game shader.
@@ -155,9 +159,11 @@ impl Shader {
 
     /// Returns a pointer to the buffer that the game uses for this shader.
     fn buffer(self) -> *const i8 {
+        // NOTE: Shader buffer addresses are NOT available in GTA SA v1.09 armv7.
+        // This function should never be called since shader hooks are disabled.
         let static_addr = match self {
-            Shader::Fragment(_) => 0x100934e68,
-            Shader::Vertex(_) => 0x100936e69,
+            Shader::Fragment(_) => 0x0usize,
+            Shader::Vertex(_) => 0x0usize,
         };
 
         crate::hook::slide(static_addr)
@@ -244,14 +250,13 @@ pub fn init() {
     targets::idle::install(idle);
     targets::cycles_per_millisecond::install(cycles_per_millisecond);
 
-    if cfg!(feature = "debug") {
-        targets::write_fragment_shader::install(write_fragment_shader);
-        targets::write_vertex_shader::install(write_vertex_shader);
-    }
+    // NOTE: write_fragment_shader and write_vertex_shader hooks are DISABLED
+    // on GTA SA v1.09 armv7. The shader system is different in this binary.
+    // They were only used in debug builds on arm64 anyway.
 
     targets::display_fps::install(display_fps);
     targets::loading_messages::install(set_loading_messages);
 
-    // create_soft_target!(do_game_state, 0x1004b6a54, fn());
+    // create_soft_target!(do_game_state, 0x003c9d10, fn());
     // targets::height_above_ceiling::install(height_above_ceiling);
 }

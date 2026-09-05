@@ -1,4 +1,4 @@
-name: Build CLEO iOS — iPhone 5 (ARMv7)
+name: Build CLEO iOS — iPhone 5 (ARMv7s)
 
 # Triggers ONLY on the For-iPhone-5 branch.
 # Branch 'main' is for iPhone 6S+ (arm64) and is NOT affected by this workflow.
@@ -18,7 +18,7 @@ jobs:
       - name: Checkout repository (For-iPhone-5 branch)
         uses: actions/checkout@v4
 
-      - name: Install Rust nightly with rust-src (required for tier-3 armv7 target)
+      - name: Install Rust nightly with rust-src (required for tier-3 armv7s target)
         uses: dtolnay/rust-toolchain@nightly
         with:
           # rust-src is required for -Z build-std on tier-3 targets
@@ -31,33 +31,34 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             target
-          key: ${{ runner.os }}-cargo-armv7-${{ hashFiles('**/Cargo.lock', '**/Cargo.toml') }}
+          key: ${{ runner.os }}-cargo-armv7s-${{ hashFiles('**/Cargo.lock', '**/Cargo.toml') }}
           restore-keys: |
-            ${{ runner.os }}-cargo-armv7-
+            ${{ runner.os }}-cargo-armv7s-
 
       - name: Install build tools
         run: |
           brew install ldid dpkg
 
-      - name: Build static library (armv7-apple-ios)
+      - name: Build static library (armv7s-apple-ios)
         run: |
-          # armv7-apple-ios is a tier-3 target — requires nightly + build-std.
-          # .cargo/config.toml already configures [unstable] build-std.
+          # armv7s-apple-ios is the correct tier-3 Rust target for iPhone 5.
+          # Note: 'armv7-apple-ios' does NOT exist in Rust's target list.
+          # .cargo/config.toml configures [unstable] build-std for this target.
           cargo build \
-            --target armv7-apple-ios \
+            --target armv7s-apple-ios \
             --release
 
-      - name: Link static library to dylib (ARMv7)
+      - name: Link static library to dylib (ARMv7s)
         run: |
           SDK_PATH=$(xcrun --sdk iphoneos --show-sdk-path)
           echo "Using iOS SDK at: $SDK_PATH"
 
           clang -fpic -shared -Wl,-all_load \
-            target/armv7-apple-ios/release/libcleo.a \
-            -o target/armv7-apple-ios/release/libcleo.dylib \
+            target/armv7s-apple-ios/release/libcleo.a \
+            -o target/armv7s-apple-ios/release/libcleo.dylib \
             -isysroot "$SDK_PATH" \
-            -target armv7-apple-ios10.0 \
-            -arch armv7 \
+            -target armv7s-apple-ios10.0 \
+            -arch armv7s \
             -framework CoreFoundation \
             -framework Foundation \
             -framework Security \
@@ -68,11 +69,11 @@ jobs:
             -lc++
 
           echo "Dylib created successfully"
-          file target/armv7-apple-ios/release/libcleo.dylib
+          file target/armv7s-apple-ios/release/libcleo.dylib
 
       - name: Sign dylib with ldid
         run: |
-          ldid -S target/armv7-apple-ios/release/libcleo.dylib
+          ldid -S target/armv7s-apple-ios/release/libcleo.dylib
           echo "Dylib signed successfully"
 
       - name: Package .deb (iPhone 5 / rootful)
@@ -89,7 +90,7 @@ jobs:
           mkdir -p "$DYLIB_DIR"
 
           # Copy dylib and plist
-          cp target/armv7-apple-ios/release/libcleo.dylib "$DYLIB_DIR/CLEO.dylib"
+          cp target/armv7s-apple-ios/release/libcleo.dylib "$DYLIB_DIR/CLEO.dylib"
           cp deb/cleo.plist "$DYLIB_DIR/CLEO.plist"
 
           # Build .deb
@@ -136,7 +137,7 @@ jobs:
           body: |
             ## CLEO iOS — iPhone 5 Build
 
-            **Target device**: iPhone 5 (Apple A6, ARMv7 32-bit)
+            **Target device**: iPhone 5 (Apple A6, ARMv7s 32-bit)
             **iOS**: 10.3.4
             **GTA SA version**: v1.09 (gta3sa.app)
             **Jailbreak**: Rootful only (socket-based jailbreaks)

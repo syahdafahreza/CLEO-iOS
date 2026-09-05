@@ -1,9 +1,10 @@
-# Cargo configuration for iPhone 5 (ARMv7, iOS 10.3.4) build.
-# This branch targets GTA SA v1.09 (32-bit armv7), rootful jailbreak.
+# Cargo configuration for iPhone 5 (ARMv7s, iOS 10.3.4) build.
+# This branch targets GTA SA v1.09 (32-bit armv7s), rootful jailbreak.
+# NOTE: Rust uses 'armv7s-apple-ios' (not 'armv7-apple-ios' which doesn't exist).
 
-[target.armv7-apple-ios]
+[target.armv7s-apple-ios]
 rustflags = ["-C", "panic=abort"]
 
 [unstable]
-# Required for building std for tier-3 target armv7-apple-ios
+# Required for building std for tier-3 target armv7s-apple-ios
 build-std = ["std", "panic_abort"]

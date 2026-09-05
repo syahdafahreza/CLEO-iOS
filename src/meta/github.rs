@@ -174,41 +174,9 @@ impl Ord for Version {
 
 /// Fetches all of the available CLEO releases from GitHub.
 fn fetch_releases_from_github() -> Result<impl Iterator<Item = Version>> {
-    let client = reqwest::blocking::Client::new();
-
-    let response = client
-        .get("https://api.github.com/repos/squ1dd13/CLEO-iOS/releases")
-        .header(reqwest::header::USER_AGENT, "cleo thing")
-        .send()?;
-
-    let releases: serde_json::Value = serde_json::from_reader(response)?;
-
-    let releases = releases
-        .as_array()
-        .cloned()
-        .ok_or_else(|| eyre::format_err!("JSON was not an array: {}", releases))?;
-
-    Ok(releases.into_iter().filter_map(move |release| {
-        let version = Version::parse(release.get("tag_name")?.as_str()?)?;
-
-        // We need to ensure that the URL that `Version` gives matches the URL that GitHub gave us.
-        // If they don't match, one of them is bad.
-        let gh_url = release.get("html_url")?.as_str()?;
-        let ver_url = version.url();
-
-        if gh_url != ver_url {
-            log::error!(
-                "update URL mismatch: gh said {} but we said {}",
-                gh_url,
-                ver_url
-            );
-
-            // This version is invalid.
-            return None;
-        }
-
-        Some(version)
-    }))
+    // Disabled on 32-bit iOS 10 to avoid reqwest pulling in unsupported Security.framework symbols
+    let releases: Vec<Version> = Vec::new();
+    Ok(releases.into_iter())
 }
 
 /// Returns the path of the cache file for the releases.

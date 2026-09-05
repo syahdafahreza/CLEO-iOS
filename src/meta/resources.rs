@@ -276,10 +276,22 @@ pub fn get_log_path() -> PathBuf {
 }
 
 pub fn get_documents_path(resource_name: &str) -> PathBuf {
-    let mut path = std::env::temp_dir();
-    path.set_file_name("Documents");
-    path.push(resource_name);
+    let mut path = {
+        let mut p = std::env::temp_dir();
+        p.set_file_name("Documents");
+        if !p.exists() {
+            let legacy = PathBuf::from("/var/mobile/Documents");
+            if legacy.exists() {
+                legacy
+            } else {
+                p
+            }
+        } else {
+            p
+        }
+    };
 
+    path.push(resource_name);
     path
 }
 

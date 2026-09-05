@@ -374,7 +374,7 @@ impl CleoScript {
                 self.collect_value_args(2);
 
                 let (index, value) = {
-                    let args: *const u32 = get_args_ptr();
+                    let args: *const u32 = Self::get_args_ptr();
                     (unsafe { args.read() }, unsafe { args.add(1).read() })
                 };
 
@@ -387,7 +387,7 @@ impl CleoScript {
                 self.collect_value_args(1);
 
                 let index = {
-                    let args: *const u32 = get_args_ptr();
+                    let args: *const u32 = Self::get_args_ptr();
                     unsafe { args.read() }
                 };
 
@@ -400,7 +400,7 @@ impl CleoScript {
             0x00e1 => {
                 self.collect_value_args(2);
 
-                let zone = unsafe { *get_args_ptr().add(1) } as usize;
+                let zone = unsafe { *Self::get_args_ptr().add(1) } as usize;
 
                 let state = if let Some(zone) = touch::Zone::by_number(zone) {
                     touch::TouchInterface::shared().is_zone_pressed(zone)
@@ -417,7 +417,7 @@ impl CleoScript {
                 let destination: *mut i32 = self.read_variable_arg();
                 self.collect_value_args(2);
 
-                let zone = unsafe { *get_args_ptr() as usize };
+                let zone = unsafe { *Self::get_args_ptr() as usize };
 
                 let out = if let Some(zone) = touch::Zone::by_number(zone) {
                     touch::TouchInterface::shared().is_zone_pressed(zone) as i32

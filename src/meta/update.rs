@@ -33,46 +33,53 @@ fn show_yes_no_menu(
     callback_arg: usize,
     yes_fn: fn(usize),
     no_fn: fn(),
-) {
-    unsafe {
-        screen.offset(0x75).write(0);
+    #[cfg(target_pointer_width = "64")]
+    {
+        unsafe {
+            screen.offset(0x75).write(0);
 
-        // eq: MobileMenu::Load(...)
-        hook::slide::<fn(*mut u8)>(0x100339838)(screen);
+            // eq: MobileMenu::Load(...)
+            hook::slide::<fn(*mut u8)>(0x100339838)(screen);
+        }
+
+        // Create localisation keys for the title and message so we can show them in the menu.
+        text::set_kv("NAG_TTL", title.as_ref());
+        text::set_kv("NAG_MSG", message.as_ref());
+
+        // eq: nag_menu = operator.new(0x80)
+        let menu = hook::slide::<fn(u64) -> usize>(0x1004f9be0)(0x80);
+
+        // eq: MobileMenu::InitForNag(...)
+        hook::slide::<fn(usize, *const u8, *const u8, fn(usize), usize, fn(), bool) -> u64>(
+            0x100348964,
+        )(
+            menu,                  // Menu structure (uninitialised before call)
+            b"NAG_TTL\0".as_ptr(), // Title
+            b"NAG_MSG\0".as_ptr(), // Message
+            yes_fn,                // "Yes" function
+            callback_arg,          // Callback argument
+            no_fn,                 // "No" function
+            false,                 // Enable 'back' button
+        );
+
+        // We could create a repl(C) struct, but the fields we need are at fairly large
+        //  offsets, so it's easiest just to mess with pointers.
+        let screen: *mut usize = screen.cast();
+
+        // Offset is 6 * u64, so 48 bytes (0x30).
+        if unsafe { screen.offset(6).read() } != 0 {
+            // eq: MobileMenu::ProcessPending(...)
+            hook::slide::<fn(*mut usize)>(0x100338f5c)(screen);
+        }
+
+        unsafe {
+            screen.offset(6).write(menu);
+        }
     }
 
-    // Create localisation keys for the title and message so we can show them in the menu.
-    text::set_kv("NAG_TTL", title.as_ref());
-    text::set_kv("NAG_MSG", message.as_ref());
-
-    // eq: nag_menu = operator.new(0x80)
-    let menu = hook::slide::<fn(u64) -> usize>(0x1004f9be0)(0x80);
-
-    // eq: MobileMenu::InitForNag(...)
-    hook::slide::<fn(usize, *const u8, *const u8, fn(usize), usize, fn(), bool) -> u64>(
-        0x100348964,
-    )(
-        menu,                  // Menu structure (uninitialised before call)
-        b"NAG_TTL\0".as_ptr(), // Title
-        b"NAG_MSG\0".as_ptr(), // Message
-        yes_fn,                // "Yes" function
-        callback_arg,          // Callback argument
-        no_fn,                 // "No" function
-        false,                 // Enable 'back' button
-    );
-
-    // We could create a repl(C) struct, but the fields we need are at fairly large
-    //  offsets, so it's easiest just to mess with pointers.
-    let screen: *mut usize = screen.cast();
-
-    // Offset is 6 * u64, so 48 bytes (0x30).
-    if unsafe { screen.offset(6).read() } != 0 {
-        // eq: MobileMenu::ProcessPending(...)
-        hook::slide::<fn(*mut usize)>(0x100338f5c)(screen);
-    }
-
-    unsafe {
-        screen.offset(6).write(menu);
+    #[cfg(target_pointer_width = "32")]
+    {
+        let _ = (screen, title.as_ref(), message.as_ref(), callback_arg, yes_fn, no_fn);
     }
 }
 

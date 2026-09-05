@@ -525,39 +525,46 @@ fn set_game_timer_paused(want_pause: bool) {
     //  menu's pausing). To stop this being possible, we use PAUSED_ALREADY to say whether the game was paused when
     //  CLEO first tried to pause it (on opening the menu). Then, when CLEO tries to unpause the game, it only happens
     //  if the game was not paused already. This means that users can't unpause the game when the game itself wants to
-    //  be paused.
-    static mut PAUSED_ALREADY: bool = false;
+    #[cfg(target_pointer_width = "64")]
+    {
+        static mut PAUSED_ALREADY: bool = false;
 
-    let var_ptr = crate::hook::slide::<*mut bool>(0x1007d3b34);
+        let var_ptr = crate::hook::slide::<*mut bool>(0x1007d3b34);
 
-    if want_pause {
-        let currently_paused: bool = crate::hook::deref_global(0x1007d3b34);
+        if want_pause {
+            let currently_paused: bool = crate::hook::deref_global(0x1007d3b34);
 
-        if currently_paused {
-            unsafe {
-                PAUSED_ALREADY = true;
+            if currently_paused {
+                unsafe {
+                    PAUSED_ALREADY = true;
+                }
+
+                return;
             }
 
-            return;
-        }
+            unsafe {
+                PAUSED_ALREADY = false;
+                *var_ptr = true;
+            }
+        } else {
+            // We want to unpause.
 
-        unsafe {
-            PAUSED_ALREADY = false;
-            *var_ptr = true;
-        }
-    } else {
-        // We want to unpause.
+            if unsafe { PAUSED_ALREADY } {
+                // Don't do anything, because the game was paused when we found it.
+                log::info!("Game was paused when found, so not unpausing.");
+                return;
+            }
 
-        if unsafe { PAUSED_ALREADY } {
-            // Don't do anything, because the game was paused when we found it.
-            log::info!("Game was paused when found, so not unpausing.");
-            return;
+            // The game wasn't paused, so we can unpause it.
+            unsafe {
+                *var_ptr = false;
+            }
         }
+    }
 
-        // The game wasn't paused, so we can unpause it.
-        unsafe {
-            *var_ptr = false;
-        }
+    #[cfg(target_pointer_width = "32")]
+    {
+        let _ = want_pause;
     }
 }
 
@@ -755,7 +762,11 @@ impl Menu {
     }
 
     fn get_module_tab_data() -> Vec<TabData> {
+        #[cfg(target_pointer_width = "64")]
         let game_state = unsafe { *crate::hook::slide::<*const u32>(0x1006806d0) };
+
+        #[cfg(target_pointer_width = "32")]
+        let game_state = 9u32; // In game, allow all tabs on iPhone 5
 
         // The menu will be automatically created from any TabData structures in the
         //  vector that we return, so adding another tab simply requires adding other stuff here.

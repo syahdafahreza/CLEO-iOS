@@ -209,7 +209,14 @@ impl CleoScript {
             return;
         }
 
+        #[cfg(target_pointer_width = "64")]
         let game_time: u32 = hook::deref_global(0x1007d3af8);
+
+        #[cfg(target_pointer_width = "32")]
+        let game_time: u32 = {
+            static START: Lazy<std::time::Instant> = Lazy::new(std::time::Instant::now);
+            START.elapsed().as_millis() as u32
+        };
 
         if self.game_script.wakeup_time > game_time {
             // Don't wake up yet.
@@ -248,37 +255,85 @@ impl CleoScript {
 
         type Handler = fn(*mut GameScript, u16) -> u8;
 
-        // All opcodes >= 0xa8c are handled by a single function.
-        if opcode >= 0xa8c {
-            return hook::slide::<Handler>(0x10020980c)(&mut self.game_script, opcode) != 0;
+        #[cfg(target_pointer_width = "64")]
+        {
+            // All opcodes >= 0xa8c are handled by a single function.
+            if opcode >= 0xa8c {
+                return hook::slide::<Handler>(0x10020980c)(&mut self.game_script, opcode) != 0;
+            }
+
+            let handler = {
+                let handler_table: *const Handler = hook::slide(0x1005c11d8);
+
+                // Each function handles 100 commands.
+                let handler_index = opcode / 100;
+
+                // Multiply by two because the table alternates between null pointers and function pointers,
+                //  so each entry is actually 16 bytes (two pointers = 2 * 8).
+                let handler_offset = handler_index as usize * 2;
+
+                unsafe { handler_table.add(handler_offset).read() }
+            };
+
+            handler(&mut self.game_script, opcode) != 0
         }
 
-        let handler = {
-            let handler_table: *const Handler = hook::slide(0x1005c11d8);
-
-            // Each function handles 100 commands.
-            let handler_index = opcode / 100;
-
-            // Multiply by two because the table alternates between null pointers and function pointers,
-            //  so each entry is actually 16 bytes (two pointers = 2 * 8).
-            let handler_offset = handler_index as usize * 2;
-
-            unsafe { handler_table.add(handler_offset).read() }
-        };
-
-        handler(&mut self.game_script, opcode) != 0
+        #[cfg(target_pointer_width = "32")]
+        {
+            // In GTA SA v1.09 armv7, the handler table at 0x004ad510 contains 32 handlers (0..3199 opcodes).
+            let handler_index = (opcode / 100) as usize;
+            if handler_index < 32 {
+                let handler_table: *const Handler = hook::slide(0x004ad510);
+                let handler = unsafe { handler_table.add(handler_index).read() };
+                handler(&mut self.game_script, opcode) != 0
+            } else {
+                false
+            }
+        }
     }
 
     fn collect_value_args(&mut self, count: u32) {
+        #[cfg(target_pointer_width = "64")]
         hook::slide::<fn(*mut CleoScript, u32)>(0x1001cf474)(&mut *self, count);
+
+        #[cfg(target_pointer_width = "32")]
+        hook::slide::<fn(*mut CleoScript, u32)>(0x003d5800)(&mut *self, count);
     }
 
     fn read_variable_arg<T: Copy>(&mut self) -> T {
-        hook::slide::<fn(*mut CleoScript) -> T>(0x1001cfb04)(&mut *self)
+        #[cfg(target_pointer_width = "64")]
+        return hook::slide::<fn(*mut CleoScript) -> T>(0x1001cfb04)(&mut *self);
+
+        #[cfg(target_pointer_width = "32")]
+        unsafe {
+            let var_offset = self.game_script.ip.read();
+            self.game_script.ip = self.game_script.ip.add(1);
+            let ptr = self.game_script.locals.as_mut_ptr().add((var_offset as usize) % 40);
+            std::mem::transmute_copy(&ptr)
+        }
     }
 
     fn update_bool_flag(&mut self, value: bool) {
-        hook::slide::<fn(*mut CleoScript, bool)>(0x1001df890)(&mut *self, value)
+        #[cfg(target_pointer_width = "64")]
+        hook::slide::<fn(*mut CleoScript, bool)>(0x1001df890)(&mut *self, value);
+
+        #[cfg(target_pointer_width = "32")]
+        {
+            if self.game_script.not_flag {
+                self.game_script.bool_flag = !value;
+                self.game_script.not_flag = false;
+            } else {
+                self.game_script.bool_flag = value;
+            }
+        }
+    }
+
+    fn get_args_ptr() -> *const u32 {
+        #[cfg(target_pointer_width = "64")]
+        return hook::slide(0x1007ad690);
+
+        #[cfg(target_pointer_width = "32")]
+        return hook::slide(0x004a44c4);
     }
 
     /// Runs any extra code associated with the opcode. Returns true if the extra code
@@ -319,7 +374,7 @@ impl CleoScript {
                 self.collect_value_args(2);
 
                 let (index, value) = {
-                    let args: *const u32 = hook::slide(0x1007ad690);
+                    let args: *const u32 = get_args_ptr();
                     (unsafe { args.read() }, unsafe { args.add(1).read() })
                 };
 
@@ -332,7 +387,7 @@ impl CleoScript {
                 self.collect_value_args(1);
 
                 let index = {
-                    let args: *const u32 = hook::slide(0x1007ad690);
+                    let args: *const u32 = get_args_ptr();
                     unsafe { args.read() }
                 };
 
@@ -345,7 +400,7 @@ impl CleoScript {
             0x00e1 => {
                 self.collect_value_args(2);
 
-                let zone = unsafe { *hook::slide::<*const u32>(0x1007ad690).add(1) } as usize;
+                let zone = unsafe { *get_args_ptr().add(1) } as usize;
 
                 let state = if let Some(zone) = touch::Zone::by_number(zone) {
                     touch::TouchInterface::shared().is_zone_pressed(zone)
@@ -362,7 +417,7 @@ impl CleoScript {
                 let destination: *mut i32 = self.read_variable_arg();
                 self.collect_value_args(2);
 
-                let zone = unsafe { *hook::slide::<*const u32>(0x1007ad690) as usize };
+                let zone = unsafe { *get_args_ptr() as usize };
 
                 let out = if let Some(zone) = touch::Zone::by_number(zone) {
                     touch::TouchInterface::shared().is_zone_pressed(zone) as i32

@@ -76,8 +76,23 @@ impl<FuncType: std::fmt::Debug> Target<FuncType> {
         FuncType: Copy,
     {
         log::debug!("installing hard hook on target {:?}", self);
+        let hook_fn: fn(*mut std::ffi::c_void, *mut std::ffi::c_void, *mut *mut std::ffi::c_void) =
+            get_single_symbol(
+                "/Library/Frameworks/CydiaSubstrate.framework/CydiaSubstrate",
+                "MSHookFunction",
+            )
+            .or_else(|_| {
+                get_single_symbol(
+                    "/usr/lib/libsubstrate.dylib",
+                    "MSHookFunction",
+                )
+            })
+            .expect("Failed to find MSHookFunction in CydiaSubstrate!");
+
         unsafe {
-            let _ = hlhook::install_hook(self.get_as_fn(), replacement).unwrap();
+            let symbol = self.get_absolute() as *mut std::ffi::c_void;
+            let replace = std::mem::transmute_copy(&replacement);
+            hook_fn(symbol, replace, std::ptr::null_mut());
         }
     }
 
@@ -86,9 +101,25 @@ impl<FuncType: std::fmt::Debug> Target<FuncType> {
         FuncType: Copy,
     {
         log::debug!("installing soft hook on target {:?}", self);
+        let hook_fn: fn(*mut std::ffi::c_void, *mut std::ffi::c_void, *mut *mut std::ffi::c_void) =
+            get_single_symbol(
+                "/Library/Frameworks/CydiaSubstrate.framework/CydiaSubstrate",
+                "MSHookFunction",
+            )
+            .or_else(|_| {
+                get_single_symbol(
+                    "/usr/lib/libsubstrate.dylib",
+                    "MSHookFunction",
+                )
+            })
+            .expect("Failed to find MSHookFunction in CydiaSubstrate!");
+
         unsafe {
-            let trampoline = hlhook::install_hook(self.get_as_fn(), replacement).unwrap();
-            *original_out = Some(trampoline);
+            let symbol = self.get_absolute() as *mut std::ffi::c_void;
+            let replace = std::mem::transmute_copy(&replacement);
+            let mut orig: *mut std::ffi::c_void = std::ptr::null_mut();
+            hook_fn(symbol, replace, &mut orig);
+            *original_out = Some(std::mem::transmute_copy(&orig));
         }
     }
 }

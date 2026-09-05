@@ -1,5 +1,9 @@
 <h1 style="text-align: center">CLEO iOS</h1>
 
+> [!WARNING]
+> **Ini adalah branch `For-iPhone-5`** — dikhususkan untuk **iPhone 5 (ARMv7 32-bit, iOS 10.3.4, GTA SA v1.09, jailbreak rootful)**.
+> Branch `main` untuk iPhone 6S+ (arm64) **tidak dipengaruhi** oleh branch ini.
+
 <div style="text-align: center">
   <p>
     <a href="#-bahasa-indonesia">🇮🇩 Bahasa Indonesia</a> | <a href="#-english">🇬🇧 English</a>
@@ -18,12 +22,50 @@
 
 <h2 id="-bahasa-indonesia">🇮🇩 Bahasa Indonesia</h2>
 
-Selamat datang di CLEO iOS! Ini adalah mod menu dan *script loader* legendaris untuk GTA: San Andreas di iOS. 
+Selamat datang di CLEO iOS! Ini adalah mod menu dan *script loader* legendaris untuk GTA: San Andreas di iOS.
+
+---
+
+### 📱 iPhone 5 — Branch Khusus
+
+> **Branch ini (`For-iPhone-5`) adalah versi CLEO yang dikhususkan untuk iPhone 5.**
+
+| Properti | Detail |
+|---|---|
+| **Device** | iPhone 5 (Apple A6) |
+| **Arsitektur** | ARMv7 (32-bit) |
+| **iOS** | 10.3.4 |
+| **GTA SA** | v1.09 (`gta3sa.app`) |
+| **Jailbreak** | Rootful (socket-based) |
+| **MobileSubstrate** | Cydia Substrate ≥ 0.9.6000 |
+| **File .deb** | `cleo.iphone5.deb` |
+
+#### Cara Instalasi (iPhone 5)
+
+1. Unduh `cleo.iphone5.deb` dari tab **[Actions](../../actions/workflows/build-iphone5.yml)** di GitHub (pilih run terbaru → Artifacts).
+2. Copy file ke iPhone 5 menggunakan **3uTools** (via USB) atau WiFi.
+3. Install via **Filza File Manager** (ketuk file `.deb`) atau terminal:
+   ```bash
+   dpkg -i /path/to/cleo.iphone5.deb
+   ```
+4. **Respring** device.
+5. Buka **GTA San Andreas**.
+6. Cek log di: `/var/mobile/Documents/CLEO/cleo.log`
+
+> ⚠️ **Hanya untuk jailbreak rootful.** File `.deb` dari branch `main` (rootful/rootless untuk arm64) **tidak kompatibel** dengan iPhone 5.
+
+#### Cara Membuka Menu CLEO
+
+- **Usap (swipe) layar ke bawah** untuk membuka menu CLEO.
+- Menu tersedia di mana saja di dalam game.
+
+---
 
 ### 🌟 Changelog (Pembaruan Terbaru)
 
 > ✅ **Build Terverifikasi** — Berhasil di-build di GitHub Actions menggunakan Rust 1.97.0-nightly pada macOS 15 arm64.
 
+- **Dukungan iPhone 5 (ARMv7 32-bit)**: CLEO kini kompatibel dengan iPhone 5 (iOS 10.3.4, GTA SA v1.09, jailbreak rootful). Semua alamat memori (*hook addresses*) telah dimapping ulang dari arm64 ke armv7. Build CI/CD khusus tersedia via GitHub Actions.
 - **Dukungan Rootless Jailbreak**: CLEO sekarang mendukung jailbreak *rootless* secara native (seperti Dopamine, palera1n rootless). Paket `.deb` sekarang tersedia khusus untuk arsitektur *rootless* maupun *rootful*! Terima kasih kepada **Syahda Fahreza** atas pembaruan basis kode agar kompatibel dengan rootless environment.
 - **Perbaikan Kompatibilitas Build**: Memperbarui basis kode (*codebase*) agar kompatibel dengan Rust *nightly* terbaru (1.97.0). Perubahan yang dilakukan:
   - Migrasi *panic hook* API: `PanicInfo` → `PanicHookInfo` + penggunaan `payload_as_str()`
@@ -134,6 +176,43 @@ Silakan bergabung dengan [Server Discord](https://discord.gg/cXwkTUasJU) kami at
 
 <h2 id="-english">🇬🇧 English</h2>
 
+> [!WARNING]
+> **You are on branch `For-iPhone-5`** — built specifically for **iPhone 5 (ARMv7 32-bit, iOS 10.3.4, GTA SA v1.09, rootful jailbreak)**.
+> The `main` branch targets iPhone 6S+ (arm64) and is **not affected** by this branch.
+
+### 📱 iPhone 5 — Dedicated Branch
+
+| Property | Detail |
+|---|---|
+| **Device** | iPhone 5 (Apple A6) |
+| **Architecture** | ARMv7 (32-bit) |
+| **iOS** | 10.3.4 |
+| **GTA SA** | v1.09 (`gta3sa.app`) |
+| **Jailbreak** | Rootful (socket-based) |
+| **MobileSubstrate** | Cydia Substrate ≥ 0.9.6000 |
+| **Package file** | `cleo.iphone5.deb` |
+
+#### Installation (iPhone 5)
+
+1. Download `cleo.iphone5.deb` from the **[Actions](../../actions/workflows/build-iphone5.yml)** tab on GitHub (pick the latest run → Artifacts).
+2. Copy the file to your iPhone 5 via **3uTools** (USB cable) or over WiFi.
+3. Install via **Filza File Manager** (tap the `.deb` file) or via terminal:
+   ```bash
+   dpkg -i /path/to/cleo.iphone5.deb
+   ```
+4. **Respring** your device.
+5. Launch **GTA San Andreas**.
+6. Check the log at: `/var/mobile/Documents/CLEO/cleo.log`
+
+> ⚠️ **Rootful jailbreak only.** The `.deb` files from the `main` branch (arm64 rootful/rootless) are **not compatible** with iPhone 5.
+
+#### Opening the CLEO Menu
+
+- **Swipe down** on the screen to open the CLEO menu.
+- The menu is accessible anywhere inside the GTA app.
+
+---
+
 ## Features
 
 - File support
@@ -150,6 +229,7 @@ Silakan bergabung dengan [Server Discord](https://discord.gg/cXwkTUasJU) kami at
 
 > ✅ **Build Verified** — Successfully compiled on GitHub Actions using Rust 1.97.0-nightly on macOS 15 arm64.
 
+- **iPhone 5 Support (ARMv7 32-bit)**: CLEO now targets iPhone 5 (iOS 10.3.4, GTA SA v1.09, rootful jailbreak). All memory hook addresses have been remapped from arm64 to armv7. A dedicated CI/CD workflow builds `cleo.iphone5.deb` automatically on every push to this branch.
 - **Rootless Jailbreak Support**: Full support for rootless jailbreaks (e.g., Dopamine, palera1n rootless). Dedicated `.deb` packages are now automatically built and provided for both rootful and rootless environments. Huge thanks to **Syahda Fahreza** for porting the tweak to the rootless environment!
 - **Build Compatibility Fixes**: Fixed code to compile with the latest Rust nightly (1.97.0). Changes include:
   - Migrated panic hook API: `PanicInfo` → `PanicHookInfo` + `payload_as_str()`
@@ -437,11 +517,44 @@ remember how to do something.
 
 ## Building
 
+### iPhone 5 (ARMv7) — This Branch
+
+This branch builds via **GitHub Actions automatically** on every push. The workflow [`.github/workflows/build-iphone5.yml`](.github/workflows/build-iphone5.yml) produces `cleo.iphone5.deb`.
+
+To build manually on macOS:
+
+```bash
+# Install tools
+brew install ldid dpkg
+
+# Nightly Rust + rust-src (required for tier-3 armv7 target)
+rustup override set nightly
+rustup component add rust-src
+
+# Build (build-std is configured in .cargo/config.toml)
+cargo build --target armv7-apple-ios --release
+
+# Link to dylib
+SDK=$(xcrun --sdk iphoneos --show-sdk-path)
+clang -fpic -shared -Wl,-all_load \
+  target/armv7-apple-ios/release/libcleo.a \
+  -o target/armv7-apple-ios/release/libcleo.dylib \
+  -isysroot "$SDK" -target armv7-apple-ios10.0 -arch armv7 \
+  -framework CoreFoundation -framework Foundation \
+  -framework Security -framework UIKit \
+  -lobjc -ldl -lc++
+
+# Sign
+ldid -S target/armv7-apple-ios/release/libcleo.dylib
+```
+
+### iPhone 6S+ (arm64) — Branch `main`
+
 CLEO can now be built easily via GitHub Actions, which provides `.deb` files for both `rootful` and `rootless` versions out-of-the-box. 
 
 If you prefer building manually, here are the steps:
 
-### Rust setup
+#### Rust setup
 You will need to install Rust on your system before compiling CLEO.
 If you don't have it installed already, go to https://www.rust-lang.org/learn/get-started and
 follow the instructions there. If you do have it installed, run `rustup update` to ensure you're on the latest version.
@@ -450,7 +563,7 @@ CLEO relies on some unstable features. Ensure you run `rustup override set night
 
 You'll need the iOS target: `rustup target add aarch64-apple-ios`.
 
-### `build.py`
+#### `build.py`
 
 CLEO is typically built using the `build.py` script. This compiles the Rust code and packages a dynamic library (`.dylib`).
 * `--release` builds a release version.
@@ -460,12 +573,12 @@ CLEO is typically built using the `build.py` script. This compiles the Rust code
 
 See below for platform-specific instructions.
 
-### Linux / Windows (WSL)
+#### Linux / Windows (WSL)
 You need an iOS toolchain (like [Sam Bingner's Linux iOS toolchain](https://github.com/sbingner/llvm-project)) which contains `clang` and `ldid` to create a .dylib from the .ar archive produced by `rustc`.
 
 You must set `CLEO_CLANG`, `CLEO_LDID`, and `CLEO_IOS_SDK` to point to these tools and your SDK.
 
-### macOS
+#### macOS
 
 macOS is the officially supported build platform for CI. You'll need `ldid` and `dpkg`, which can be installed via Homebrew:
 ```bash

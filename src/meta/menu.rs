@@ -607,6 +607,7 @@ fn create_blur_view(frame: CGRect, blur_mode: u32) -> *mut Object {
         let view: *mut Object = msg_send![class!(UIVisualEffectView), alloc];
         let view: *mut Object = msg_send![view, initWithEffect: effect];
         let _: () = msg_send![view, setFrame: frame];
+        let _: () = msg_send![view, setAutoresizingMask: 18 as NSUInteger];
 
         view
     };
@@ -614,18 +615,70 @@ fn create_blur_view(frame: CGRect, blur_mode: u32) -> *mut Object {
     view
 }
 
+/// Returns the view that the CLEO menu should be added to.
+/// Attaching to `rootViewController.view` ensures UIKit's landscape rotation
+/// transform is properly inherited on iOS (especially 32-bit iOS 7-10 where `UIWindow`
+/// remains in portrait coordinate space).
+unsafe fn get_menu_container() -> *mut Object {
+    let application: *mut Object = msg_send![class!(UIApplication), sharedApplication];
+    if application.is_null() {
+        return std::ptr::null_mut();
+    }
+
+    let mut window: *mut Object = msg_send![application, keyWindow];
+    if window.is_null() {
+        let windows: *mut Object = msg_send![application, windows];
+        if !windows.is_null() {
+            let count: NSUInteger = msg_send![windows, count];
+            if count > 0 {
+                window = msg_send![windows, objectAtIndex: 0 as NSUInteger];
+            }
+        }
+    }
+
+    if window.is_null() {
+        return std::ptr::null_mut();
+    }
+
+    let mut vc: *mut Object = msg_send![window, rootViewController];
+    while !vc.is_null() {
+        let presented: *mut Object = msg_send![vc, presentedViewController];
+        if presented.is_null() {
+            break;
+        }
+        vc = presented;
+    }
+
+    if !vc.is_null() {
+        let view: *mut Object = msg_send![vc, view];
+        if !view.is_null() {
+            return view;
+        }
+    }
+
+    window
+}
+
 impl Menu {
     fn new(tab_data: Vec<TabData>) -> Menu {
         let language = super::language::current();
 
-        let raw_bounds: CGRect = unsafe {
-            let application: *mut Object = msg_send![class!(UIApplication), sharedApplication];
-            let key_window: *mut Object = msg_send![application, keyWindow];
-            msg_send![key_window, bounds]
+        let (screen_w, screen_h) = unsafe {
+            let container = get_menu_container();
+            if !container.is_null() {
+                let raw_bounds: CGRect = msg_send![container, bounds];
+                let w = raw_bounds.size.width.max(raw_bounds.size.height);
+                let h = raw_bounds.size.width.min(raw_bounds.size.height);
+                (w, h)
+            } else {
+                let screen: *mut Object = msg_send![class!(UIScreen), mainScreen];
+                let raw_bounds: CGRect = msg_send![screen, bounds];
+                let w = raw_bounds.size.width.max(raw_bounds.size.height);
+                let h = raw_bounds.size.width.min(raw_bounds.size.height);
+                (w, h)
+            }
         };
 
-        let screen_w = raw_bounds.size.width.max(raw_bounds.size.height);
-        let screen_h = raw_bounds.size.width.min(raw_bounds.size.height);
         let frame = CGRect::new(0.0 as CGFloat, 0.0 as CGFloat, screen_w, screen_h);
 
         log::info!("Creating CLEO menu with frame: {:.1}x{:.1}", screen_w, screen_h);
@@ -735,11 +788,25 @@ impl Menu {
         set_game_timer_paused(true);
 
         unsafe {
-            let application: *mut Object = msg_send![class!(UIApplication), sharedApplication];
-            let key_window: *mut Object = msg_send![application, keyWindow];
+            let container = get_menu_container();
+            if !container.is_null() {
+                let bounds: CGRect = msg_send![container, bounds];
+                let screen_w = bounds.size.width.max(bounds.size.height);
+                let screen_h = bounds.size.width.min(bounds.size.height);
+                let frame = CGRect::new(0.0 as CGFloat, 0.0 as CGFloat, screen_w, screen_h);
+                let _: () = msg_send![self.blur_view, setFrame: frame];
 
-            let _: () = msg_send![key_window, addSubview: self.blur_view];
-            let _: () = msg_send![key_window, bringSubviewToFront: self.blur_view];
+                let _: () = msg_send![container, addSubview: self.blur_view];
+                let _: () = msg_send![container, bringSubviewToFront: self.blur_view];
+                log::info!(
+                    "CLEO menu added to container view: {:?} with frame {:.1}x{:.1}",
+                    container,
+                    screen_w,
+                    screen_h
+                );
+            } else {
+                log::error!("Failed to get container for CLEO menu!");
+            }
         }
 
         for i in 0..self.tabs.len() {
@@ -747,7 +814,7 @@ impl Menu {
             self.tab_buttons[i].set_selected(i == 0);
         }
 
-        log::info!("CLEO menu added to key window.");
+        log::info!("CLEO menu displayed.");
     }
 
     fn remove(self) {

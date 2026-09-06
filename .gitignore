@@ -5,3 +5,6 @@ deb/*.deb
 Changes.md
 README-*.md
 images/*_nxt.*
+dump_and_logs/
+*.log
+*.ips

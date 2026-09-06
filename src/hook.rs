@@ -50,33 +50,40 @@ pub enum Target<FuncType: std::fmt::Debug> {
 
 impl<FuncType: std::fmt::Debug> Target<FuncType> {
     fn get_absolute(&self) -> usize {
-        let addr = match self {
+        match self {
             Target::_Function(func) => unsafe { std::mem::transmute_copy(func) },
 
+            // NoSlideAddress is used for CLEO's internal functions (e.g. in self_test),
+            // which are compiled as ARM code on armv7s-apple-ios. Keep bit 0 as-is.
             Target::NoSlideAddress(addr) => *addr,
 
             Target::Address(addr) => {
                 let aslr_offset = get_game_aslr_offset();
-                addr + aslr_offset
+                #[cfg(target_pointer_width = "32")]
+                {
+                    // On 32-bit ARM (ARMv7), all game code in GTA SA is Thumb-2.
+                    // Cydia Substrate checks (address & 1) to determine whether the target is Thumb or ARM.
+                    // If bit 0 is not set, Substrate writes an ARM trampoline which crashes
+                    // when executed by the CPU in Thumb state.
+                    (addr + aslr_offset) | 1
+                }
+                #[cfg(not(target_pointer_width = "32"))]
+                {
+                    addr + aslr_offset
+                }
             }
 
             Target::_ForeignAddress(addr, image) => {
                 let aslr_offset = get_aslr_offset(*image);
-                addr + aslr_offset
+                #[cfg(target_pointer_width = "32")]
+                {
+                    (addr + aslr_offset) | 1
+                }
+                #[cfg(not(target_pointer_width = "32"))]
+                {
+                    addr + aslr_offset
+                }
             }
-        };
-
-        #[cfg(target_pointer_width = "32")]
-        {
-            // On 32-bit ARM (ARMv7), all game code in GTA SA is Thumb-2.
-            // Cydia Substrate checks (address & 1) to determine whether the target is Thumb or ARM.
-            // If bit 0 is not set, Substrate writes an ARM trampoline (0xe51ff004) which crashes
-            // with SIGILL / EXC_BAD_INSTRUCTION when executed by the CPU in Thumb state.
-            addr | 1
-        }
-        #[cfg(not(target_pointer_width = "32"))]
-        {
-            addr
         }
     }
 

@@ -259,18 +259,31 @@ fn legal_splash_did_load(this: *mut Object, _sel: Sel) {
         let view: *mut Object = msg_send![this, view];
         let raw_bounds: CGRect = msg_send![view, bounds];
 
-        // GTA SA runs exclusively in landscape. On 32-bit devices (iPhone 5, iOS 10),
-        // view.bounds in viewDidLoad still reflects the portrait nib size (e.g. 320x480).
-        // Normalize bounds so that width is always the larger dimension and height is the smaller.
-        let screen_w = raw_bounds.size.width.max(raw_bounds.size.height);
-        let screen_h = raw_bounds.size.width.min(raw_bounds.size.height);
+        // Fetch physical screen bounds from UIScreen to guarantee true landscape dimensions.
+        let screen: *mut Object = msg_send![class!(UIScreen), mainScreen];
+        let screen_bounds: CGRect = msg_send![screen, bounds];
+
+        let screen_w = screen_bounds.size.width.max(screen_bounds.size.height);
+        let screen_h = screen_bounds.size.width.min(screen_bounds.size.height);
         let bounds = CGRect::new(0.0 as CGFloat, 0.0 as CGFloat, screen_w, screen_h);
+
+        log::info!(
+            "Setting up splash screen with screen bounds: {:.1}x{:.1}, raw view bounds: {:?}.",
+            screen_w, screen_h, raw_bounds
+        );
+
+        // Ensure the root view bounds are set to landscape
+        let _: () = msg_send![view, setFrame: bounds];
+        let _: () = msg_send![view, setBounds: bounds];
 
         let background_view: *mut Object = msg_send![class!(UIView), alloc];
         let background_view: *mut Object = msg_send![background_view, initWithFrame: bounds];
 
         let background_colour: *const Object = msg_send![class!(UIColor), blackColor];
         let _: () = msg_send![background_view, setBackgroundColor: background_colour];
+
+        // Autoresizing mask: UIViewAutoresizingFlexibleWidth (2) | UIViewAutoresizingFlexibleHeight (16) = 18
+        let _: () = msg_send![background_view, setAutoresizingMask: 18 as NSUInteger];
 
         let state_label = {
             let font: *mut Object =
@@ -367,6 +380,10 @@ fn legal_splash_did_load(this: *mut Object, _sel: Sel) {
             let layer: *mut Object = msg_send![backing_view_outer, layer];
             let _: () = msg_send![layer, setCornerRadius: 12.0 as CGFloat];
 
+            // Flexible margins to keep plate centered regardless of layout changes: 45
+            let flexible_margins: NSUInteger = (1 << 0) | (1 << 2) | (1 << 3) | (1 << 5);
+            let _: () = msg_send![backing_view_outer, setAutoresizingMask: flexible_margins];
+
             let _: () = msg_send![backing_view_outer, addSubview: backing_view];
             let _: () = msg_send![backing_view, release];
 
@@ -432,10 +449,16 @@ fn legal_splash_did_load(this: *mut Object, _sel: Sel) {
         let _: () = msg_send![label, setNumberOfLines: 2 as NSInteger];
         let _: () = msg_send![label, setAdjustsFontSizeToFitWidth: true];
 
+        // Flexible width (2) and top margin (8) = 10
+        let _: () = msg_send![label, setAutoresizingMask: 10 as NSUInteger];
+
         let _: () = msg_send![view, addSubview: background_view];
         let _: () = msg_send![background_view, release];
         let _: () = msg_send![view, addSubview: label];
         let _: () = msg_send![label, release];
+
+        let _: () = msg_send![view, bringSubviewToFront: background_view];
+        let _: () = msg_send![view, bringSubviewToFront: label];
     }
 
     log::info!("Finished setting up splash screen.");

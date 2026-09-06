@@ -606,11 +606,17 @@ impl Menu {
     fn new(tab_data: Vec<TabData>) -> Menu {
         let language = super::language::current();
 
-        let frame: CGRect = unsafe {
+        let raw_bounds: CGRect = unsafe {
             let application: *mut Object = msg_send![class!(UIApplication), sharedApplication];
             let key_window: *mut Object = msg_send![application, keyWindow];
-            msg_send![key_window, frame]
+            msg_send![key_window, bounds]
         };
+
+        let screen_w = raw_bounds.size.width.max(raw_bounds.size.height);
+        let screen_h = raw_bounds.size.width.min(raw_bounds.size.height);
+        let frame = CGRect::new(0.0 as CGFloat, 0.0 as CGFloat, screen_w, screen_h);
+
+        log::info!("Creating CLEO menu with frame: {:.1}x{:.1}", screen_w, screen_h);
 
         let tab_btn_width = frame.size.width / (tab_data.len() as CGFloat);
 
@@ -721,12 +727,15 @@ impl Menu {
             let key_window: *mut Object = msg_send![application, keyWindow];
 
             let _: () = msg_send![key_window, addSubview: self.blur_view];
+            let _: () = msg_send![key_window, bringSubviewToFront: self.blur_view];
         }
 
         for i in 0..self.tabs.len() {
             self.tabs[i].set_selected(i == 0);
             self.tab_buttons[i].set_selected(i == 0);
         }
+
+        log::info!("CLEO menu added to key window.");
     }
 
     fn remove(self) {
@@ -833,7 +842,7 @@ impl Menu {
             loop {
                 match receiver.recv().expect("recv() for menu channel failed") {
                     MenuMessage::Show => {
-                        log::trace!("Show menu");
+                        log::info!("Showing CLEO menu on UI thread...");
 
                         let menu = Arc::clone(&menu);
 
@@ -843,7 +852,7 @@ impl Menu {
                             if menu.is_none() {
                                 *menu = Some(Menu::new(Self::get_module_tab_data()));
                                 menu.as_mut().unwrap().add_to_window();
-                                log::trace!("Menu added to window");
+                                log::info!("CLEO menu successfully presented.");
                             } else {
                                 log::warn!("Menu already exists, but was activated again (which should be impossible)");
                             }

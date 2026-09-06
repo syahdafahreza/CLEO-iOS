@@ -440,11 +440,22 @@ impl MenuGesture {
 
         let distance = displacement.length();
 
+        let speed = if duration > 0.001 {
+            distance / duration
+        } else {
+            0.0
+        };
+
+        if distance > 30.0 {
+            log::info!(
+                "Swipe check: dist={:.1} (min 100), dur={:.3}s, spd={:.1} (min 800), dy={:.1}, dx={:.1}",
+                distance, duration, speed, displacement.y, displacement.x
+            );
+        }
+
         if distance < MIN_DISTANCE {
             return false;
         }
-
-        let speed = distance / duration;
 
         if speed < MIN_SPEED {
             return false;

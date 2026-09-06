@@ -66,7 +66,10 @@ mod targets {
 
     create_soft_target!(do_game_state, 0x003c9d10, fn());
 
-    create_hard_target!(do_cheats, 0x001584ac, fn());
+    #[cfg(target_pointer_width = "64")]
+    create_hard_target!(do_cheats, 0x1001a7f28, fn());
+    #[cfg(target_pointer_width = "32")]
+    create_hard_target!(do_cheats, 0x000f6bdc, fn());
 
     create_soft_target!(reset_before_start, 0x00253f6c, fn());
 
@@ -107,7 +110,10 @@ mod targets {
         fn(*const c_char, *const c_char)
     );
 
-    create_soft_target!(reset_cheats, 0x001587fc, fn());
+    #[cfg(target_pointer_width = "64")]
+    create_soft_target!(reset_cheats, 0x1001a82f0, fn());
+    #[cfg(target_pointer_width = "32")]
+    create_soft_target!(reset_cheats, 0x000f61b0, fn());
 
     create_soft_target!(
         height_above_ceiling,
@@ -115,7 +121,8 @@ mod targets {
         fn(usize, f32, usize) -> f32
     );
 
-    create_soft_target!(init_stage_three, 0x00269e54, fn(usize));
+    #[cfg(target_pointer_width = "64")]
+    create_soft_target!(init_stage_three, 0x1002f9b20, fn(usize));
 }
 
 #[ctor]

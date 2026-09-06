@@ -35,28 +35,36 @@ impl Cheat {
     }
 
     fn get_function(&self) -> Option<fn()> {
-        // GTA SA v1.09 armv7: cheat function pointer table base
-        let entry_address = 0x0051b710 + (self.index * 8);
-        let ptr = hook::slide::<*const *const u64>(entry_address);
+        #[cfg(target_pointer_width = "64")]
+        let entry_address = 0x10065c358 + (self.index * 8);
 
-        // The array pointer shouldn't be null, but we check it just in case.
-        // The more important check is the second, which ensures that the function pointer is not 0.
-        if ptr.is_null() || unsafe { *ptr }.is_null() {
+        #[cfg(target_pointer_width = "32")]
+        let entry_address = 0x004f6cf4 + (self.index * 4);
+
+        let ptr = hook::slide::<*const usize>(entry_address);
+
+        if ptr.is_null() {
             None
         } else {
-            // Get the value again, but this time as a pointer to a function.
-            // The reason we don't get it as a *const fn() the first time is that 'fn' is itself
-            //  the function pointer, but we can't check if it is null. We use *const *const u64
-            //  instead because we can check the inner pointer as well.
-            let func_ptr = hook::slide::<*const fn()>(entry_address);
-            Some(unsafe { *func_ptr })
+            let raw_fn: usize = unsafe { *ptr };
+            if raw_fn == 0 {
+                None
+            } else {
+                let func: fn() = unsafe { std::mem::transmute(raw_fn) };
+                Some(func)
+            }
         }
     }
 
     fn get_active_mut(&self) -> &'static mut bool {
         unsafe {
-            // GTA SA v1.09 armv7: cheat active flags array base
-            hook::slide::<*mut bool>(0x005abef4 + self.index)
+            #[cfg(target_pointer_width = "64")]
+            let base = 0x10072dda8;
+
+            #[cfg(target_pointer_width = "32")]
+            let base = 0x005bcde4;
+
+            hook::slide::<*mut bool>(base + self.index)
                 .as_mut()
                 .unwrap()
         }

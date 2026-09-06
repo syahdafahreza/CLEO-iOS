@@ -632,6 +632,7 @@ fn script_reset() {
     }
 }
 
+#[cfg(target_pointer_width = "64")]
 fn init_stage_three(p: usize) {
     log::info!("Scanning scripts.");
 
@@ -921,5 +922,25 @@ pub fn init() {
 
     targets::script_tick::install(script_update);
     targets::reset_before_start::install(script_reset);
+
+    #[cfg(target_pointer_width = "64")]
     targets::init_stage_three::install(init_stage_three);
+
+    #[cfg(target_pointer_width = "32")]
+    {
+        let mut scripts = SCRIPTS.lock().unwrap();
+        crate::game::scripts::check::check_all(
+            scripts
+                .iter_mut()
+                .map(|script| script.get_cleo_script_mut())
+                .collect(),
+        );
+
+        for script in scripts.iter_mut() {
+            if let Script::Csa { script, state } = script {
+                *state = get_csa_state(script);
+                script.game_script.active = state.active();
+            }
+        }
+    }
 }

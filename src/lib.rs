@@ -45,9 +45,16 @@ mod targets {
         fn(*mut Object, Sel) -> *const Object
     );
 
+    #[cfg(target_pointer_width = "64")]
     create_soft_target!(
         button_hack,
-        0x003f9004,
+        0x1004ea8c4,
+        fn(*const Object, Sel, *mut Object) -> *mut Object
+    );
+    #[cfg(target_pointer_width = "32")]
+    create_soft_target!(
+        button_hack,
+        0x00017338,
         fn(*const Object, Sel, *mut Object) -> *mut Object
     );
 

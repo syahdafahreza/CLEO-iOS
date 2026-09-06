@@ -71,13 +71,11 @@ impl TabButton {
     }
 }
 
-#[repr(C)]
-#[derive(Debug)]
+#[derive(Clone, Copy, Debug)]
 struct ButtonTag {
-    row: i32,
+    row: i16,
     tab: i8,
     is_close: bool,
-    _pad: [u8; 2],
 }
 
 impl ButtonTag {
@@ -86,16 +84,14 @@ impl ButtonTag {
             tab: index as i8,
             row: -1,
             is_close: false,
-            _pad: [0u8; 2],
         }
     }
 
     fn new_row(tab: usize, row: usize) -> ButtonTag {
         ButtonTag {
             tab: tab as i8,
-            row: row as i32,
+            row: row as i16,
             is_close: false,
-            _pad: [0u8; 2],
         }
     }
 
@@ -104,7 +100,23 @@ impl ButtonTag {
             tab: -1,
             row: -1,
             is_close: true,
-            _pad: [0u8; 2],
+        }
+    }
+
+    fn to_ns_integer(self) -> NSInteger {
+        let is_close_u8 = if self.is_close { 1u32 } else { 0u32 };
+        let packed = (self.row as u16 as u32)
+            | ((self.tab as u8 as u32) << 16)
+            | (is_close_u8 << 24);
+        packed as NSInteger
+    }
+
+    fn from_ns_integer(val: NSInteger) -> ButtonTag {
+        let raw = val as u32;
+        ButtonTag {
+            row: (raw & 0xffff) as i16,
+            tab: ((raw >> 16) & 0xff) as i8,
+            is_close: ((raw >> 24) & 0xff) != 0,
         }
     }
 }
@@ -925,6 +937,22 @@ impl Menu {
     }
 }
 
+fn get_reachability_class() -> *const Object {
+    unsafe {
+        let cls = objc::runtime::objc_getClass(b"Reachability\0".as_ptr() as *const i8);
+        if !cls.is_null() {
+            cls as *const Object
+        } else {
+            let cls = objc::runtime::objc_getClass(b"IOSReachability\0".as_ptr() as *const i8);
+            if !cls.is_null() {
+                cls as *const Object
+            } else {
+                panic!("Neither Reachability nor IOSReachability class found!");
+            }
+        }
+    }
+}
+
 fn reachability_with_hostname(
     this_class: *const Object,
     sel: objc::runtime::Sel,
@@ -934,7 +962,8 @@ fn reachability_with_hostname(
         let is_button: bool = msg_send![hostname, isKindOfClass: class!(UIButton)];
 
         if is_button {
-            let tag: ButtonTag = msg_send![hostname, tag];
+            let raw_tag: NSInteger = msg_send![hostname, tag];
+            let tag = ButtonTag::from_ns_integer(raw_tag);
 
             if tag.is_close {
                 log::trace!("Close button pressed");
@@ -958,12 +987,12 @@ fn reachability_with_hostname(
 }
 
 fn add_button_handler(button: *mut Object, tag: ButtonTag) {
-    let reachability = class!(IOSReachability);
+    let reachability = get_reachability_class();
     let selector = sel!(reachabilityWithHostName:);
     let touch_up_inside = (1 << 6) as NSUInteger;
 
     unsafe {
-        let _: () = msg_send![button, setTag: tag];
+        let _: () = msg_send![button, setTag: tag.to_ns_integer()];
         let _: () = msg_send![button, addTarget: reachability action: selector forControlEvents: touch_up_inside];
     }
 }

@@ -233,8 +233,11 @@ pub fn can_hook() -> bool {
     // Try to hook the test function so that it returns `true`.
     Target::NoSlideAddress(test_function as usize).hook_hard(hooked_impl as usize);
 
-    // If the hook failed, this will return `false` as normal.
-    test_function()
+    // Call via volatile function pointer so the compiler does not optimize or direct-branch past the hook.
+    let test_fn_ptr: fn() -> bool = unsafe {
+        std::ptr::read_volatile(&(test_function as fn() -> bool))
+    };
+    test_fn_ptr()
 }
 
 // hack: this is a really shit API. it's just here until `hook` gets rewritten from the ground up.

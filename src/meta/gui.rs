@@ -10,6 +10,21 @@ use objc::{
 };
 use std::os::raw::c_long;
 
+#[cfg(target_pointer_width = "32")]
+pub type CGFloat = f32;
+#[cfg(target_pointer_width = "64")]
+pub type CGFloat = f64;
+
+#[cfg(target_pointer_width = "32")]
+pub type NSInteger = i32;
+#[cfg(target_pointer_width = "64")]
+pub type NSInteger = i64;
+
+#[cfg(target_pointer_width = "32")]
+pub type NSUInteger = u32;
+#[cfg(target_pointer_width = "64")]
+pub type NSUInteger = u64;
+
 /// Fonts that we can use in CLEO's GUI. These have been selected to support all the different
 /// devices and languages we support.
 #[derive(Clone, Copy, Debug)]
@@ -46,12 +61,12 @@ impl Font {
     }
 
     /// Creates a `UIFont` object for the font at a particular size.
-    pub fn uifont(self, size: f64) -> *mut Object {
+    pub fn uifont(self, size: CGFloat) -> *mut Object {
         unsafe { msg_send![class!(UIFont), fontWithName: ns_string(self.name()) size: size] }
     }
 
     /// Converts a pair containing a font and a size into a `UIFont`.
-    pub fn pair_uifont((font, size): (Font, f64)) -> *mut Object {
+    pub fn pair_uifont((font, size): (Font, CGFloat)) -> *mut Object {
         font.uifont(size)
     }
 }
@@ -64,25 +79,25 @@ pub struct FontSet {
     pub title_font: Font,
 
     /// The size used for the title font.
-    pub title_size: f64,
+    pub title_size: CGFloat,
 
     /// The font used for small but important text.
     pub small_font: Font,
 
     /// The size used for the small font.
-    pub small_size: f64,
+    pub small_size: CGFloat,
 
     /// The font used for normal text.
     pub text_font: Font,
 
     /// The size used for the normal text font.
-    pub text_size: f64,
+    pub text_size: CGFloat,
 
     /// The font used for fairly small subtitles.
     pub subtitle_font: Font,
 
     /// The size used for the subtitle font.
-    pub subtitle_size: f64,
+    pub subtitle_size: CGFloat,
 }
 
 impl FontSet {
@@ -110,15 +125,15 @@ impl FontSet {
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct CGSize {
-    pub width: f64,
-    pub height: f64,
+    pub width: CGFloat,
+    pub height: CGFloat,
 }
 
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct CGPoint {
-    pub x: f64,
-    pub y: f64,
+    pub x: CGFloat,
+    pub y: CGFloat,
 }
 
 #[repr(C)]
@@ -129,7 +144,7 @@ pub struct CGRect {
 }
 
 impl CGRect {
-    pub fn new(x: f64, y: f64, width: f64, height: f64) -> CGRect {
+    pub fn new(x: CGFloat, y: CGFloat, width: CGFloat, height: CGFloat) -> CGRect {
         CGRect {
             origin: CGPoint { x, y },
             size: CGSize { width, height },
@@ -152,14 +167,14 @@ impl CGRect {
 
 #[repr(C)]
 pub struct UIEdgeInsets {
-    pub top: f64,
-    pub left: f64,
-    pub bottom: f64,
-    pub right: f64,
+    pub top: CGFloat,
+    pub left: CGFloat,
+    pub bottom: CGFloat,
+    pub right: CGFloat,
 }
 
 impl UIEdgeInsets {
-    pub fn new(top: f64, left: f64, bottom: f64, right: f64) -> UIEdgeInsets {
+    pub fn new(top: CGFloat, left: CGFloat, bottom: CGFloat, right: CGFloat) -> UIEdgeInsets {
         UIEdgeInsets {
             top,
             left,
@@ -200,13 +215,13 @@ pub mod colours {
     pub const GREEN: Rgb = Colour::Green.rgb();
     pub const BLUE: Rgb = Colour::Blue.rgb();
 
-    pub fn get(colour: Rgb, alpha: f64) -> *const Object {
+    pub fn get(colour: Rgb, alpha: CGFloat) -> *const Object {
         unsafe {
-            msg_send![class!(UIColor), colorWithRed: colour.0 as f64 / 255. green: colour.1 as f64 / 255. blue: colour.2 as f64 / 255. alpha: alpha]
+            msg_send![class!(UIColor), colorWithRed: (colour.0 as CGFloat) / 255.0 green: (colour.1 as CGFloat) / 255.0 blue: (colour.2 as CGFloat) / 255.0 alpha: alpha]
         }
     }
 
-    pub fn white_with_alpha(white: f64, alpha: f64) -> *const Object {
+    pub fn white_with_alpha(white: CGFloat, alpha: CGFloat) -> *const Object {
         unsafe { msg_send![class!(UIColor), colorWithWhite: white alpha: alpha] }
     }
 }
@@ -226,7 +241,7 @@ pub fn exit_to_homescreen() {
         dispatch::Queue::main().exec_sync(|| {
             let control: *mut Object = msg_send![class!(UIControl), new];
             let app: *mut Object = msg_send![class!(UIApplication), sharedApplication];
-            let _: () = msg_send![control, sendAction: sel!(suspend) to: app forEvent: 0usize];
+            let _: () = msg_send![control, sendAction: sel!(suspend) to: app forEvent: 0 as NSUInteger];
 
             dispatch::Queue::main().exec_after(std::time::Duration::from_millis(200), || {
                 std::process::exit(0);
@@ -252,9 +267,9 @@ fn legal_splash_did_load(this: *mut Object, _sel: Sel) {
 
         let state_label = {
             let font: *mut Object =
-                msg_send![class!(UIFont), fontWithName: ns_string("GTALICENSE-REGULAR") size: 23.0];
+                msg_send![class!(UIFont), fontWithName: ns_string("GTALICENSE-REGULAR") size: 23.0 as CGFloat];
             let text_colour: *const Object =
-                msg_send![class!(UIColor), colorWithRed: 0.77 green: 0.089 blue: 0.102 alpha: 1.0];
+                msg_send![class!(UIColor), colorWithRed: 0.77 as CGFloat green: 0.089 as CGFloat blue: 0.102 as CGFloat alpha: 1.0 as CGFloat];
 
             let ver_string = crate::meta::github::current_version().to_string();
 
@@ -268,9 +283,9 @@ fn legal_splash_did_load(this: *mut Object, _sel: Sel) {
 
         let text = {
             let font: *mut Object =
-                msg_send![class!(UIFont), fontWithName: ns_string("GTALICENSE-REGULAR") size: 70.0];
+                msg_send![class!(UIFont), fontWithName: ns_string("GTALICENSE-REGULAR") size: 70.0 as CGFloat];
             let text_colour: *const Object =
-                msg_send![class!(UIColor), colorWithRed: 0.14 green: 0.37 blue: 0.62 alpha: 1.0];
+                msg_send![class!(UIColor), colorWithRed: 0.14 as CGFloat green: 0.37 as CGFloat blue: 0.62 as CGFloat alpha: 1.0 as CGFloat];
 
             let plate_label: *mut Object = create_label(
                 CGRect {
@@ -294,16 +309,16 @@ fn legal_splash_did_load(this: *mut Object, _sel: Sel) {
         let text_frame: CGRect = msg_send![text, frame];
 
         let backing_size = CGSize {
-            width: text_frame.size.width * 2.3,
-            height: text_frame.size.height * 1.9,
+            width: text_frame.size.width * (2.3 as CGFloat),
+            height: text_frame.size.height * (1.9 as CGFloat),
         };
 
         let (backing, backing_outer) = {
             let outer_frame = CGRect {
                 origin: CGPoint { x: 0.0, y: 0.0 },
                 size: CGSize {
-                    width: backing_size.width + 8.0,
-                    height: backing_size.height + 8.0,
+                    width: backing_size.width + (8.0 as CGFloat),
+                    height: backing_size.height + (8.0 as CGFloat),
                 },
             };
 
@@ -324,26 +339,26 @@ fn legal_splash_did_load(this: *mut Object, _sel: Sel) {
             let _: () = msg_send![backing_view_outer, setBackgroundColor: white];
 
             let _: () = msg_send![backing_view_outer, setCenter: CGPoint {
-                x: bounds.size.width / 2.0,
-                y: bounds.size.height / 2.0,
+                x: bounds.size.width / (2.0 as CGFloat),
+                y: bounds.size.height / (2.0 as CGFloat),
             }];
 
             let _: () = msg_send![backing_view, setCenter: CGPoint {
-                x: outer_frame.size.width / 2.0,
-                y: outer_frame.size.height / 2.0,
+                x: outer_frame.size.width / (2.0 as CGFloat),
+                y: outer_frame.size.height / (2.0 as CGFloat),
             }];
 
             let border_colour: *const Object =
-                msg_send![class!(UIColor), colorWithWhite: 0.0 alpha: 0.27];
+                msg_send![class!(UIColor), colorWithWhite: 0.0 as CGFloat alpha: 0.27 as CGFloat];
             let border_colour: *const Object = msg_send![border_colour, CGColor];
 
             let layer: *mut Object = msg_send![backing_view, layer];
-            let _: () = msg_send![layer, setCornerRadius: 10.0];
-            let _: () = msg_send![layer, setBorderWidth: 2.0];
+            let _: () = msg_send![layer, setCornerRadius: 10.0 as CGFloat];
+            let _: () = msg_send![layer, setBorderWidth: 2.0 as CGFloat];
             let _: () = msg_send![layer, setBorderColor: border_colour];
 
             let layer: *mut Object = msg_send![backing_view_outer, layer];
-            let _: () = msg_send![layer, setCornerRadius: 12.0];
+            let _: () = msg_send![layer, setCornerRadius: 12.0 as CGFloat];
 
             let _: () = msg_send![backing_view_outer, addSubview: backing_view];
             let _: () = msg_send![backing_view, release];
@@ -353,16 +368,16 @@ fn legal_splash_did_load(this: *mut Object, _sel: Sel) {
 
         // Calculate the gap between the elements and the edge of the plate on the top and bottom.
         let y_gap =
-            (backing_size.height - (text_frame.size.height + state_frame.size.height)) / 2.0;
+            (backing_size.height - (text_frame.size.height + state_frame.size.height)) / (2.0 as CGFloat);
 
         let state_centre = CGPoint {
-            x: backing_size.width / 2.0,
-            y: (state_frame.size.height / 2.0) + y_gap,
+            x: backing_size.width / (2.0 as CGFloat),
+            y: (state_frame.size.height / (2.0 as CGFloat)) + y_gap,
         };
 
         let text_centre = CGPoint {
-            x: backing_size.width / 2.0,
-            y: backing_size.height - ((text_frame.size.height / 2.0) + y_gap),
+            x: backing_size.width / (2.0 as CGFloat),
+            y: backing_size.height - ((text_frame.size.height / (2.0 as CGFloat)) + y_gap),
         };
 
         let _: () = msg_send![state_label, setCenter: state_centre];
@@ -381,11 +396,11 @@ fn legal_splash_did_load(this: *mut Object, _sel: Sel) {
         let bottom_text_frame = CGRect {
             origin: CGPoint {
                 x: 0.0,
-                y: bounds.size.height * 0.9,
+                y: bounds.size.height * (0.9 as CGFloat),
             },
             size: CGSize {
                 width: bounds.size.width,
-                height: bounds.size.height * 0.1,
+                height: bounds.size.height * (0.1 as CGFloat),
             },
         };
 
@@ -402,12 +417,12 @@ fn legal_splash_did_load(this: *mut Object, _sel: Sel) {
         let label: *mut Object = msg_send![class!(UILabel), alloc];
         let label: *mut Object = msg_send![label, initWithFrame: bottom_text_frame];
         let font = super::language::current().font_set().small_uifont();
-        let colour = colours::white_with_alpha(0.5, 0.7);
+        let colour = colours::white_with_alpha(0.5 as CGFloat, 0.7 as CGFloat);
         let _: () = msg_send![label, setTextColor: colour];
         let _: () = msg_send![label, setFont: font];
         let _: () = msg_send![label, setText: ns_string(copyright)];
-        let _: () = msg_send![label, setTextAlignment: 1u64];
-        let _: () = msg_send![label, setNumberOfLines: 2u64];
+        let _: () = msg_send![label, setTextAlignment: 1 as NSInteger];
+        let _: () = msg_send![label, setNumberOfLines: 2 as NSInteger];
         let _: () = msg_send![label, setAdjustsFontSizeToFitWidth: true];
 
         let _: () = msg_send![view, addSubview: background_view];
@@ -434,7 +449,7 @@ pub fn create_label(
         let _: () = msg_send![label, setFont: font];
         let _: () = msg_send![label, setTextColor: colour];
         let _: () = msg_send![label, setAdjustsFontSizeToFitWidth: true];
-        let _: () = msg_send![label, setTextAlignment: alignment as c_long];
+        let _: () = msg_send![label, setTextAlignment: alignment as NSInteger];
 
         label
     }

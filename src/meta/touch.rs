@@ -1,7 +1,7 @@
 //! Provides touch information to other modules, and directly controls the showing/hiding
 //! of the menu when related to touch events.
 
-use crate::meta::gui::CGRect;
+use crate::meta::gui::{CGFloat, CGRect};
 use crate::{call_original, targets};
 use cached::proc_macro::cached;
 use itertools::Itertools;
@@ -169,7 +169,7 @@ impl TrackedTouch {
 }
 
 /// Returns the width and height of `[[UIScreen mainScreen] nativeBounds]`.
-fn uiscreen_size() -> (f64, f64) {
+fn uiscreen_size() -> (CGFloat, CGFloat) {
     let cls = class!(UIScreen);
 
     let bounds: CGRect = unsafe {

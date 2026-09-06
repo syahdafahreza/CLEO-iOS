@@ -9,7 +9,7 @@ use std::{
 };
 use strum::{EnumIter, EnumString, EnumVariantNames, IntoEnumIterator, IntoStaticStr};
 
-use super::gui::{Font, FontSet};
+use super::gui::{CGFloat, Font, FontSet};
 pub use fluent::fluent_args as msg_args;
 use objc::runtime::Object;
 
@@ -267,10 +267,10 @@ impl Language {
     /// Returns the set of fonts that should be used for this language.
     pub fn font_set(self) -> FontSet {
         // Define some standard sizes to work with.
-        const STD_TITLE: f64 = 25.0;
-        const STD_SMALL: f64 = 10.0;
-        const STD_TEXT: f64 = 15.0;
-        const STD_SUBTITLE: f64 = 17.0;
+        const STD_TITLE: CGFloat = 25.0;
+        const STD_SMALL: CGFloat = 10.0;
+        const STD_TEXT: CGFloat = 15.0;
+        const STD_SUBTITLE: CGFloat = 17.0;
 
         match self {
             // Czech and Slovak need a font that covers all of the accented characters. Arabic
@@ -317,7 +317,7 @@ impl Language {
                 text_font: Font::ChaletComprime,
                 text_size: STD_TEXT,
                 subtitle_font: Font::ChaletComprime,
-                subtitle_size: STD_SUBTITLE + 2.0,
+                subtitle_size: STD_SUBTITLE + (2.0 as CGFloat),
             },
 
             // Khmer characters always fall back to Khmer Sangam MN, because it's the only font

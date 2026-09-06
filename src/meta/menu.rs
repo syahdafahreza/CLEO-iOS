@@ -1,7 +1,7 @@
 //! Provides a touch interface and accompanying logic to allow the user to interact with scripts, cheats and settings.
 
 use super::{
-    gui::{self, ns_string, CGPoint, CGRect, CGSize},
+    gui::{self, ns_string, CGFloat, NSInteger, NSUInteger, CGPoint, CGRect, CGSize},
     language::{Message, MessageKey},
 };
 use objc::{class, msg_send, runtime::Object, sel};
@@ -45,11 +45,11 @@ struct Row {
 // fixme: New states don't incorporate controller stuff.
 struct TabState {
     selected: bool,
-    scroll_y: f64,
+    scroll_y: CGFloat,
 }
 
-const MENU_BACKGROUND_ALPHA: f64 = 0.2;
-const MENU_INACTIVE_ALPHA: f64 = 0.1;
+const MENU_BACKGROUND_ALPHA: CGFloat = 0.2;
+const MENU_INACTIVE_ALPHA: CGFloat = 0.1;
 
 struct TabButton {
     message: Message,
@@ -63,7 +63,7 @@ impl TabButton {
         let font = super::language::current().font_set().title_uifont();
 
         unsafe {
-            let _: () = msg_send![self.view, setTitle: title_string_objc forState: 0u64];
+            let _: () = msg_send![self.view, setTitle: title_string_objc forState: 0 as NSUInteger];
 
             let label: *mut Object = msg_send![self.view, titleLabel];
             let _: () = msg_send![label, setFont: font];
@@ -145,7 +145,7 @@ impl MenuMessage {
 }
 
 impl Row {
-    fn new(data: Box<dyn RowData>, frame: gui::CGRect) -> Row {
+    fn new(data: Box<dyn RowData>, frame: CGRect) -> Row {
         let language = super::language::current();
         let font_set = language.font_set();
 
@@ -158,10 +158,10 @@ impl Row {
             let _: () = msg_send![label, setFont: subtitle_font];
 
             let value_frame = CGRect::new(
-                frame.size.width * 0.05,
+                frame.size.width * (0.05 as CGFloat),
                 0.0,
-                frame.size.width * 0.9,
-                frame.size.height * 0.6,
+                frame.size.width * (0.9 as CGFloat),
+                frame.size.height * (0.6 as CGFloat),
             )
             .rounded();
 
@@ -170,12 +170,12 @@ impl Row {
             let _: () = msg_send![value_label, setFont: subtitle_font];
 
             let detail_frame = CGRect::new(
-                frame.size.width * 0.05,
+                frame.size.width * (0.05 as CGFloat),
                 // 0.5 to move the detail up towards the title. This makes it more obvious that the
                 //  detail goes with the title, and makes the rows easier to read.
-                frame.size.height * 0.5,
-                frame.size.width * 0.9,
-                frame.size.height * 0.4,
+                frame.size.height * (0.5 as CGFloat),
+                frame.size.width * (0.9 as CGFloat),
+                frame.size.height * (0.4 as CGFloat),
             )
             .rounded();
 
@@ -204,12 +204,12 @@ impl Row {
         let (detail_message, foreground_colour, background_colour) = match self.data.detail() {
             RowDetail::Info(s) => (
                 s,
-                gui::colours::white_with_alpha(1., 0.95),
-                gui::colours::white_with_alpha(0., 0.),
+                gui::colours::white_with_alpha(1. as CGFloat, 0.95 as CGFloat),
+                gui::colours::white_with_alpha(0. as CGFloat, 0. as CGFloat),
             ),
             RowDetail::Warning(s) => (
                 s,
-                gui::colours::get(gui::colours::ORANGE, 0.95),
+                gui::colours::get(gui::colours::ORANGE, 0.95 as CGFloat),
                 gui::colours::get(gui::colours::ORANGE, MENU_BACKGROUND_ALPHA),
             ),
         };
@@ -217,10 +217,10 @@ impl Row {
         let (background_colour, value_colour) = if let Some(tint) = self.data.tint() {
             (
                 gui::colours::get(tint, MENU_BACKGROUND_ALPHA),
-                gui::colours::get(tint, 0.95),
+                gui::colours::get(tint, 0.95 as CGFloat),
             )
         } else {
-            (background_colour, gui::colours::white_with_alpha(1., 0.95))
+            (background_colour, gui::colours::white_with_alpha(1. as CGFloat, 0.95 as CGFloat))
         };
 
         let font_set = super::language::current().font_set();
@@ -231,8 +231,8 @@ impl Row {
 
         unsafe {
             let _: () = msg_send![self.button, setBackgroundColor: background_colour];
-            let _: () = msg_send![self.button, setTitle: ns_string(title_str) forState: 0u64];
-            let _: () = msg_send![self.button, setTitleColor: foreground_colour forState: 0u64];
+            let _: () = msg_send![self.button, setTitle: ns_string(title_str) forState: 0 as NSUInteger];
+            let _: () = msg_send![self.button, setTitleColor: foreground_colour forState: 0 as NSUInteger];
 
             let _: () = msg_send![self.value_label, setText: ns_string(value_str)];
             let _: () = msg_send![self.value_label, setTextColor: value_colour];
@@ -258,26 +258,26 @@ impl Row {
 
         let button_alignment = if is_rtl {
             // Right
-            2u64
+            2 as NSInteger
         } else {
             // Left
-            1u64
+            1 as NSInteger
         };
 
         let value_alignment = if is_rtl {
             // Left
-            0u64
+            0 as NSInteger
         } else {
             // Right
-            2u64
+            2 as NSInteger
         };
 
         let desc_alignment = if is_rtl {
             // Right
-            2u64
+            2 as NSInteger
         } else {
             // Left
-            0u64
+            0 as NSInteger
         };
 
         let button_frame: CGRect = unsafe { msg_send![self.button, frame] };
@@ -286,14 +286,14 @@ impl Row {
             gui::UIEdgeInsets::new(
                 0.,
                 0.,
-                button_frame.size.height * 0.4,
-                button_frame.size.width * 0.05,
+                button_frame.size.height * (0.4 as CGFloat),
+                button_frame.size.width * (0.05 as CGFloat),
             )
         } else {
             gui::UIEdgeInsets::new(
                 0.,
-                button_frame.size.width * 0.05,
-                button_frame.size.height * 0.4,
+                button_frame.size.width * (0.05 as CGFloat),
+                button_frame.size.height * (0.4 as CGFloat),
                 0.,
             )
         };
@@ -317,16 +317,16 @@ impl Row {
 //  smaller devices, but on iPads, many things were too big and the menu as a whole looked strange.
 // Now we just hardcode the same values for all displays.
 
-const ROW_HEIGHT: f64 = 50.;
+const ROW_HEIGHT: CGFloat = 50.;
 
-const TAB_BUTTON_HEIGHT: f64 = 50.;
+const TAB_BUTTON_HEIGHT: CGFloat = 50.;
 
-const CLOSE_BUTTON_HEIGHT: f64 = 35.;
-const CLOSE_BTN_FONT_SIZE: f64 = 20.;
+const CLOSE_BUTTON_HEIGHT: CGFloat = 35.;
+const CLOSE_BTN_FONT_SIZE: CGFloat = 20.;
 
 // Some elements are still proportional to others. The height of the warning label is proportional
 //  to the height of the tab view as a whole.
-const WARNING_HEIGHT_FRAC: f64 = 0.1;
+const WARNING_HEIGHT_FRAC: CGFloat = 0.1;
 
 struct Tab {
     name: Message,
@@ -337,7 +337,7 @@ struct Tab {
 }
 
 impl Tab {
-    fn new(data: TabData, tab_frame: gui::CGRect, state: TabState) -> Tab {
+    fn new(data: TabData, tab_frame: CGRect, state: TabState) -> Tab {
         let language = super::language::current();
 
         let scroll_frame = if data.warning.is_some() {
@@ -346,7 +346,7 @@ impl Tab {
                 tab_frame.origin.x,
                 tab_frame.origin.y + tab_frame.size.height * WARNING_HEIGHT_FRAC,
                 tab_frame.size.width,
-                tab_frame.size.height * (1. - WARNING_HEIGHT_FRAC),
+                tab_frame.size.height * ((1. as CGFloat) - WARNING_HEIGHT_FRAC),
             )
         } else {
             tab_frame
@@ -362,7 +362,7 @@ impl Tab {
         let make_row = |(index, data)| {
             Row::new(
                 data,
-                CGRect::new(0., ROW_HEIGHT * index as f64, row_width, ROW_HEIGHT),
+                CGRect::new(0., ROW_HEIGHT * (index as CGFloat), row_width, ROW_HEIGHT),
             )
         };
 
@@ -384,7 +384,7 @@ impl Tab {
 
         let content_size = CGSize {
             width: scroll_frame.size.width,
-            height: ROW_HEIGHT * rows.len() as f64,
+            height: ROW_HEIGHT * (rows.len() as CGFloat),
         };
 
         unsafe {
@@ -397,7 +397,7 @@ impl Tab {
 
             let _: () = msg_send![scroll_view, setContentOffset: content_offset animated: false];
 
-            let background = gui::colours::white_with_alpha(0., MENU_BACKGROUND_ALPHA);
+            let background = gui::colours::white_with_alpha(0. as CGFloat, MENU_BACKGROUND_ALPHA);
             let _: () = msg_send![scroll_view, setBackgroundColor: background];
         }
 
@@ -414,14 +414,14 @@ impl Tab {
             let label: *mut Object = msg_send![class!(UILabel), alloc];
             let label: *mut Object = msg_send![label, initWithFrame: warning_frame];
 
-            let colour = gui::colours::get(gui::colours::ORANGE, 1.);
+            let colour = gui::colours::get(gui::colours::ORANGE, 1. as CGFloat);
             let font = language.font_set().small_uifont();
             let _: () = msg_send![label, setTextColor: colour];
             let _: () = msg_send![label, setFont: font];
             let _: () = msg_send![label, setText: ns_string(warning)];
-            let _: () = msg_send![label, setTextAlignment: 1u64];
+            let _: () = msg_send![label, setTextAlignment: 1 as NSInteger];
             let _: () = msg_send![label, setAdjustsFontSizeToFitWidth: true];
-            let _: () = msg_send![label, setNumberOfLines: 0u64];
+            let _: () = msg_send![label, setNumberOfLines: 0 as NSInteger];
 
             let colour = gui::colours::get((0, 0, 0), MENU_BACKGROUND_ALPHA);
             let _: () = msg_send![label, setBackgroundColor: colour];
@@ -473,14 +473,14 @@ impl Tab {
 }
 
 impl TabButton {
-    fn new(title: Message, index: usize, width: f64) -> TabButton {
+    fn new(title: Message, index: usize, width: CGFloat) -> TabButton {
         let view = unsafe {
             let btn: *mut Object = msg_send![class!(UIButton), alloc];
 
-            let frame = CGRect::new(width * index as f64, 0., width, TAB_BUTTON_HEIGHT);
+            let frame = CGRect::new(width * (index as CGFloat), 0., width, TAB_BUTTON_HEIGHT);
             let btn: *mut Object = msg_send![btn, initWithFrame: frame];
 
-            let _: () = msg_send![btn, setTitle: ns_string(title.translate()) forState: 0u64];
+            let _: () = msg_send![btn, setTitle: ns_string(title.translate()) forState: 0 as NSUInteger];
 
             let label: *mut Object = msg_send![btn, titleLabel];
 
@@ -501,18 +501,18 @@ impl TabButton {
     }
 
     fn set_selected(&mut self, selected: bool) {
-        let text_alpha = if selected { 0.95 } else { 0.4 };
-        let background_alpha = if selected {
+        let text_alpha: CGFloat = if selected { 0.95 } else { 0.4 };
+        let background_alpha: CGFloat = if selected {
             MENU_BACKGROUND_ALPHA
         } else {
             MENU_INACTIVE_ALPHA
         };
 
-        let foreground = gui::colours::white_with_alpha(1., text_alpha);
-        let background = gui::colours::white_with_alpha(0., background_alpha);
+        let foreground = gui::colours::white_with_alpha(1. as CGFloat, text_alpha);
+        let background = gui::colours::white_with_alpha(0. as CGFloat, background_alpha);
 
         unsafe {
-            let _: () = msg_send![self.view, setTitleColor: foreground forState: 0u64];
+            let _: () = msg_send![self.view, setTitleColor: foreground forState: 0 as NSUInteger];
             let _: () = msg_send![self.view, setBackgroundColor: background];
         }
     }
@@ -612,7 +612,7 @@ impl Menu {
             msg_send![key_window, frame]
         };
 
-        let tab_btn_width = frame.size.width / tab_data.len() as f64;
+        let tab_btn_width = frame.size.width / (tab_data.len() as CGFloat);
 
         let tab_buttons: Vec<_> = tab_data
             .iter()
@@ -666,10 +666,10 @@ impl Menu {
 
             let close_string = ns_string(close_message.translate());
 
-            let _: () = msg_send![btn, setTitle: close_string forState: 0u64];
+            let _: () = msg_send![btn, setTitle: close_string forState: 0 as NSUInteger];
             let _: () = msg_send![
                 btn,
-                setBackgroundColor: gui::colours::get(gui::colours::RED, 0.35)
+                setBackgroundColor: gui::colours::get(gui::colours::RED, 0.35 as CGFloat)
             ];
 
             let label: *mut Object = msg_send![btn, titleLabel];
@@ -805,7 +805,7 @@ impl Menu {
             .uifont(CLOSE_BTN_FONT_SIZE);
 
         unsafe {
-            let _: () = msg_send![self.close_button, setTitle: close_title_objc forState: 0u64];
+            let _: () = msg_send![self.close_button, setTitle: close_title_objc forState: 0 as NSUInteger];
 
             let label: *mut Object = msg_send![self.close_button, titleLabel];
             let _: () = msg_send![label, setFont: close_font];
@@ -951,7 +951,7 @@ fn reachability_with_hostname(
 fn add_button_handler(button: *mut Object, tag: ButtonTag) {
     let reachability = class!(IOSReachability);
     let selector = sel!(reachabilityWithHostName:);
-    let touch_up_inside = (1 << 6) as u64;
+    let touch_up_inside = (1 << 6) as NSUInteger;
 
     unsafe {
         let _: () = msg_send![button, setTag: tag];

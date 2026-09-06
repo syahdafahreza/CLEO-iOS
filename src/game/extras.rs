@@ -253,6 +253,7 @@ pub fn init() {
     // They were only used in debug builds on arm64 anyway.
 
     targets::display_fps::install(display_fps);
+    #[cfg(target_pointer_width = "64")]
     targets::loading_messages::install(set_loading_messages);
 
     // create_soft_target!(do_game_state, 0x003c9d10, fn());

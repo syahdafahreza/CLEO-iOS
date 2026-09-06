@@ -257,7 +257,14 @@ fn legal_splash_did_load(this: *mut Object, _sel: Sel) {
     //  and use a UIImageView, so the numberplate is made from scratch with UIViews and UILabels.
     unsafe {
         let view: *mut Object = msg_send![this, view];
-        let bounds: CGRect = msg_send![view, bounds];
+        let raw_bounds: CGRect = msg_send![view, bounds];
+
+        // GTA SA runs exclusively in landscape. On 32-bit devices (iPhone 5, iOS 10),
+        // view.bounds in viewDidLoad still reflects the portrait nib size (e.g. 320x480).
+        // Normalize bounds so that width is always the larger dimension and height is the smaller.
+        let screen_w = raw_bounds.size.width.max(raw_bounds.size.height);
+        let screen_h = raw_bounds.size.width.min(raw_bounds.size.height);
+        let bounds = CGRect::new(0.0 as CGFloat, 0.0 as CGFloat, screen_w, screen_h);
 
         let background_view: *mut Object = msg_send![class!(UIView), alloc];
         let background_view: *mut Object = msg_send![background_view, initWithFrame: bounds];

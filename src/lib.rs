@@ -28,7 +28,7 @@ mod targets {
     #[cfg(target_pointer_width = "64")]
     create_soft_target!(process_touch, 0x1004e831c, fn(f32, f32, f64, f32, u64));
     #[cfg(target_pointer_width = "32")]
-    create_soft_target!(process_touch, 0x003f1cac, fn(f32, f32, f64, f32, u32));
+    create_soft_target!(process_touch, 0x003ece38, fn(u32, f32, f32, f64));
 
     create_soft_target!(
         get_gxt_string,

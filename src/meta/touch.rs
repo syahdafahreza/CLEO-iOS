@@ -365,10 +365,10 @@ impl TouchInterface {
     pub fn fetch_viewport_size(&mut self) {
         let (screen_w, screen_h) = uiscreen_size();
 
-        // The viewport is always in landscape, but the screen size is measured in portrait, so we
-        // need to swap the width and height of the screen to get the viewport size
-        self.viewport_width = screen_h as f32;
-        self.viewport_height = screen_w as f32;
+        // GTA SA runs exclusively in landscape, so the viewport width is always
+        // the larger dimension and the height is the smaller dimension.
+        self.viewport_width = screen_w.max(screen_h) as f32;
+        self.viewport_height = screen_w.min(screen_h) as f32;
     }
 
     /// Removes any touches that are too old, relative to the given timestamp, to be relevant.
@@ -561,29 +561,9 @@ impl MenuGesture {
 // todo: Don't pick up touches that have been handled by a non-joypad control.
 // fixme: `process_touch` nests too deeply and needs to be broken up into smaller functions.
 
-/// On armv7 (32-bit), touch_type is a u32; on arm64 it's u64.
 #[cfg(target_pointer_width = "64")]
-type TouchType = u64;
-#[cfg(target_pointer_width = "32")]
-type TouchType = u32;
-
-fn process_touch(x: f32, y: f32, timestamp: f64, force: f32, touch_type: TouchType) {
-    // Log the first few touch events so we can confirm the hook is active.
-    {
-        use std::sync::atomic::{AtomicU32, Ordering};
-        static TOUCH_LOG_COUNT: AtomicU32 = AtomicU32::new(0);
-        let count = TOUCH_LOG_COUNT.fetch_add(1, Ordering::Relaxed);
-        if count < 5 {
-            log::info!(
-                "process_touch called: x={:.1}, y={:.1}, type={}, force={:.2} (event #{})",
-                x, y, touch_type, force, count + 1
-            );
-        } else if count == 5 {
-            log::info!("process_touch hook confirmed working — suppressing further touch logs.");
-        }
-    }
-
-    let event_type = match touch_type as u64 {
+fn process_touch(x: f32, y: f32, timestamp: f64, force: f32, touch_type: u64) {
+    let event_type = match touch_type {
         0 => TouchEvent::Up,
         2 => TouchEvent::Down,
         3 => TouchEvent::Move,
@@ -605,6 +585,47 @@ fn process_touch(x: f32, y: f32, timestamp: f64, force: f32, touch_type: TouchTy
     update();
 
     call_original!(targets::process_touch, x, y, timestamp, force, touch_type);
+}
+
+#[cfg(target_pointer_width = "32")]
+fn process_touch(touch_type: u32, x: f32, y: f32, timestamp: f64) {
+    // Log the first few touch events so we can confirm the hook is active.
+    {
+        use std::sync::atomic::{AtomicU32, Ordering};
+        static TOUCH_LOG_COUNT: AtomicU32 = AtomicU32::new(0);
+        let count = TOUCH_LOG_COUNT.fetch_add(1, Ordering::Relaxed);
+        if count < 5 {
+            log::info!(
+                "process_touch called: x={:.1}, y={:.1}, type={} (event #{})",
+                x, y, touch_type, count + 1
+            );
+        } else if count == 5 {
+            log::info!("process_touch hook confirmed working — suppressing further touch logs.");
+        }
+    }
+
+    let event_type = match touch_type {
+        0 => TouchEvent::Up,
+        2 => TouchEvent::Down,
+        3 => TouchEvent::Move,
+
+        other => {
+            log::warn!("unhandled touch type {other}");
+            return;
+        }
+    };
+
+    let event = event_type(EventInfo {
+        position: Vec2d::new(x, y),
+        timestamp: timestamp as f32,
+    });
+
+    TouchInterface::shared_mut().handle_event(event);
+
+    // hack: Find a better place to call this.
+    update();
+
+    call_original!(targets::process_touch, touch_type, x, y, timestamp);
 }
 
 /// Refreshes the touch system, showing the menu if the user has triggered it.

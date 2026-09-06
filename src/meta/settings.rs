@@ -148,7 +148,7 @@ pub enum FpsVisibility {
 
 impl Default for FpsVisibility {
     fn default() -> Self {
-        FpsVisibility::Hidden
+        FpsVisibility::Visible
     }
 }
 

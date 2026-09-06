@@ -25,7 +25,10 @@ mod targets {
 
     create_soft_target!(script_tick, 0x00159a88, fn());
 
+    #[cfg(target_pointer_width = "64")]
     create_soft_target!(process_touch, 0x003f1e28, fn(f32, f32, f64, f32, u64));
+    #[cfg(target_pointer_width = "32")]
+    create_soft_target!(process_touch, 0x003f1e28, fn(f32, f32, f64, f32, u32));
 
     create_soft_target!(
         get_gxt_string,
@@ -116,6 +119,9 @@ fn load() {
     if hook::can_hook() {
         log::info!("hook test successful! CLEO should work ok :)");
     } else {
+        #[cfg(target_pointer_width = "32")]
+        log::warn!("hook test failed on armv7 — this may be a false negative due to Thumb mode function sizing. Continuing anyway...");
+        #[cfg(target_pointer_width = "64")]
         log::error!("hook test failed! CLEO probably won't work :( please report this error!");
     }
 

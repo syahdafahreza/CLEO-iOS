@@ -560,8 +560,30 @@ impl MenuGesture {
 // Hook the touch handler so we can use touch zones like CLEO Android does.
 // todo: Don't pick up touches that have been handled by a non-joypad control.
 // fixme: `process_touch` nests too deeply and needs to be broken up into smaller functions.
-fn process_touch(x: f32, y: f32, timestamp: f64, force: f32, touch_type: u64) {
-    let event_type = match touch_type {
+
+/// On armv7 (32-bit), touch_type is a u32; on arm64 it's u64.
+#[cfg(target_pointer_width = "64")]
+type TouchType = u64;
+#[cfg(target_pointer_width = "32")]
+type TouchType = u32;
+
+fn process_touch(x: f32, y: f32, timestamp: f64, force: f32, touch_type: TouchType) {
+    // Log the first few touch events so we can confirm the hook is active.
+    {
+        use std::sync::atomic::{AtomicU32, Ordering};
+        static TOUCH_LOG_COUNT: AtomicU32 = AtomicU32::new(0);
+        let count = TOUCH_LOG_COUNT.fetch_add(1, Ordering::Relaxed);
+        if count < 5 {
+            log::info!(
+                "process_touch called: x={:.1}, y={:.1}, type={}, force={:.2} (event #{})",
+                x, y, touch_type, force, count + 1
+            );
+        } else if count == 5 {
+            log::info!("process_touch hook confirmed working — suppressing further touch logs.");
+        }
+    }
+
+    let event_type = match touch_type as u64 {
         0 => TouchEvent::Up,
         2 => TouchEvent::Down,
         3 => TouchEvent::Move,
@@ -593,6 +615,7 @@ pub fn update() {
     touch_interface.fetch_viewport_size();
 
     if touch_interface.check_menu_trigger() {
+        log::info!("Menu gesture detected! Sending Show message.");
         super::menu::MenuMessage::Show.send();
     }
 }
@@ -600,4 +623,5 @@ pub fn update() {
 pub fn init() {
     log::info!("installing touch hook...");
     targets::process_touch::install(process_touch);
+    log::info!("touch hook installed. Viewport size will be fetched on first touch event.");
 }

@@ -200,9 +200,16 @@ pub fn can_hook() -> bool {
     // note: `test_function` and `hooked_impl` cannot simply return a single value, because this
     // makes them too small to hook. A log message is included in each to add some extra
     // instructions.
+    //
+    // On armv7 (Thumb mode), functions must be large enough for MSHookFunction to patch.
+    // We use #[inline(never)] and volatile reads to ensure the compiler doesn't shrink them.
 
+    #[inline(never)]
     fn test_function() -> bool {
-        log::warn!("unhooked implementation running");
+        // Volatile read to prevent the compiler from optimising this function away
+        // or making it too small for Substrate to hook on armv7 Thumb mode.
+        let padding = unsafe { std::ptr::read_volatile(&42u32) };
+        log::warn!("unhooked implementation running (pad={})", padding);
 
         // This will not run if we hook it successfully.
         false
@@ -215,8 +222,10 @@ pub fn can_hook() -> bool {
         return true;
     }
 
+    #[inline(never)]
     fn hooked_impl() -> bool {
-        log::info!("hooked implementation running :)");
+        let padding = unsafe { std::ptr::read_volatile(&99u32) };
+        log::info!("hooked implementation running :) (pad={})", padding);
 
         true
     }

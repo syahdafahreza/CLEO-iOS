@@ -210,6 +210,21 @@ pub fn slide<T: Copy>(address: usize) -> T {
     }
 }
 
+pub fn slide_fn<T: Copy>(address: usize) -> T {
+    let slide = crate::hook::get_game_aslr_offset();
+
+    #[cfg(target_pointer_width = "32")]
+    let full_addr = (address + slide) | 1;
+
+    #[cfg(not(target_pointer_width = "32"))]
+    let full_addr = address + slide;
+
+    unsafe {
+        let addr_ptr: *const usize = &full_addr;
+        *(addr_ptr as *const T)
+    }
+}
+
 pub fn deref_global<T: Copy>(address: usize) -> T {
     let slid: *const T = slide(address);
     unsafe { *slid }

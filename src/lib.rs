@@ -23,16 +23,26 @@ mod targets {
 
     use super::{c_char, create_hard_target, create_soft_target, Object, Sel};
 
-    create_soft_target!(script_tick, 0x00159a88, fn());
+    #[cfg(target_pointer_width = "64")]
+    create_soft_target!(script_tick, 0x1001d0f40, fn());
+    #[cfg(target_pointer_width = "32")]
+    create_soft_target!(script_tick, 0x0011e6f4, fn());
 
     #[cfg(target_pointer_width = "64")]
     create_soft_target!(process_touch, 0x1004e831c, fn(f32, f32, f64, f32, u64));
     #[cfg(target_pointer_width = "32")]
     create_soft_target!(process_touch, 0x003ece38, fn(u32, f32, f32, f64));
 
+    #[cfg(target_pointer_width = "64")]
     create_soft_target!(
         get_gxt_string,
-        0x0034f3c0,
+        0x10044142c,
+        fn(usize, *const c_char) -> *const u16
+    );
+    #[cfg(target_pointer_width = "32")]
+    create_soft_target!(
+        get_gxt_string,
+        0x00356380,
         fn(usize, *const c_char) -> *const u16
     );
 

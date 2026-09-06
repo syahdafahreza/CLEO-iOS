@@ -70,9 +70,15 @@ mod targets {
 
     create_soft_target!(gen_plate, 0x002d3498, fn(*mut u8, i32) -> bool);
 
-    create_soft_target!(idle, 0x001e1164, fn(u64, u64));
+    #[cfg(target_pointer_width = "64")]
+    create_soft_target!(idle, 0x100242c20, fn(u64, u64));
+    #[cfg(target_pointer_width = "32")]
+    create_soft_target!(idle, 0x00189f94, fn(usize, usize));
 
-    create_soft_target!(cycles_per_millisecond, 0x00208ef4, fn() -> u32);
+    #[cfg(target_pointer_width = "64")]
+    create_soft_target!(cycles_per_millisecond, 0x10026e790, fn() -> u32);
+    #[cfg(target_pointer_width = "32")]
+    create_soft_target!(cycles_per_millisecond, 0x003ed694, fn() -> u32);
 
     create_soft_target!(do_game_state, 0x003c9d10, fn());
 
@@ -98,7 +104,10 @@ mod targets {
 
     create_soft_target!(load_settings, 0x002542ec, fn(u64));
 
-    create_hard_target!(display_fps, 0x001e0c94, fn());
+    #[cfg(target_pointer_width = "64")]
+    create_hard_target!(display_fps, 0x100241cd8, fn());
+    #[cfg(target_pointer_width = "32")]
+    create_hard_target!(display_fps, 0x00188fd0, fn());
 
     create_soft_target!(update_pads, 0x001e2b48, fn());
 

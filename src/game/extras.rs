@@ -143,89 +143,11 @@ fn display_fps() {
     crate::hook::slide::<fn(f32, f32, *const u16)>(0x1003809c8)(x, y, bytes.as_ptr());
 }
 
-#[cfg(target_pointer_width = "32")]
-fn display_fps() {
-    // GTA SA v1.09 armv7 addresses for FPS counter internals.
-    // Use slide_fn for code addresses (sets Thumb bit 0) and slide for data globals.
-    let delta_time = crate::hook::slide_fn::<extern "C" fn() -> u32>(0x003ed5e0)();
-    let current_delta = crate::hook::slide::<*mut i32>(0x0070beb4);
-    let delta_times: *mut u32 = crate::hook::slide(0x0070be14);
-
-    let fps = unsafe {
-        let curr = *current_delta;
-        let new_delta_index = (curr.rem_euclid(40)) as isize;
-        delta_times.offset(new_delta_index).write(delta_time);
-        *current_delta = curr + 1;
-
-        // In GTA SA circular delta buffer:
-        // delta_times[curr % 40] is the newly written frame
-        // delta_times[(curr + 1) % 40] is the frame from 40 iterations ago
-        let delta_last_frame = *delta_times.offset((curr.rem_euclid(40)) as isize);
-        let delta_this_frame = *delta_times.offset(((curr + 1).rem_euclid(40)) as isize);
-
-        if delta_last_frame > delta_this_frame {
-            let delta = delta_last_frame - delta_this_frame;
-            39000.0 / delta as f32
-        } else {
-            30.0
-        }
-    };
-
-    // eq: CFont::SetBackground(...)
-    crate::hook::slide_fn::<extern "C" fn(u8, u8)>(0x0029ba8c)(1, 0);
-
-    // eq: CFont::SetBackgroundColor(...)
-    crate::hook::slide_fn::<extern "C" fn(*const Rgba)>(0x0029ba9c)(&Rgba {
-        red: 0,
-        green: 0,
-        blue: 0,
-        alpha: 180,
-    });
-
-    // eq: CFont::SetScale(...)
-    crate::hook::slide_fn::<extern "C" fn(f32)>(0x0029b8b4)(1.12);
-
-    // eq: CFont::SetOrientation(...)
-    crate::hook::slide_fn::<extern "C" fn(u32)>(0x0029b9c4)(0);
-
-    // eq: CFont::SetJustify(...)
-    crate::hook::slide_fn::<extern "C" fn(u8)>(0x0029bac0)(0);
-
-    // eq: CFont::SetCentreSize(...)
-    crate::hook::slide_fn::<extern "C" fn(f32)>(0x0029b8ec)(200.0);
-
-    // eq: CFont::SetProportional(...)
-    crate::hook::slide_fn::<extern "C" fn(u8)>(0x0029bad0)(0);
-
-    // eq: CFont::SetFontStyle(...)
-    crate::hook::slide_fn::<extern "C" fn(u8)>(0x0029ba7c)(1);
-
-    // eq: CFont::SetEdge(...)
-    crate::hook::slide_fn::<extern "C" fn(u8)>(0x0029b8fc)(0);
-
-    // eq: CFont::SetColor(...)
-    crate::hook::slide_fn::<extern "C" fn(*const Rgba)>(0x0029b788)(&Rgba {
-        red: 9,
-        green: 243,
-        blue: 11,
-        alpha: 255,
-    });
-
-    // CFont::PrintString expects UTF16, so encode our FPS string as such.
-    let mut bytes: Vec<u16> = format!("FPS: {fps:.2}").encode_utf16().collect();
-    bytes.push(0);
-
-    let (x, y) = unsafe {
-        // RsGlobal: maximumWidth (+4 = 0x007e0d80), maximumHeight (+8 = 0x007e0d84)
-        let screen_wide = *crate::hook::slide::<*const i32>(0x007e0d80);
-        let screen_high = *crate::hook::slide::<*const i32>(0x007e0d84);
-
-        (screen_wide as f32 * 0.5, screen_high as f32 * 0.05)
-    };
-
-    // eq: CFont::PrintString(...)
-    crate::hook::slide_fn::<extern "C" fn(f32, f32, *const u16)>(0x0029acc8)(x, y, bytes.as_ptr());
-}
+// NOTE: On 32-bit (ARMv7), we do NOT implement a custom display_fps().
+// Instead, idle() sets the game's native FPS-display flag (at 0x00746bb1),
+// and we do NOT hook display_fps at all — the game's own native DisplayFPS()
+// at 0x00188fd0 handles all CFont calls correctly without any risk of
+// corrupting the game's HUD or font state.
 
 /// A game shader.
 #[derive(Clone, Copy)]
@@ -358,6 +280,11 @@ pub fn init() {
     // on GTA SA v1.09 armv7. The shader system is different in this binary.
     // They were only used in debug builds on arm64 anyway.
 
+    // On 32-bit: display_fps hook is NOT installed. The game's native DisplayFPS()
+    // is invoked automatically by CGame::Idle() when the flag at 0x00746bb1 is set
+    // by our idle() hook above. Hooking it with custom CLEO code risks font-state
+    // corruption (wrong CFont addresses) and full-width black rectangles.
+    #[cfg(target_pointer_width = "64")]
     targets::display_fps::install(display_fps);
     #[cfg(target_pointer_width = "64")]
     targets::loading_messages::install(set_loading_messages);

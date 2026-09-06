@@ -1,12 +1,11 @@
 //! Interfaces with the GitHub API to determine if a CLEO update is available, and manages
 //! the version cache.
 
-use crate::{
-    call_original,
-    game::text,
-    hook,
-    meta::github::{CheckStatus, Version},
-};
+use crate::call_original;
+use crate::meta::github::{CheckStatus, Version};
+
+#[cfg(target_pointer_width = "64")]
+use crate::{game::text, hook};
 
 use objc::{runtime::Object, *};
 

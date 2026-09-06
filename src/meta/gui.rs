@@ -8,7 +8,6 @@ use objc::{
     runtime::{Object, Sel},
     sel,
 };
-use std::os::raw::c_long;
 
 #[cfg(target_pointer_width = "32")]
 pub type CGFloat = f32;
@@ -123,21 +122,21 @@ impl FontSet {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct CGSize {
     pub width: CGFloat,
     pub height: CGFloat,
 }
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct CGPoint {
     pub x: CGFloat,
     pub y: CGFloat,
 }
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct CGRect {
     pub origin: CGPoint,
     pub size: CGSize,
@@ -268,8 +267,8 @@ fn legal_splash_did_load(this: *mut Object, _sel: Sel) {
         let bounds = CGRect::new(0.0 as CGFloat, 0.0 as CGFloat, screen_w, screen_h);
 
         log::info!(
-            "Setting up splash screen with screen bounds: {:.1}x{:.1}, raw view bounds: {:?}.",
-            screen_w, screen_h, raw_bounds
+            "Setting up splash screen with screen bounds: {:.1}x{:.1}, raw view bounds: {:.1}x{:.1}.",
+            screen_w, screen_h, raw_bounds.size.width, raw_bounds.size.height
         );
 
         // Ensure the root view bounds are set to landscape

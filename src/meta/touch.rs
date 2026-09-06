@@ -3,17 +3,11 @@
 
 use crate::meta::gui::{CGFloat, CGRect};
 use crate::{call_original, targets};
-use cached::proc_macro::cached;
 use itertools::Itertools;
 use lazy_static::lazy_static;
-use log::error;
-use log::warn;
 use objc::{runtime::Object, *};
 use serde::{Deserialize, Serialize};
-use std::{
-    sync::{Mutex, RwLock, RwLockReadGuard, RwLockWriteGuard},
-    time::Duration,
-};
+use std::sync::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 
 /// 2D vector type for storing position/offset information.
 type Vec2d = vector2d::Vector2D<f32>;

@@ -1,6 +1,7 @@
 //! Replaces the game's broken cheats system with our own system that integrates with the menu.
 
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Mutex;
 
 use crate::{
     call_original, hook,
@@ -271,29 +272,269 @@ impl RowData for CheatData {
     }
 }
 
-pub fn tab_data() -> TabData {
-    let sorted_cheats: Lazy<Vec<&Cheat>> = Lazy::new(|| {
-        let mut vec: Vec<&Cheat> = CHEATS.iter().by_ref().collect();
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum CheatCategory {
+    All,
+    Weapons,
+    HealthWanted,
+    Vehicles,
+    Traffic,
+    Player,
+    WeatherTime,
+    Chaos,
+    Misc,
+}
 
-        vec.sort_by_key(|cheat| {
-            if cheat.code.is_empty() {
-                // Push cheats without codes to the end. If we don't do this, the cheat menu only shows "???" for the first few rows.
-                "ZZZZZ"
-            } else {
-                cheat.code
-            }
-        });
+impl CheatCategory {
+    pub fn name(&self) -> &'static str {
+        match self {
+            CheatCategory::All => "SEMUA",
+            CheatCategory::Weapons => "SENJATA",
+            CheatCategory::HealthWanted => "KESEHATAN & POLISI",
+            CheatCategory::Vehicles => "SPAWN KENDARAAN",
+            CheatCategory::Traffic => "LALU LINTAS",
+            CheatCategory::Player => "KARAKTER CJ",
+            CheatCategory::WeatherTime => "CUACA & WAKTU",
+            CheatCategory::Chaos => "KEKACAUAN (CHAOS)",
+            CheatCategory::Misc => "LAIN-LAIN",
+        }
+    }
 
-        vec
+    pub fn next(&self) -> CheatCategory {
+        match self {
+            CheatCategory::All => CheatCategory::Weapons,
+            CheatCategory::Weapons => CheatCategory::HealthWanted,
+            CheatCategory::HealthWanted => CheatCategory::Vehicles,
+            CheatCategory::Vehicles => CheatCategory::Traffic,
+            CheatCategory::Traffic => CheatCategory::Player,
+            CheatCategory::Player => CheatCategory::WeatherTime,
+            CheatCategory::WeatherTime => CheatCategory::Chaos,
+            CheatCategory::Chaos => CheatCategory::Misc,
+            CheatCategory::Misc => CheatCategory::All,
+        }
+    }
+
+    pub fn matches(&self, cat: CheatCategory) -> bool {
+        match self {
+            CheatCategory::All => true,
+            _ => *self == cat,
+        }
+    }
+}
+
+lazy_static! {
+    static ref CURRENT_CATEGORY: Mutex<CheatCategory> = Mutex::new(CheatCategory::All);
+}
+
+pub fn get_cheat_category(key: MessageKey) -> CheatCategory {
+    match key {
+        // Weapons
+        MessageKey::CheatThugsArmoury
+        | MessageKey::CheatProfessionalsKit
+        | MessageKey::CheatNuttersToys
+        | MessageKey::CheatWeapons4
+        | MessageKey::CheatFullClip
+        | MessageKey::CheatIWannaDriveby
+        | MessageKey::CheatSlotMelee
+        | MessageKey::CheatSlotHandgun
+        | MessageKey::CheatSlotSmg
+        | MessageKey::CheatSlotShotgun
+        | MessageKey::CheatSlotAssaultRifle
+        | MessageKey::CheatSlotLongRifle
+        | MessageKey::CheatSlotThrown
+        | MessageKey::CheatSlotHeavy
+        | MessageKey::CheatSlotEquipment
+        | MessageKey::CheatSlotOther => CheatCategory::Weapons,
+
+        // Health & Wanted
+        MessageKey::CheatINeedSomeHelp
+        | MessageKey::CheatFullInvincibility
+        | MessageKey::CheatNooneCanHurtMe
+        | MessageKey::CheatTurnUpTheHeat
+        | MessageKey::CheatTurnDownTheHeat
+        | MessageKey::CheatIDoAsIPlease
+        | MessageKey::CheatBringItOn => CheatCategory::HealthWanted,
+
+        // Vehicles Spawner
+        MessageKey::Cheat18Holes
+        | MessageKey::CheatOldSpeedDemon
+        | MessageKey::CheatTintedRancher
+        | MessageKey::CheatNotForPublicRoads
+        | MessageKey::CheatJustTryAndStopMe
+        | MessageKey::CheatWheresTheFuneral
+        | MessageKey::CheatCelebrityStatus
+        | MessageKey::CheatTrueGrime
+        | MessageKey::CheatJumpJet
+        | MessageKey::CheatIWantToHover
+        | MessageKey::CheatOhDude
+        | MessageKey::CheatFourWheelFun
+        | MessageKey::CheatHitTheRoadJack
+        | MessageKey::CheatItsAllBull
+        | MessageKey::CheatFlyingToStunt
+        | MessageKey::CheatMonsterMash
+        | MessageKey::CheatRocketman
+        | MessageKey::CheatLetsGoBaseJumping
+        | MessageKey::CheatPredator => CheatCategory::Vehicles,
+
+        // Traffic & Vehicle physics
+        MessageKey::CheatAllCarsGoBoom
+        | MessageKey::CheatWheelsOnlyPlease
+        | MessageKey::CheatStickLikeGlue
+        | MessageKey::CheatDontTryAndStopMe
+        | MessageKey::CheatAllDriversAreCriminals
+        | MessageKey::CheatPinkIsTheNewCool
+        | MessageKey::CheatSoLongAsItsBlack
+        | MessageKey::CheatSidewaysWheels
+        | MessageKey::CheatFlyingFish
+        | MessageKey::CheatEveryoneIsPoor
+        | MessageKey::CheatEveryoneIsRich
+        | MessageKey::CheatChittyChittyBangBang
+        | MessageKey::CheatCjPhoneHome
+        | MessageKey::CheatTouchMyCarYouDie
+        | MessageKey::CheatSpeedFreak
+        | MessageKey::CheatBubbleCars
+        | MessageKey::CheatGhostTown
+        | MessageKey::CheatCoolTaxis => CheatCategory::Traffic,
+
+        // Player & CJ stats
+        MessageKey::CheatStingLikeABee
+        | MessageKey::CheatIAmNeverHungry
+        | MessageKey::CheatKangaroo
+        | MessageKey::CheatManFromAtlantis
+        | MessageKey::CheatWorshipMe
+        | MessageKey::CheatHelloLadies
+        | MessageKey::CheatWhoAteAllThePies
+        | MessageKey::CheatBuffMeUp
+        | MessageKey::CheatMaxGambling
+        | MessageKey::CheatLeanAndMean
+        | MessageKey::CheatICanGoAllNight
+        | MessageKey::CheatProfessionalKiller
+        | MessageKey::CheatNaturalTalent
+        | MessageKey::CheatGoodbyeCruelWorld
+        | MessageKey::CheatTakeAChillPill => CheatCategory::Player,
+
+        // Weather & Time
+        MessageKey::CheatPleasantlyWarm
+        | MessageKey::CheatTooDamnHot
+        | MessageKey::CheatDullDullDay
+        | MessageKey::CheatStayInAndWatchTv
+        | MessageKey::CheatCantSeeWhereImGoing
+        | MessageKey::CheatScottishSummer
+        | MessageKey::CheatSandInMyEars
+        | MessageKey::CheatClockForward
+        | MessageKey::CheatTimeJustFliesBy
+        | MessageKey::CheatSpeedItUp
+        | MessageKey::CheatSlowItDown
+        | MessageKey::CheatNightProwler
+        | MessageKey::CheatDontBringOnTheNight => CheatCategory::WeatherTime,
+
+        // Chaos & Riots
+        MessageKey::CheatRoughNeighbourhood
+        | MessageKey::CheatStopPickingOnMe
+        | MessageKey::CheatSurroundedByNutters
+        | MessageKey::CheatTimeToKickAss
+        | MessageKey::CheatBlueSuedeShoes
+        | MessageKey::CheatAttackOfTheVillagePeople
+        | MessageKey::CheatLifesABeach
+        | MessageKey::CheatOnlyHomiesAllowed
+        | MessageKey::CheatBetterStayIndoors
+        | MessageKey::CheatNinjaTown
+        | MessageKey::CheatLoveConquersAll
+        | MessageKey::CheatStateOfEmergency
+        | MessageKey::CheatHicksville
+        | MessageKey::CheatWannaBeInMyGang
+        | MessageKey::CheatNooneCanStopUs
+        | MessageKey::CheatRocketMayhem
+        | MessageKey::CheatCrazyTown => CheatCategory::Chaos,
+
+        // Misc
+        MessageKey::CheatSkipMission
+        | MessageKey::CheatProstitutesPay
+        | MessageKey::CheatDebugMappings
+        | MessageKey::CheatDebugTapToTarget
+        | MessageKey::CheatDebugTargeting
+        | MessageKey::CheatXboxHelper => CheatCategory::Misc,
+
+        _ => CheatCategory::Misc,
+    }
+}
+
+struct CategoryFilterRow {
+    category: CheatCategory,
+    count: usize,
+}
+
+impl RowData for CategoryFilterRow {
+    fn title(&self) -> Message {
+        MessageKey::CheatCodeRowTitle
+            .format(language::msg_args!["cheat_code" => "[ KATEGORI CHEAT ]".to_string()])
+    }
+
+    fn detail(&self) -> menu::RowDetail {
+        menu::RowDetail::Info(
+            MessageKey::CheatCodeRowTitle.format(
+                language::msg_args!["cheat_code" => "Ketuk untuk ganti filter kategori".to_string()],
+            ),
+        )
+    }
+
+    fn value(&self) -> Message {
+        MessageKey::CheatCodeRowTitle.format(language::msg_args![
+            "cheat_code" => format!("{} ({}) ▸", self.category.name(), self.count)
+        ])
+    }
+
+    fn tint(&self) -> Option<(u8, u8, u8)> {
+        Some(gui::colours::BLUE)
+    }
+
+    fn handle_tap(&mut self) -> bool {
+        let mut cat = CURRENT_CATEGORY.lock().unwrap();
+        *cat = cat.next();
+        drop(cat);
+
+        crate::meta::menu::MenuMessage::RebuildTab(2).send();
+        false
+    }
+}
+
+static ALL_SORTED_CHEATS: Lazy<Vec<&'static Cheat>> = Lazy::new(|| {
+    let mut vec: Vec<&'static Cheat> = CHEATS.iter().collect();
+    vec.sort_by_key(|cheat| {
+        if cheat.code.is_empty() {
+            "ZZZZZ"
+        } else {
+            cheat.code
+        }
     });
+    vec
+});
+
+pub fn tab_data() -> TabData {
+    let current_cat = *CURRENT_CATEGORY.lock().unwrap();
+
+    let filtered_cheats: Vec<&'static Cheat> = ALL_SORTED_CHEATS
+        .iter()
+        .copied()
+        .filter(|cheat| current_cat.matches(get_cheat_category(cheat.description)))
+        .collect();
+
+    let count = filtered_cheats.len();
+
+    let mut rows: Vec<Box<dyn RowData>> = Vec::with_capacity(count + 1);
+    rows.push(Box::new(CategoryFilterRow {
+        category: current_cat,
+        count,
+    }));
+
+    for cheat in filtered_cheats {
+        rows.push(Box::new(CheatData::new(cheat)));
+    }
 
     TabData {
         name: MessageKey::CheatTabTitle.to_message(),
         warning: Some(MessageKey::CheatMenuWarning.to_message()),
-        row_data: sorted_cheats
-            .iter()
-            .map(|cheat| Box::new(CheatData::new(cheat)) as Box<dyn RowData>)
-            .collect(),
+        row_data: rows,
     }
 }
 

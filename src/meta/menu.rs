@@ -129,6 +129,7 @@ pub enum MenuMessage {
     Hide,
 
     ReloadRows,
+    RebuildTab(usize),
 
     SelectTab(usize),
     HitRow(usize, usize),
@@ -480,6 +481,54 @@ impl Tab {
             unsafe {
                 let _: () = msg_send![warning_label, setFont: font_set.small_uifont()];
             }
+        }
+    }
+
+    fn rebuild_rows(&mut self, data: TabData, tab_index: usize) {
+        unsafe {
+            for row in &self.rows {
+                let _: () = msg_send![row.button, removeFromSuperview];
+            }
+        }
+
+        let row_width = unsafe {
+            let frame: CGRect = msg_send![self.scroll_view, frame];
+            frame.size.width
+        };
+
+        let make_row = |(index, data)| {
+            Row::new(
+                data,
+                CGRect::new(0., ROW_HEIGHT * (index as CGFloat), row_width, ROW_HEIGHT),
+            )
+        };
+
+        self.rows = data
+            .row_data
+            .into_iter()
+            .enumerate()
+            .map(make_row)
+            .collect();
+
+        for (row_index, row) in self.rows.iter().enumerate() {
+            unsafe {
+                let _: () = msg_send![row.button, addSubview: row.value_label];
+                let _: () = msg_send![row.button, addSubview: row.detail_label];
+                let _: () = msg_send![self.scroll_view, addSubview: row.button];
+            }
+            add_button_handler(row.button, ButtonTag::new_row(tab_index, row_index));
+        }
+
+        let content_size = CGSize {
+            width: row_width,
+            height: ROW_HEIGHT * (self.rows.len() as CGFloat),
+        };
+
+        unsafe {
+            let _: () = msg_send![self.scroll_view, setContentSize: content_size];
+
+            let content_offset = CGPoint { x: 0., y: 0. };
+            let _: () = msg_send![self.scroll_view, setContentOffset: content_offset animated: false];
         }
     }
 }
@@ -900,6 +949,20 @@ impl Menu {
         }
     }
 
+    fn rebuild_tab(&mut self, tab_index: usize) {
+        if tab_index >= self.tabs.len() {
+            return;
+        }
+
+        let mut module_tabs = Self::get_module_tab_data();
+        if tab_index >= module_tabs.len() {
+            return;
+        }
+
+        let new_tab_data = module_tabs.remove(tab_index);
+        self.tabs[tab_index].rebuild_rows(new_tab_data, tab_index);
+    }
+
     fn start_channel_polling() -> Sender<MenuMessage> {
         let (sender, receiver) = mpsc::channel();
 
@@ -957,6 +1020,19 @@ impl Menu {
                                 let menu = menu.as_mut().unwrap();
 
                                 menu.reload_rows();
+                            });
+                        }
+                    }
+
+                    MenuMessage::RebuildTab(tab_index) => {
+                        if menu.lock().unwrap().is_some() {
+                            let menu = Arc::clone(&menu);
+
+                            do_on_ui_thread(move || {
+                                let mut menu = menu.lock().unwrap();
+                                let menu = menu.as_mut().unwrap();
+
+                                menu.rebuild_tab(tab_index);
                             });
                         }
                     }

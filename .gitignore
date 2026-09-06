@@ -8,3 +8,4 @@ images/*_nxt.*
 dump_and_logs/
 *.log
 *.ips
+backup/

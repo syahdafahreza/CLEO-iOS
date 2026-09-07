@@ -1,4 +1,4 @@
-<h1 style="text-align: center">CLEO iOS</h1>
+<h1 style="text-align: center">CLEO SA iOS</h1>
 
 <div style="text-align: center">
   <p>

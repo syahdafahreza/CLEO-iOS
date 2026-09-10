@@ -110,3 +110,13 @@
    - Wajib memanggil `call_original!` terlebih dahulu agar game engine menerima input sentuhan tanpa terhambat.
 4. **Guard `reset_before_start`**:
    - Hook `reset_before_start` dibatasi hanya untuk arsitektur 64-bit (`#[cfg(target_pointer_width = "64")]`).
+5. **Perbaikan Rendering Menu (Kotak Putih / Teks Tertutup)**:
+   - **Penyebab**:
+     1. Fungsi `gui::colours::white_with_alpha` memanggil `+[UIColor colorWithWhite:alpha:]` melalui `objc_msgSend`. Pada ABI ARMv7 32-bit, argumen floating-point tidak terpetakan dengan benar sehingga menghasilkan warna solid putih opaque (`[UIColor whiteColor]`) bahkan saat diminta `alpha = 0.0` (transparan).
+     2. Komponen `UILabel` (`value_label` dan `detail_label`) tidak memiliki background transparan eksplisit sehingga merender latar putih opaque menutupi baris menu.
+     3. Pemanggilan `msg_send![self.button, frame]` dan `msg_send![self.scroll_view, frame]` pada arsitektur 32-bit ARM melanggar konvensi ABI `stret` (`CGRect` berukuran 16 byte memerlukan `objc_msgSend_stret`), yang menimpa memori pointer receiver.
+   - **Solusi**:
+     1. Ubah `white_with_alpha`: jika `alpha <= 0.001` langsung return `[UIColor clearColor]`; jika `white == 1.0` dan `alpha >= 0.9` return `[UIColor whiteColor]`; selebihnya dialihkan ke `+[UIColor colorWithRed:green:blue:alpha:]` yang terbukti bekerja dengan benar pada 32-bit.
+     2. Set `setBackgroundColor: clearColor` dan `setOpaque: false` pada `button`, `value_label`, dan `detail_label`.
+     3. Simpan `frame: CGRect` di `struct Row` dan `scroll_frame: CGRect` di `struct Tab` agar tidak perlu memanggil getter `frame` melalui Objective-C runtime.
+

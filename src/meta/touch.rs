@@ -1,10 +1,12 @@
 //! Provides touch information to other modules, and directly controls the showing/hiding
 //! of the menu when related to touch events.
 
+#[allow(unused_imports)]
 use crate::meta::gui::{CGFloat, CGRect};
 use crate::{call_original, targets};
 use itertools::Itertools;
 use lazy_static::lazy_static;
+#[allow(unused_imports)]
 use objc::{runtime::Object, *};
 use serde::{Deserialize, Serialize};
 use std::sync::{RwLock, RwLockReadGuard, RwLockWriteGuard};

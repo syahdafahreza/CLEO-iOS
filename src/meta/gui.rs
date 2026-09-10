@@ -2,6 +2,7 @@
 //! common UIKit code.
 
 use crate::meta::language::MessageKey;
+#[allow(unused_imports)]
 use log::trace;
 use objc::{
     class, msg_send,

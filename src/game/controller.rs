@@ -1,6 +1,7 @@
 //! Adapts and uses the game's controller system to allow CLEO to take advantage of controllers.
 // fixme: Controller support is disabled for the new menu system.
 
+#[allow(unused_imports)]
 use objc::{runtime::Object, *};
 use std::sync::atomic::AtomicU16;
 

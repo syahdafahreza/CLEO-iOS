@@ -13,6 +13,7 @@ use crate::{
     },
 };
 use lazy_static::lazy_static;
+#[allow(unused_imports)]
 use log::error;
 use once_cell::sync::Lazy;
 
@@ -555,6 +556,7 @@ pub fn tab_data() -> TabData {
     }
 }
 
+#[cfg(target_pointer_width = "64")]
 fn reset_cheats() {
     log::info!("Resetting cheats");
     call_original!(crate::targets::reset_cheats);

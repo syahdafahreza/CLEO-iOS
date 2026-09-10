@@ -119,4 +119,22 @@
      1. Ubah `white_with_alpha`: jika `alpha <= 0.001` langsung return `[UIColor clearColor]`; jika `white == 1.0` dan `alpha >= 0.9` return `[UIColor whiteColor]`; selebihnya dialihkan ke `+[UIColor colorWithRed:green:blue:alpha:]` yang terbukti bekerja dengan benar pada 32-bit.
      2. Set `setBackgroundColor: clearColor` dan `setOpaque: false` pada `button`, `value_label`, dan `detail_label`.
      3. Simpan `frame: CGRect` di `struct Row` dan `scroll_frame: CGRect` di `struct Tab` agar tidak perlu memanggil getter `frame` melalui Objective-C runtime.
-
+6. **Perbaikan Pemetaan Fungsi & Indeks Cheat GTA Vice City v1.3 (ARMv7)**:
+   - **Penyebab**:
+     - Tabel alamat fungsi `VC_CHEAT_FUNCS` lama sebelumnya tertukar secara acak karena diasumsikan urutan cheat sama dengan SA/Android atau ditebak dari urutan alamat.
+     - Contohnya, `0x00077dc4` (fungsi `BIGBANG` / Blow Up Cars) sebelumnya dipetakan ke index 8 (`ICANTTAKEITANYMORE`), sedangkan `0x0007877c` (fungsi ganti skin `STILLLIKEDRESSINGUP`) dipetakan ke index 20 (`BIGBANG`).
+     - Alamat `0x00077b6c` (`WHEELSAREALLINEED` / Invisible Cars Wheels Only) sebelumnya dipetakan ke index 2 (`NUTTERTOOLS`).
+     - Hal ini menyebabkan ketika memilih cheat "Mobil Meledak" (BIGBANG), fungsi yang terpanggil justru fungsi yang salah sehingga efek yang muncul adalah roda mobil saja atau hal lain.
+   - **Solusi**:
+     - Melakukan reverse engineering penuh terhadap fungsi dispatcher cheat asli GTA Vice City (`0x0007971c` s/d `0x0007a050`).
+     - Mendekripsi algoritma enkripsi string cheat GTA VC (`0x00076120` dengan jump table TBB) dan memetakan ke-37 cheat asli game secara akurat ke fungsi targetnya:
+       - `BIGBANG` (Blow Up Cars): `0x00077dc4`
+       - `ASPIRINE` (Health & Car Repair): `0x00079254` (parameter `r0 = 1`)
+       - `PRECIOUSPROTECTION` (Armor): `0x00077e34`
+       - `THUGSTOOLS` (Weapon 1): `0x000795b8`
+       - `PROFESSIONALTOOLS` (Weapon 2): `0x0007946c`
+       - `NUTTERTOOLS` (Weapon 3): `0x00079314`
+       - `PANZER` (Rhino Tank): `0x00079130`
+       - `WHEELSAREALLINEED` (Wheels Only): `0x00077b6c`
+       - Kendaraan (`TRAVELINSTYLE`, `THELASTRIDE`, `ROCKANDROLLCAR`, `RUBBISHCAR`, `GETTHEREFAST`, `BETTERTHANWALKING`): dipanggil via fungsi generik spawner `0x00078920(model_id)`.
+     - Jumlah cheat VC diupdate menjadi 37 cheat terverifikasi penuh.

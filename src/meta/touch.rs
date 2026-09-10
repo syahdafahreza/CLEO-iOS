@@ -164,14 +164,25 @@ impl TrackedTouch {
 
 /// Returns the width and height of `[[UIScreen mainScreen] nativeBounds]`.
 fn uiscreen_size() -> (CGFloat, CGFloat) {
-    let cls = class!(UIScreen);
+    #[cfg(target_pointer_width = "64")]
+    {
+        let cls = class!(UIScreen);
 
-    let bounds: CGRect = unsafe {
-        let screen: *mut Object = msg_send![cls, mainScreen];
-        msg_send![screen, nativeBounds]
-    };
+        let bounds: CGRect = unsafe {
+            let screen: *mut Object = msg_send![cls, mainScreen];
+            msg_send![screen, nativeBounds]
+        };
 
-    (bounds.size.width, bounds.size.height)
+        (bounds.size.width, bounds.size.height)
+    }
+
+    #[cfg(target_pointer_width = "32")]
+    {
+        // On 32-bit iPhone 5 (iOS 10), native screen resolution is fixed at 1136x640 pixels (568x320 @2x).
+        // Returning CGRect from msg_send on 32-bit ARM ABI requires objc_msgSend_stret; calling msg_send
+        // without stret corrupts the UIScreen instance memory. Hardcoding avoids the call entirely.
+        (1136.0, 640.0)
+    }
 }
 
 /// Tracks and provides touch information.
@@ -593,7 +604,10 @@ fn process_touch(x: f32, y: f32, timestamp: f64, force: f32, touch_type: u64) {
 }
 
 #[cfg(target_pointer_width = "32")]
-fn process_touch(touch_type: u32, x_raw: u32, y_raw: u32, p3: u32, p4: u32) {
+extern "C" fn process_touch(touch_type: u32, y_raw: u32, x_raw: u32, p3: u32, p4: u32) {
+    // ALWAYS call original first so the game engine and UI receive touches immediately.
+    call_original!(targets::process_touch, touch_type, y_raw, x_raw, p3, p4);
+
     let x = f32::from_bits(x_raw);
     let y = f32::from_bits(y_raw);
 
@@ -617,8 +631,7 @@ fn process_touch(touch_type: u32, x_raw: u32, y_raw: u32, p3: u32, p4: u32) {
         2 => TouchEvent::Down,
         3 => TouchEvent::Move,
 
-        other => {
-            log::warn!("unhandled touch type {other}");
+        _other => {
             return;
         }
     };
@@ -630,10 +643,7 @@ fn process_touch(touch_type: u32, x_raw: u32, y_raw: u32, p3: u32, p4: u32) {
 
     TouchInterface::shared_mut().handle_event(event);
 
-    // hack: Find a better place to call this.
     update();
-
-    call_original!(targets::process_touch, touch_type, x_raw, y_raw, p3, p4);
 }
 
 /// Refreshes the touch system, showing the menu if the user has triggered it.

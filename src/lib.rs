@@ -30,7 +30,7 @@ mod targets {
     #[cfg(target_pointer_width = "64")]
     create_soft_target!(process_touch, 0x1004e831c, fn(f32, f32, f64, f32, u64));
     #[cfg(target_pointer_width = "32")]
-    create_soft_target!(process_touch, 0x0020e100, fn(u32, u32, u32, u32, u32));
+    create_soft_target!(process_touch, 0x0020e100, extern "C" fn(u32, u32, u32, u32, u32));
 
     #[cfg(target_pointer_width = "64")]
     create_soft_target!(
@@ -73,13 +73,9 @@ mod targets {
 
     #[cfg(target_pointer_width = "64")]
     create_hard_target!(do_cheats, 0x1001a7f28, fn());
-    #[cfg(target_pointer_width = "32")]
-    create_hard_target!(do_cheats, 0x000778fc, fn());
 
     #[cfg(target_pointer_width = "64")]
     create_soft_target!(reset_before_start, 0x00253f6c, fn());
-    #[cfg(target_pointer_width = "32")]
-    create_soft_target!(reset_before_start, 0x00061aa0, fn());
 
     #[cfg(target_pointer_width = "64")]
     create_soft_target!(
@@ -119,8 +115,6 @@ mod targets {
 
     #[cfg(target_pointer_width = "64")]
     create_soft_target!(reset_cheats, 0x1001a82f0, fn());
-    #[cfg(target_pointer_width = "32")]
-    create_soft_target!(reset_cheats, 0x000779ac, fn());
 
     create_soft_target!(
         height_above_ceiling,

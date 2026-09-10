@@ -124,7 +124,16 @@ static SAVE_FLAGS: Lazy<(AtomicBool, AtomicBool)> =
 //  every other system in the game expects cheats to be activated.
 // Cheats that need textures to be loaded - such as weapon or vehicle cheats - can crash the
 //  game if they are executed on the wrong thread or at the wrong time, so it is very important
-//  that we get this right.
+pub fn run_waiting_cheats() {
+    if let Ok(mut waiting) = WAITING_CHEATS.lock() {
+        for cheat_index in waiting.iter() {
+            CHEATS[*cheat_index].run();
+        }
+        waiting.clear();
+    }
+}
+
+#[cfg(target_pointer_width = "64")]
 fn do_cheats() {
     if let Ok(waiting) = WAITING_CHEATS.lock().as_mut() {
         // Perform all queued cheat actions.
@@ -595,8 +604,11 @@ fn reset_cheats() {
 
 pub fn init() {
     log::info!("installing cheat hooks...");
-    crate::targets::do_cheats::install(do_cheats);
-    crate::targets::reset_cheats::install(reset_cheats);
+    #[cfg(target_pointer_width = "64")]
+    {
+        crate::targets::do_cheats::install(do_cheats);
+        crate::targets::reset_cheats::install(reset_cheats);
+    }
 }
 
 // We have to include the codes because the game doesn't have the array.

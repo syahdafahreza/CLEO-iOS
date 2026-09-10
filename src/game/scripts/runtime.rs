@@ -539,8 +539,12 @@ pub fn load_invoked_script(path: &impl AsRef<std::path::Path>) -> eyre::Result<(
 }
 
 fn script_update() {
-    Script::update_all(&mut SCRIPTS.lock().unwrap());
     call_original!(targets::script_tick);
+
+    #[cfg(target_pointer_width = "32")]
+    crate::game::cheats::run_waiting_cheats();
+
+    Script::update_all(&mut SCRIPTS.lock().unwrap());
 }
 
 static SAVED_STATES: Lazy<Mutex<HashMap<u64, CsaState>>> = Lazy::new(|| Mutex::new(HashMap::new()));
@@ -613,6 +617,7 @@ fn get_csa_state(script: &CleoScript) -> CsaState {
     }
 }
 
+#[cfg(target_pointer_width = "64")]
 fn script_reset() {
     call_original!(targets::reset_before_start);
 
@@ -925,6 +930,7 @@ pub fn init() {
     log::info!("installing script hooks...");
 
     targets::script_tick::install(script_update);
+    #[cfg(target_pointer_width = "64")]
     targets::reset_before_start::install(script_reset);
 
     #[cfg(target_pointer_width = "64")]

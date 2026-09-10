@@ -71,8 +71,8 @@
 
 | Komponen / Fungsi | Alamat Memori | Keterangan |
 | :--- | :--- | :--- |
-| **`CCheat::DoCheats`** | `0x000778fc` | Eksekusi loop cheat game |
-| **`CCheat::ResetCheats`** | `0x000779ac` | Reset flag & status cheat |
+| **`CPad::UpdatePads`** | `0x000778fc` | Pembaruan buffer input pad/touch game per-frame (TIDAK BOLEH di-hard hook) |
+| **`CPad::ResetCheats`** | `0x000779ac` | Reset status cheat bawaan |
 | **Weapons Cheat 1** | `0x00077aa4` | Senjata set 1 |
 | **Weapons Cheat 2** | `0x00077b08` | Senjata set 2 |
 | **Weapons Cheat 3** | `0x00077b6c` | Senjata set 3 |
@@ -96,11 +96,17 @@
 
 ---
 
-## 3. Langkah Selanjutnya
+## 3. Catatan Penyelesaian Masalah "Stuck di Tap to Continue"
 
-1. [x] Binary diekstrak dan dibedah secara komprehensif.
-2. [x] Base segments `__TEXT` (`0x1000`) dan `__DATA` (`0x23A000`) terverifikasi.
-3. [x] Seluruh alamat hook inti (script tick, opcode dispatcher, touch, GXT, cheat, player) berhasil dipetakan.
-4. [ ] Perbarui `src/lib.rs` dan `src/targets` dengan alamat memori GTA Vice City ini.
-5. [ ] Sesuaikan modul cheat `src/game/cheats.rs` untuk daftar cheat khas GTA Vice City.
-6. [ ] Lakukan build pengujian `.deb` via GitHub Actions CI.
+1. **`0x000778fc` (`do_cheats` hard target) mematikan input controller**:
+   - `0x000778fc` adalah `CPad::UpdatePads()`, bukan fungsi cheat.
+   - Hard hook di alamat ini menimpa eksekusi penyalinan buffer input layar sentuh ke pad aktif.
+   - Solusi: Nonaktifkan hook `do_cheats` pada 32-bit; eksekusi antrean cheat CLEO dipindahkan langsung ke dalam `script_update` (`script_tick`).
+2. **`uiscreen_size()` merusak memori `UIScreen` (`objc_msgSend_stret`)**:
+   - Pemanggilan `[[UIScreen mainScreen] nativeBounds]` mengembalikan struct 16-byte `CGRect`. Pada 32-bit ARM ABI, method struct return wajib menggunakan `objc_msgSend_stret`. Penggunaan `msg_send!` standar tanpa stret menulis data float ke pointer `UIScreen`, merusak event loop UIKit.
+   - Solusi: Hardcode resolusi layar `(1136.0, 640.0)` pada build 32-bit iPhone 5 tanpa query runtime.
+3. **Konvensi Pemanggilan & Urutan Parameter `process_touch`**:
+   - Menggunakan `extern "C"` dengan urutan register `(touch_type: u32, y_raw: u32, x_raw: u32, p3: u32, p4: u32)`.
+   - Wajib memanggil `call_original!` terlebih dahulu agar game engine menerima input sentuhan tanpa terhambat.
+4. **Guard `reset_before_start`**:
+   - Hook `reset_before_start` dibatasi hanya untuk arsitektur 64-bit (`#[cfg(target_pointer_width = "64")]`).

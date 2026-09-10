@@ -37,6 +37,7 @@ pub struct TabData {
 
 struct Row {
     data: Box<dyn RowData>,
+    frame: CGRect,
     detail_label: *mut Object,
     value_label: *mut Object,
     button: *mut Object,
@@ -165,6 +166,8 @@ impl Row {
         unsafe {
             let button: *mut Object = msg_send![class!(UIButton), alloc];
             let button: *mut Object = msg_send![button, initWithFrame: frame];
+            let _: () = msg_send![button, setOpaque: false];
+            let _: () = msg_send![button, setBackgroundColor: gui::colours::clear()];
 
             let label: *mut Object = msg_send![button, titleLabel];
             let subtitle_font = font_set.subtitle_uifont();
@@ -181,6 +184,8 @@ impl Row {
             let value_label: *mut Object = msg_send![class!(UILabel), alloc];
             let value_label: *mut Object = msg_send![value_label, initWithFrame: value_frame];
             let _: () = msg_send![value_label, setFont: subtitle_font];
+            let _: () = msg_send![value_label, setOpaque: false];
+            let _: () = msg_send![value_label, setBackgroundColor: gui::colours::clear()];
 
             let detail_frame = CGRect::new(
                 frame.size.width * (0.05 as CGFloat),
@@ -198,9 +203,12 @@ impl Row {
             let font = font_set.text_uifont();
             let _: () = msg_send![detail_label, setFont: font];
             let _: () = msg_send![detail_label, setAdjustsFontSizeToFitWidth: true];
+            let _: () = msg_send![detail_label, setOpaque: false];
+            let _: () = msg_send![detail_label, setBackgroundColor: gui::colours::clear()];
 
             let mut row = Row {
                 data,
+                frame,
                 detail_label,
                 value_label,
                 button,
@@ -293,7 +301,7 @@ impl Row {
             0 as NSInteger
         };
 
-        let button_frame: CGRect = unsafe { msg_send![self.button, frame] };
+        let button_frame = self.frame;
 
         let button_edge_insets = if is_rtl {
             gui::UIEdgeInsets::new(
@@ -343,6 +351,7 @@ const WARNING_HEIGHT_FRAC: CGFloat = 0.1;
 
 struct Tab {
     name: Message,
+    scroll_frame: CGRect,
     scroll_view: *mut Object,
     warning_message: Option<Message>,
     warning_label: Option<*mut Object>,
@@ -445,6 +454,7 @@ impl Tab {
         let mut tab = Tab {
             warning_message: data.warning,
             name: data.name,
+            scroll_frame,
             scroll_view,
             warning_label,
             rows,
@@ -491,10 +501,7 @@ impl Tab {
             }
         }
 
-        let row_width = unsafe {
-            let frame: CGRect = msg_send![self.scroll_view, frame];
-            frame.size.width
-        };
+        let row_width = self.scroll_frame.size.width;
 
         let make_row = |(index, data)| {
             Row::new(

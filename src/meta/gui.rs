@@ -215,14 +215,35 @@ pub mod colours {
     pub const GREEN: Rgb = Colour::Green.rgb();
     pub const BLUE: Rgb = Colour::Blue.rgb();
 
+    pub fn clear() -> *const Object {
+        unsafe { msg_send![class!(UIColor), clearColor] }
+    }
+
+    pub fn white() -> *const Object {
+        unsafe { msg_send![class!(UIColor), whiteColor] }
+    }
+
     pub fn get(colour: Rgb, alpha: CGFloat) -> *const Object {
         unsafe {
-            msg_send![class!(UIColor), colorWithRed: (colour.0 as CGFloat) / 255.0 green: (colour.1 as CGFloat) / 255.0 blue: (colour.2 as CGFloat) / 255.0 alpha: alpha]
+            msg_send![
+                class!(UIColor),
+                colorWithRed: (colour.0 as CGFloat) / 255.0
+                green: (colour.1 as CGFloat) / 255.0
+                blue: (colour.2 as CGFloat) / 255.0
+                alpha: alpha
+            ]
         }
     }
 
     pub fn white_with_alpha(white: CGFloat, alpha: CGFloat) -> *const Object {
-        unsafe { msg_send![class!(UIColor), colorWithWhite: white alpha: alpha] }
+        if alpha <= 0.001 {
+            return clear();
+        }
+        if (white - (1.0 as CGFloat)).abs() < 0.001 && alpha >= 0.9 {
+            return self::white();
+        }
+        let comp = ((white * 255.0) as f32).clamp(0.0, 255.0) as u8;
+        get((comp, comp, comp), alpha)
     }
 }
 

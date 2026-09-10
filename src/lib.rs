@@ -16,9 +16,8 @@ mod targets {
     #![allow(clippy::unreadable_literal)]
 
     // -------------------------------------------------------------------------
-    // Addresses are for GTA SA v1.09 (armv7 / 32-bit) on iPhone 5, iOS 10.3.4.
-    // TEXT segment base: 0x00004000  DATA segment base: 0x004A0000
-    // All community-sourced; verify via /var/mobile/Documents/CLEO/cleo.log.
+    // Addresses are for GTA Vice City v1.3 (armv7 / 32-bit) on iPhone 5, iOS 10.3.4.
+    // TEXT segment base: 0x00001000  DATA segment base: 0x0023A000
     // -------------------------------------------------------------------------
 
     use super::{c_char, create_hard_target, create_soft_target, Object, Sel};
@@ -26,12 +25,12 @@ mod targets {
     #[cfg(target_pointer_width = "64")]
     create_soft_target!(script_tick, 0x1001d0f40, fn());
     #[cfg(target_pointer_width = "32")]
-    create_soft_target!(script_tick, 0x0011e6f4, fn());
+    create_soft_target!(script_tick, 0x00138b80, fn());
 
     #[cfg(target_pointer_width = "64")]
     create_soft_target!(process_touch, 0x1004e831c, fn(f32, f32, f64, f32, u64));
     #[cfg(target_pointer_width = "32")]
-    create_soft_target!(process_touch, 0x003ece38, fn(u32, f32, f32, f64));
+    create_soft_target!(process_touch, 0x0020e100, fn(u32, u32, u32, u32, u32));
 
     #[cfg(target_pointer_width = "64")]
     create_soft_target!(
@@ -42,7 +41,7 @@ mod targets {
     #[cfg(target_pointer_width = "32")]
     create_soft_target!(
         get_gxt_string,
-        0x00356380,
+        0x001af6b8,
         fn(usize, *const c_char) -> *const u16
     );
 
@@ -61,34 +60,28 @@ mod targets {
         0x1004ea8c4,
         fn(*const Object, Sel, *mut Object) -> *mut Object
     );
-    #[cfg(target_pointer_width = "32")]
-    create_soft_target!(
-        button_hack,
-        0x00017338,
-        fn(*const Object, Sel, *mut Object) -> *mut Object
-    );
 
     create_soft_target!(gen_plate, 0x002d3498, fn(*mut u8, i32) -> bool);
 
     #[cfg(target_pointer_width = "64")]
     create_soft_target!(idle, 0x100242c20, fn(u64, u64));
-    #[cfg(target_pointer_width = "32")]
-    create_soft_target!(idle, 0x00189f94, fn(usize, usize));
 
     #[cfg(target_pointer_width = "64")]
     create_soft_target!(cycles_per_millisecond, 0x10026e790, fn() -> u32);
-    #[cfg(target_pointer_width = "32")]
-    create_soft_target!(cycles_per_millisecond, 0x003ed694, fn() -> u32);
 
     create_soft_target!(do_game_state, 0x003c9d10, fn());
 
     #[cfg(target_pointer_width = "64")]
     create_hard_target!(do_cheats, 0x1001a7f28, fn());
     #[cfg(target_pointer_width = "32")]
-    create_hard_target!(do_cheats, 0x000f6bdc, fn());
+    create_hard_target!(do_cheats, 0x000778fc, fn());
 
+    #[cfg(target_pointer_width = "64")]
     create_soft_target!(reset_before_start, 0x00253f6c, fn());
+    #[cfg(target_pointer_width = "32")]
+    create_soft_target!(reset_before_start, 0x00061aa0, fn());
 
+    #[cfg(target_pointer_width = "64")]
     create_soft_target!(
         find_absolute_path,
         0x003f0ea4,
@@ -97,20 +90,15 @@ mod targets {
 
     create_soft_target!(init_for_title, 0x002a8114, fn(*mut u8));
 
-    // NOTE: write_fragment_shader and write_vertex_shader are NOT hooked on
-    // GTA SA v1.09 armv7 — the shader pipeline is different in this version.
-    // They were debug-only on arm64 too (cfg!(feature = "debug")), but the
-    // addresses don't exist in this binary.
-
     create_soft_target!(load_settings, 0x002542ec, fn(u64));
 
     #[cfg(target_pointer_width = "64")]
     create_hard_target!(display_fps, 0x100241cd8, fn());
-    #[cfg(target_pointer_width = "32")]
-    create_hard_target!(display_fps, 0x00188fd0, fn());
 
+    #[cfg(target_pointer_width = "64")]
     create_soft_target!(update_pads, 0x001e2b48, fn());
 
+    #[cfg(target_pointer_width = "64")]
     create_soft_target!(
         load_cd_directory,
         0x00265550,
@@ -132,7 +120,7 @@ mod targets {
     #[cfg(target_pointer_width = "64")]
     create_soft_target!(reset_cheats, 0x1001a82f0, fn());
     #[cfg(target_pointer_width = "32")]
-    create_soft_target!(reset_cheats, 0x000f61b0, fn());
+    create_soft_target!(reset_cheats, 0x000779ac, fn());
 
     create_soft_target!(
         height_above_ceiling,

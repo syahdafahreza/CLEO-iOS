@@ -606,5 +606,6 @@ fn load_cd_directory_hook(path: *const i8, image_id: u32) {
 
 /// Hooks the loading system for CD images.
 pub fn hook() {
+    #[cfg(target_pointer_width = "64")]
     crate::targets::load_cd_directory::install(load_cd_directory_hook);
 }

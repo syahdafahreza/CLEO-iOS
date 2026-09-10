@@ -87,6 +87,9 @@ pub fn load_replacement(path: &impl AsRef<std::path::Path>) -> eyre::Result<()> 
 }
 
 pub fn init() {
-    log::info!("installing file swap hook...");
-    crate::targets::find_absolute_path::install(find_absolute_path_c);
+    #[cfg(target_pointer_width = "64")]
+    {
+        log::info!("installing file swap hook...");
+        crate::targets::find_absolute_path::install(find_absolute_path_c);
+    }
 }

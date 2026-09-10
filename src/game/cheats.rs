@@ -37,37 +37,45 @@ impl Cheat {
 
     fn get_function(&self) -> Option<fn()> {
         #[cfg(target_pointer_width = "64")]
-        let entry_address = 0x10065c358 + (self.index * 8);
-
-        #[cfg(target_pointer_width = "32")]
-        let entry_address = 0x004f6cf4 + (self.index * 4);
-
-        let ptr = hook::slide::<*const usize>(entry_address);
-
-        if ptr.is_null() {
-            None
-        } else {
-            let raw_fn: usize = unsafe { *ptr };
-            if raw_fn == 0 {
+        {
+            let entry_address = 0x10065c358 + (self.index * 8);
+            let ptr = hook::slide::<*const usize>(entry_address);
+            if ptr.is_null() {
                 None
             } else {
-                let func: fn() = unsafe { std::mem::transmute(raw_fn) };
-                Some(func)
+                let raw_fn: usize = unsafe { *ptr };
+                if raw_fn == 0 {
+                    None
+                } else {
+                    let func: fn() = unsafe { std::mem::transmute(raw_fn) };
+                    Some(func)
+                }
+            }
+        }
+
+        #[cfg(target_pointer_width = "32")]
+        {
+            if self.index < VC_CHEAT_FUNCS.len() {
+                Some(hook::slide_fn::<fn()>(VC_CHEAT_FUNCS[self.index]))
+            } else {
+                None
             }
         }
     }
 
     fn get_active_mut(&self) -> &'static mut bool {
+        #[cfg(target_pointer_width = "64")]
         unsafe {
-            #[cfg(target_pointer_width = "64")]
             let base = 0x10072dda8;
-
-            #[cfg(target_pointer_width = "32")]
-            let base = 0x005bcde4;
-
             hook::slide::<*mut bool>(base + self.index)
                 .as_mut()
                 .unwrap()
+        }
+
+        #[cfg(target_pointer_width = "32")]
+        unsafe {
+            static mut VC_CHEAT_ACTIVE: [bool; 27] = [false; 27];
+            &mut VC_CHEAT_ACTIVE[self.index]
         }
     }
 
@@ -597,118 +605,69 @@ pub fn init() {
 //   https://docs.google.com/spreadsheets/d/1-rmga12W9reALga7fct22tJ-1thxbbsfGiGltK2qgh0/edit?usp=sharing
 //  was very helpful during research, and the page at https://gta.fandom.com/wiki/Cheats_in_GTA_San_Andreas
 //  was really useful for writing cheat descriptions.
+
 #[cfg(target_pointer_width = "32")]
-static CHEATS: [Cheat; 109] = [
-    Cheat::new(0, "THUGSARMOURY", MessageKey::CheatThugsArmoury),
-    Cheat::new(1, "PROFESSIONALSKIT", MessageKey::CheatProfessionalsKit),
-    Cheat::new(2, "NUTTERSTOYS", MessageKey::CheatNuttersToys),
-    Cheat::new(3, "", MessageKey::CheatWeapons4),
-    Cheat::new(4, "", MessageKey::CheatClockForward),
-    Cheat::new(5, "", MessageKey::CheatSkipMission),
-    Cheat::new(6, "", MessageKey::CheatFullInvincibility),
-    Cheat::new(7, "", MessageKey::CheatDebugTapToTarget),
-    Cheat::new(8, "", MessageKey::CheatDebugTargeting),
-    Cheat::new(9, "INEEDSOMEHELP", MessageKey::CheatINeedSomeHelp),
-    Cheat::new(10, "TURNUPTHEHEAT", MessageKey::CheatTurnUpTheHeat),
-    Cheat::new(11, "TURNDOWNTHEHEAT", MessageKey::CheatTurnDownTheHeat),
-    Cheat::new(12, "PLEASANTLYWARM", MessageKey::CheatPleasantlyWarm),
-    Cheat::new(13, "TOODAMNHOT", MessageKey::CheatTooDamnHot),
-    Cheat::new(14, "DULLDULLDAY", MessageKey::CheatDullDullDay),
-    Cheat::new(15, "STAYINANDWATCHTV", MessageKey::CheatStayInAndWatchTv),
-    Cheat::new(16, "CANTSEEWHEREIMGOING", MessageKey::CheatCantSeeWhereImGoing),
-    Cheat::new(17, "TIMEJUSTFLIESBY", MessageKey::CheatTimeJustFliesBy),
-    Cheat::new(18, "SPEEDITUP", MessageKey::CheatSpeedItUp),
-    Cheat::new(19, "SLOWITDOWN", MessageKey::CheatSlowItDown),
-    Cheat::new(20, "ROUGHNEIGHBOURHOOD", MessageKey::CheatRoughNeighbourhood),
-    Cheat::new(21, "STOPPICKINGONME", MessageKey::CheatStopPickingOnMe),
-    Cheat::new(22, "SURROUNDEDBYNUTTERS", MessageKey::CheatSurroundedByNutters),
-    Cheat::new(23, "TIMETOKICKASS", MessageKey::CheatTimeToKickAss),
-    Cheat::new(24, "OLDSPEEDDEMON", MessageKey::CheatOldSpeedDemon),
-    Cheat::new(25, "", MessageKey::CheatTintedRancher),
-    Cheat::new(26, "NOTFORPUBLICROADS", MessageKey::CheatNotForPublicRoads),
-    Cheat::new(27, "JUSTTRYANDSTOPME", MessageKey::CheatJustTryAndStopMe),
-    Cheat::new(28, "WHERESTHEFUNERAL", MessageKey::CheatWheresTheFuneral),
-    Cheat::new(29, "CELEBRITYSTATUS", MessageKey::CheatCelebrityStatus),
-    Cheat::new(30, "TRUEGRIME", MessageKey::CheatTrueGrime),
-    Cheat::new(31, "18HOLES", MessageKey::Cheat18Holes),
-    Cheat::new(32, "ALLCARSGOBOOM", MessageKey::CheatAllCarsGoBoom),
-    Cheat::new(33, "WHEELSONLYPLEASE", MessageKey::CheatWheelsOnlyPlease),
-    Cheat::new(34, "STICKLIKEGLUE", MessageKey::CheatStickLikeGlue),
-    Cheat::new(35, "GOODBYECRUELWORLD", MessageKey::CheatGoodbyeCruelWorld),
-    Cheat::new(36, "DONTTRYANDSTOPME", MessageKey::CheatDontTryAndStopMe),
-    Cheat::new(37, "ALLDRIVERSARECRIMINALS", MessageKey::CheatAllDriversAreCriminals),
-    Cheat::new(38, "PINKISTHENEWCOOL", MessageKey::CheatPinkIsTheNewCool),
-    Cheat::new(39, "SOLONGASITSBLACK", MessageKey::CheatSoLongAsItsBlack),
-    Cheat::new(40, "", MessageKey::CheatSidewaysWheels),
-    Cheat::new(41, "FLYINGFISH", MessageKey::CheatFlyingFish),
-    Cheat::new(42, "WHOATEALLTHEPIES", MessageKey::CheatWhoAteAllThePies),
-    Cheat::new(43, "BUFFMEUP", MessageKey::CheatBuffMeUp),
-    Cheat::new(44, "", MessageKey::CheatMaxGambling),
-    Cheat::new(45, "LEANANDMEAN", MessageKey::CheatLeanAndMean),
-    Cheat::new(46, "BLUESUEDESHOES", MessageKey::CheatBlueSuedeShoes),
-    Cheat::new(47, "ATTACKOFTHEVILLAGEPEOPLE", MessageKey::CheatAttackOfTheVillagePeople),
-    Cheat::new(48, "LIFESABEACH", MessageKey::CheatLifesABeach),
-    Cheat::new(49, "ONLYHOMIESALLOWED", MessageKey::CheatOnlyHomiesAllowed),
-    Cheat::new(50, "BETTERSTAYINDOORS", MessageKey::CheatBetterStayIndoors),
-    Cheat::new(51, "NINJATOWN", MessageKey::CheatNinjaTown),
-    Cheat::new(52, "LOVECONQUERSALL", MessageKey::CheatLoveConquersAll),
-    Cheat::new(53, "EVERYONEISPOOR", MessageKey::CheatEveryoneIsPoor),
-    Cheat::new(54, "EVERYONEISRICH", MessageKey::CheatEveryoneIsRich),
-    Cheat::new(55, "CHITTYCHITTYBANGBANG", MessageKey::CheatChittyChittyBangBang),
-    Cheat::new(56, "CJPHONEHOME", MessageKey::CheatCjPhoneHome),
-    Cheat::new(57, "JUMPJET", MessageKey::CheatJumpJet),
-    Cheat::new(58, "IWANTTOHOVER", MessageKey::CheatIWantToHover),
-    Cheat::new(59, "TOUCHMYCARYOUDIE", MessageKey::CheatTouchMyCarYouDie),
-    Cheat::new(60, "SPEEDFREAK", MessageKey::CheatSpeedFreak),
-    Cheat::new(61, "BUBBLECARS", MessageKey::CheatBubbleCars),
-    Cheat::new(62, "NIGHTPROWLER", MessageKey::CheatNightProwler),
-    Cheat::new(63, "DONTBRINGONTHENIGHT", MessageKey::CheatDontBringOnTheNight),
-    Cheat::new(64, "SCOTTISHSUMMER", MessageKey::CheatScottishSummer),
-    Cheat::new(65, "SANDINMYEARS", MessageKey::CheatSandInMyEars),
-    Cheat::new(66, "", MessageKey::CheatPredator),
-    Cheat::new(67, "KANGAROO", MessageKey::CheatKangaroo),
-    Cheat::new(68, "NOONECANHURTME", MessageKey::CheatNooneCanHurtMe),
-    Cheat::new(69, "MANFROMATLANTIS", MessageKey::CheatManFromAtlantis),
-    Cheat::new(70, "LETSGOBASEJUMPING", MessageKey::CheatLetsGoBaseJumping),
-    Cheat::new(71, "ROCKETMAN", MessageKey::CheatRocketman),
-    Cheat::new(72, "IDOASIPLEASE", MessageKey::CheatIDoAsIPlease),
-    Cheat::new(73, "BRINGITON", MessageKey::CheatBringItOn),
-    Cheat::new(74, "STINGLIKEABEE", MessageKey::CheatStingLikeABee),
-    Cheat::new(75, "IAMNEVERHUNGRY", MessageKey::CheatIAmNeverHungry),
-    Cheat::new(76, "STATEOFEMERGENCY", MessageKey::CheatStateOfEmergency),
-    Cheat::new(77, "CRAZYTOWN", MessageKey::CheatCrazyTown),
-    Cheat::new(78, "TAKEACHILLPILL", MessageKey::CheatTakeAChillPill),
-    Cheat::new(79, "FULLCLIP", MessageKey::CheatFullClip),
-    Cheat::new(80, "IWANNADRIVEBY", MessageKey::CheatIWannaDriveby),
-    Cheat::new(81, "GHOSTTOWN", MessageKey::CheatGhostTown),
-    Cheat::new(82, "HICKSVILLE", MessageKey::CheatHicksville),
-    Cheat::new(83, "WANNABEINMYGANG", MessageKey::CheatWannaBeInMyGang),
-    Cheat::new(84, "NOONECANSTOPUS", MessageKey::CheatNooneCanStopUs),
-    Cheat::new(85, "ROCKETMAYHEM", MessageKey::CheatRocketMayhem),
-    Cheat::new(86, "WORSHIPME", MessageKey::CheatWorshipMe),
-    Cheat::new(87, "HELLOLADIES", MessageKey::CheatHelloLadies),
-    Cheat::new(88, "ICANGOALLNIGHT", MessageKey::CheatICanGoAllNight),
-    Cheat::new(89, "PROFESSIONALKILLER", MessageKey::CheatProfessionalKiller),
-    Cheat::new(90, "NATURALTALENT", MessageKey::CheatNaturalTalent),
-    Cheat::new(91, "OHDUDE", MessageKey::CheatOhDude),
-    Cheat::new(92, "FOURWHEELFUN", MessageKey::CheatFourWheelFun),
-    Cheat::new(93, "HITTHEROADJACK", MessageKey::CheatHitTheRoadJack),
-    Cheat::new(94, "ITSALLBULL", MessageKey::CheatItsAllBull),
-    Cheat::new(95, "FLYINGTOSTUNT", MessageKey::CheatFlyingToStunt),
-    Cheat::new(96, "MONSTERMASH", MessageKey::CheatMonsterMash),
-    Cheat::new(97, "", MessageKey::CheatProstitutesPay),
-    Cheat::new(98, "", MessageKey::CheatCoolTaxis),
-    Cheat::new(99, "", MessageKey::CheatSlotMelee),
-    Cheat::new(100, "", MessageKey::CheatSlotHandgun),
-    Cheat::new(101, "", MessageKey::CheatSlotSmg),
-    Cheat::new(102, "", MessageKey::CheatSlotShotgun),
-    Cheat::new(103, "", MessageKey::CheatSlotAssaultRifle),
-    Cheat::new(104, "", MessageKey::CheatSlotLongRifle),
-    Cheat::new(105, "", MessageKey::CheatSlotThrown),
-    Cheat::new(106, "", MessageKey::CheatSlotHeavy),
-    Cheat::new(107, "", MessageKey::CheatSlotEquipment),
-    Cheat::new(108, "", MessageKey::CheatSlotOther),
+pub static VC_CHEAT_FUNCS: [usize; 27] = [
+    0x00077aa4, // [ 0] Weapon Set 1 (THUGSTOOLS)
+    0x00077b08, // [ 1] Weapon Set 2 (PROFESSIONALTOOLS)
+    0x00077b6c, // [ 2] Weapon Set 3 (NUTTERTOOLS)
+    0x00077bd0, // [ 3] Health (ASPIRINE)
+    0x00077c2c, // [ 4] Armor (PRECIOUSPROTECTION)
+    0x00077c84, // [ 5] Wanted Level Up (YOUWONTTAKEMEALIVE)
+    0x00077ce8, // [ 6] Wanted Level Clear (LEAVEMEALONE)
+    0x00077d54, // [ 7] Change Clothes (STILLLIKEDRESSINGUP)
+    0x00077dc4, // [ 8] Suicide (ICANTTAKEITANYMORE)
+    0x00077e34, // [ 9] Sunny Weather (ALOVELYDAY)
+    0x00077e84, // [10] Cloudy Weather (ABITDRIEG)
+    0x00077edc, // [11] Rainy Weather (CATSANDDOGS)
+    0x00077f30, // [12] Foggy Weather (CANTSEEATHING)
+    0x000785b4, // [13] Fast Gameplay (ONSPEED)
+    0x000785fc, // [14] Slow Gameplay (BOOOOOORING)
+    0x0007868c, // [15] Pedestrians Riot (FIGHTFIGHTFIGHT)
+    0x000786bc, // [16] Pedestrians Attack (NOBODYLIKESME)
+    0x000786ec, // [17] Pedestrians Have Weapons (OURGODGIVENRIGHTTOBEARARMS)
+    0x0007871c, // [18] Ladies Follow (FANNYMAGNET)
+    0x0007874c, // [19] Media Level Meter (CHICKSWITHGUNS)
+    0x0007877c, // [20] Blow Up Cars (BIGBANG)
+    0x00078900, // [21] Aggressive Drivers (MIAMITRAFFIC)
+    0x00078920, // [22] Pink Cars (AHHAIRDRESSERSCAR)
+    0x00079254, // [23] Spawn Rhino Tank (PANZER)
+    0x00079314, // [24] Spawn Sabre Turbo (GETTHEREFAST)
+    0x0007946c, // [25] Spawn Bloodring Banger (TRAVELINSTYLE)
+    0x000795b8, // [26] Spawn Caddy (BETTERTHANWALKING)
 ];
+
+#[cfg(target_pointer_width = "32")]
+static CHEATS: [Cheat; 27] = [
+    Cheat::new(0, "THUGSTOOLS", MessageKey::CheatThugsArmoury),
+    Cheat::new(1, "PROFESSIONALTOOLS", MessageKey::CheatProfessionalsKit),
+    Cheat::new(2, "NUTTERTOOLS", MessageKey::CheatNuttersToys),
+    Cheat::new(3, "ASPIRINE", MessageKey::CheatINeedSomeHelp),
+    Cheat::new(4, "PRECIOUSPROTECTION", MessageKey::CheatFullInvincibility),
+    Cheat::new(5, "YOUWONTTAKEMEALIVE", MessageKey::CheatTurnUpTheHeat),
+    Cheat::new(6, "LEAVEMEALONE", MessageKey::CheatTurnDownTheHeat),
+    Cheat::new(7, "STILLLIKEDRESSINGUP", MessageKey::CheatBlueSuedeShoes),
+    Cheat::new(8, "ICANTTAKEITANYMORE", MessageKey::CheatGoodbyeCruelWorld),
+    Cheat::new(9, "ALOVELYDAY", MessageKey::CheatPleasantlyWarm),
+    Cheat::new(10, "ABITDRIEG", MessageKey::CheatOvercast),
+    Cheat::new(11, "CATSANDDOGS", MessageKey::CheatRainy),
+    Cheat::new(12, "CANTSEEATHING", MessageKey::CheatFoggy),
+    Cheat::new(13, "ONSPEED", MessageKey::CheatSpeedFreak),
+    Cheat::new(14, "BOOOOOORING", MessageKey::CheatSlowMotion),
+    Cheat::new(15, "FIGHTFIGHTFIGHT", MessageKey::CheatStateOfEmergency),
+    Cheat::new(16, "NOBODYLIKESME", MessageKey::CheatStopPickingOnMe),
+    Cheat::new(17, "OURGODGIVENRIGHTTOBEARARMS", MessageKey::CheatAttackOfTheVillagePeople),
+    Cheat::new(18, "FANNYMAGNET", MessageKey::CheatHelloLadies),
+    Cheat::new(19, "CHICKSWITHGUNS", MessageKey::CheatCrazyTown),
+    Cheat::new(20, "BIGBANG", MessageKey::CheatAllCarsGoBoom),
+    Cheat::new(21, "MIAMITRAFFIC", MessageKey::CheatAllDriversAreCriminals),
+    Cheat::new(22, "AHHAIRDRESSERSCAR", MessageKey::CheatPinkIsTheNewCool),
+    Cheat::new(23, "PANZER", MessageKey::CheatPredator),
+    Cheat::new(24, "GETTHEREFAST", MessageKey::CheatOldSpeedDemon),
+    Cheat::new(25, "TRAVELINSTYLE", MessageKey::CheatNotForPublicRoads),
+    Cheat::new(26, "BETTERTHANWALKING", MessageKey::Cheat18Holes),
+];
+
 
 #[cfg(target_pointer_width = "64")]
 static CHEATS: [Cheat; 111] = [

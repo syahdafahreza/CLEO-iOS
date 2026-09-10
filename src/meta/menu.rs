@@ -1080,6 +1080,7 @@ impl Menu {
     }
 }
 
+#[cfg(target_pointer_width = "64")]
 fn get_reachability_class() -> *const Object {
     unsafe {
         let cls = objc::runtime::objc_getClass(b"Reachability\0".as_ptr() as *const i8);
@@ -1096,6 +1097,7 @@ fn get_reachability_class() -> *const Object {
     }
 }
 
+#[cfg(target_pointer_width = "64")]
 fn reachability_with_hostname(
     this_class: *const Object,
     sel: objc::runtime::Sel,
@@ -1129,6 +1131,7 @@ fn reachability_with_hostname(
     }
 }
 
+#[cfg(target_pointer_width = "64")]
 fn add_button_handler(button: *mut Object, tag: ButtonTag) {
     let reachability = get_reachability_class();
     let selector = sel!(reachabilityWithHostName:);
@@ -1140,10 +1143,82 @@ fn add_button_handler(button: *mut Object, tag: ButtonTag) {
     }
 }
 
+#[cfg(target_pointer_width = "32")]
+mod button_target_32 {
+    use super::*;
+    use objc::runtime::{Class, Object, Sel, BOOL};
+
+    extern "C" {
+        fn objc_allocateClassPair(superclass: *const Class, name: *const libc::c_char, extraBytes: usize) -> *mut Class;
+        fn objc_registerClassPair(cls: *mut Class);
+        fn class_addMethod(cls: *mut Class, name: Sel, imp: extern "C" fn(*mut Object, Sel, *mut Object), types: *const libc::c_char) -> BOOL;
+    }
+
+    extern "C" fn button_clicked(_this: *mut Object, _cmd: Sel, sender: *mut Object) {
+        unsafe {
+            let is_button: bool = msg_send![sender, isKindOfClass: class!(UIButton)];
+            if is_button {
+                let raw_tag: NSInteger = msg_send![sender, tag];
+                let tag = ButtonTag::from_ns_integer(raw_tag);
+
+                if tag.is_close {
+                    log::trace!("Close button pressed");
+                    MenuMessage::Hide.send();
+                    return;
+                }
+
+                if tag.tab == -1 {
+                    log::error!("tag.tab cannot be -1 when tag.is_close is false");
+                } else if tag.row == -1 {
+                    MenuMessage::SelectTab(tag.tab as usize).send();
+                } else {
+                    MenuMessage::HitRow(tag.tab as usize, tag.row as usize).send();
+                }
+            }
+        }
+    }
+
+    static BUTTON_TARGET: OnceCell<usize> = OnceCell::new();
+
+    pub fn get_target() -> *mut Object {
+        *BUTTON_TARGET.get_or_init(|| {
+            unsafe {
+                let class_name = b"CleoButtonTarget\0".as_ptr() as *const libc::c_char;
+                let mut cls = objc::runtime::objc_getClass(class_name) as *mut Class;
+                if cls.is_null() {
+                    let superclass = class!(NSObject);
+                    cls = objc_allocateClassPair(superclass, class_name, 0);
+                    let types = b"v@:@\0".as_ptr() as *const libc::c_char;
+                    class_addMethod(cls, sel!(handleButton:), button_clicked, types);
+                    objc_registerClassPair(cls);
+                }
+                let target: *mut Object = msg_send![cls, new];
+                target as usize
+            }
+        }) as *mut Object
+    }
+}
+
+#[cfg(target_pointer_width = "32")]
+fn add_button_handler(button: *mut Object, tag: ButtonTag) {
+    let target = button_target_32::get_target();
+    let selector = sel!(handleButton:);
+    let touch_up_inside = (1 << 6) as NSUInteger;
+
+    unsafe {
+        let _: () = msg_send![button, setTag: tag.to_ns_integer()];
+        let _: () = msg_send![button, addTarget: target action: selector forControlEvents: touch_up_inside];
+    }
+}
+
 pub fn init() {
     log::info!("installing menu hook...");
 
+    #[cfg(target_pointer_width = "64")]
     crate::targets::button_hack::install(reachability_with_hostname);
+
+    #[cfg(target_pointer_width = "32")]
+    let _ = button_target_32::get_target();
 
     log::info!("starting menu poll...");
     MESSAGE_SENDER

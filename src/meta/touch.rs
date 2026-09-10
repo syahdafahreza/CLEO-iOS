@@ -593,7 +593,10 @@ fn process_touch(x: f32, y: f32, timestamp: f64, force: f32, touch_type: u64) {
 }
 
 #[cfg(target_pointer_width = "32")]
-fn process_touch(touch_type: u32, x: f32, y: f32, timestamp: f64) {
+fn process_touch(touch_type: u32, x_raw: u32, y_raw: u32, p3: u32, p4: u32) {
+    let x = f32::from_bits(x_raw);
+    let y = f32::from_bits(y_raw);
+
     // Log the first few touch events so we can confirm the hook is active.
     {
         use std::sync::atomic::{AtomicU32, Ordering};
@@ -622,7 +625,7 @@ fn process_touch(touch_type: u32, x: f32, y: f32, timestamp: f64) {
 
     let event = event_type(EventInfo {
         position: Vec2d::new(x, y),
-        timestamp: timestamp as f32,
+        timestamp: 0.0,
     });
 
     TouchInterface::shared_mut().handle_event(event);
@@ -630,7 +633,7 @@ fn process_touch(touch_type: u32, x: f32, y: f32, timestamp: f64) {
     // hack: Find a better place to call this.
     update();
 
-    call_original!(targets::process_touch, touch_type, x, y, timestamp);
+    call_original!(targets::process_touch, touch_type, x_raw, y_raw, p3, p4);
 }
 
 /// Refreshes the touch system, showing the menu if the user has triggered it.

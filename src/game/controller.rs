@@ -135,6 +135,9 @@ fn update_pads() {
 }
 
 pub fn init() {
-    log::info!("installing controller hook...");
-    crate::targets::update_pads::install(update_pads);
+    #[cfg(target_pointer_width = "64")]
+    {
+        log::info!("installing controller hook...");
+        crate::targets::update_pads::install(update_pads);
+    }
 }

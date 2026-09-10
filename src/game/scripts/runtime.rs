@@ -277,24 +277,32 @@ impl CleoScript {
 
         #[cfg(target_pointer_width = "32")]
         {
-            // In GTA SA v1.09 armv7, all opcodes >= 0xa8c are handled by the default handler at 0x0015616c.
-            if opcode >= 0xa8c {
-                return hook::slide_fn::<Handler>(0x0015616c)(&mut self.game_script, opcode) != 0;
+            // In GTA Vice City v1.3 armv7, command blocks are handled by 15 discrete functions:
+            const VC_HANDLERS: [usize; 15] = [
+                0x0013346c, // 0..99
+                0x00134f74, // 100..199
+                0x00137168, // 200..299
+                0x0016cd8c, // 300..399
+                0x0016e648, // 400..499
+                0x00178164, // 500..599
+                0x0017b308, // 600..699
+                0x00179840, // 700..799
+                0x001a7ed0, // 800..899
+                0x001aae78, // 900..999
+                0x00053ad4, // 1000..1099
+                0x00051e98, // 1100..1199
+                0x000a621c, // 1200..1299
+                0x000a7cb4, // 1300..1399
+                0x000e7398, // 1400..1499
+            ];
+
+            let handler_index = (opcode / 100) as usize;
+            if handler_index < VC_HANDLERS.len() {
+                let handler_addr = VC_HANDLERS[handler_index];
+                hook::slide_fn::<Handler>(handler_addr)(&mut self.game_script, opcode) != 0
+            } else {
+                false
             }
-
-            let handler = {
-                let handler_table: *const Handler = hook::slide(0x004a3494);
-
-                // Each function handles 100 commands.
-                let handler_index = opcode / 100;
-
-                // Table alternates between function pointers and null pointers (each entry is 8 bytes = 2 pointers).
-                let handler_offset = handler_index as usize * 2;
-
-                unsafe { handler_table.add(handler_offset).read() }
-            };
-
-            handler(&mut self.game_script, opcode) != 0
         }
     }
 
@@ -303,7 +311,7 @@ impl CleoScript {
         hook::slide::<fn(*mut CleoScript, u32)>(0x1001cf474)(&mut *self, count);
 
         #[cfg(target_pointer_width = "32")]
-        hook::slide_fn::<fn(*mut CleoScript, u32)>(0x0011d2a4)(&mut *self, count);
+        hook::slide_fn::<fn(*mut CleoScript, u32)>(0x00132ff0)(&mut *self, count);
     }
 
     fn read_variable_arg<T: Copy>(&mut self) -> T {
@@ -311,7 +319,7 @@ impl CleoScript {
         return hook::slide::<fn(*mut CleoScript) -> T>(0x1001cfb04)(&mut *self);
 
         #[cfg(target_pointer_width = "32")]
-        return hook::slide_fn::<fn(*mut CleoScript) -> T>(0x0011d690)(&mut *self);
+        return hook::slide_fn::<fn(*mut CleoScript) -> T>(0x001330d4)(&mut *self);
     }
 
     fn update_bool_flag(&mut self, value: bool) {
@@ -319,7 +327,9 @@ impl CleoScript {
         hook::slide::<fn(*mut CleoScript, bool)>(0x1001df890)(&mut *self, value);
 
         #[cfg(target_pointer_width = "32")]
-        hook::slide_fn::<fn(*mut CleoScript, bool)>(0x0012c632)(&mut *self, value);
+        {
+            self.game_script.bool_flag = value;
+        }
     }
 
     fn get_args_ptr() -> *const u32 {
@@ -327,7 +337,7 @@ impl CleoScript {
         return hook::slide(0x1007ad690);
 
         #[cfg(target_pointer_width = "32")]
-        return hook::slide(0x006ffac8);
+        return hook::slide(0x00549440);
     }
 
     /// Runs any extra code associated with the opcode. Returns true if the extra code

@@ -9,21 +9,12 @@ use crate::{
 };
 use std::ffi::CStr;
 
-// CTimer::GetCyclesPerMillisecond is called between the FPS limit being set and when it is
-// enforced, so if we overwrite the limit here, our new value will be enforced.
+#[cfg(target_pointer_width = "64")]
 fn cycles_per_millisecond() -> u32 {
     let fps_cap = Options::get().fps_lock.fps();
 
     unsafe {
-        #[cfg(target_pointer_width = "64")]
-        {
-            *hook::slide::<*mut u32>(0x1008f07b8) = fps_cap;
-        }
-        #[cfg(target_pointer_width = "32")]
-        {
-            // GTA SA v1.09 armv7: RsGlobal.frameLimit
-            *hook::slide::<*mut u32>(0x007e0d88) = fps_cap;
-        }
+        *hook::slide::<*mut u32>(0x1008f07b8) = fps_cap;
     }
 
     call_original!(targets::cycles_per_millisecond)
@@ -35,22 +26,6 @@ fn idle(p1: u64, p2: u64) {
 
     unsafe {
         *hook::slide::<*mut bool>(0x10081c519) = show_fps;
-    }
-
-    call_original!(targets::idle, p1, p2);
-}
-
-#[cfg(target_pointer_width = "32")]
-fn idle(p1: usize, p2: usize) {
-    let show_fps = matches!(Options::get().fps_visibility, FpsVisibility::Visible);
-    let fps_cap = Options::get().fps_lock.fps();
-
-    unsafe {
-        // GTA SA v1.09 armv7: FPS display flag in __DATA.__common
-        *hook::slide::<*mut bool>(0x00746bb1) = show_fps;
-
-        // Also enforce FPS cap on RsGlobal.frameLimit
-        *hook::slide::<*mut u32>(0x007e0d88) = fps_cap;
     }
 
     call_original!(targets::idle, p1, p2);
@@ -273,22 +248,11 @@ fn set_loading_messages(msg_1: *const c_char, msg_2: *const c_char) {
 pub fn init() {
     log::info!("installing extra hooks...");
 
-    targets::idle::install(idle);
-    targets::cycles_per_millisecond::install(cycles_per_millisecond);
-
-    // NOTE: write_fragment_shader and write_vertex_shader hooks are DISABLED
-    // on GTA SA v1.09 armv7. The shader system is different in this binary.
-    // They were only used in debug builds on arm64 anyway.
-
-    // On 32-bit: display_fps hook is NOT installed. The game's native DisplayFPS()
-    // is invoked automatically by CGame::Idle() when the flag at 0x00746bb1 is set
-    // by our idle() hook above. Hooking it with custom CLEO code risks font-state
-    // corruption (wrong CFont addresses) and full-width black rectangles.
     #[cfg(target_pointer_width = "64")]
-    targets::display_fps::install(display_fps);
-    #[cfg(target_pointer_width = "64")]
-    targets::loading_messages::install(set_loading_messages);
-
-    // create_soft_target!(do_game_state, 0x003c9d10, fn());
-    // targets::height_above_ceiling::install(height_above_ceiling);
+    {
+        targets::idle::install(idle);
+        targets::cycles_per_millisecond::install(cycles_per_millisecond);
+        targets::display_fps::install(display_fps);
+        targets::loading_messages::install(set_loading_messages);
+    }
 }

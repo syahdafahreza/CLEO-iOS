@@ -56,11 +56,7 @@ impl Cheat {
 
         #[cfg(target_pointer_width = "32")]
         {
-            if self.index < VC_CHEAT_FUNCS.len() {
-                Some(hook::slide_fn::<fn()>(VC_CHEAT_FUNCS[self.index]))
-            } else {
-                None
-            }
+            None
         }
     }
 
@@ -75,7 +71,7 @@ impl Cheat {
 
         #[cfg(target_pointer_width = "32")]
         unsafe {
-            static mut VC_CHEAT_ACTIVE: [bool; 27] = [false; 27];
+            static mut VC_CHEAT_ACTIVE: [bool; 37] = [false; 37];
             &mut VC_CHEAT_ACTIVE[self.index]
         }
     }
@@ -100,15 +96,27 @@ impl Cheat {
     }
 
     fn run(&self) {
-        if let Some(function) = self.get_function() {
-            log::info!("Calling cheat function {:?}", function);
-            function();
+        #[cfg(target_pointer_width = "32")]
+        {
+            log::info!("Activating VC cheat index {} ({})", self.index, self.code);
+            call_vc_cheat(self.index);
+            let active = self.get_active_mut();
+            *active = !*active;
             return;
         }
 
-        // If the cheat has no function pointer, then we need to toggle its active status.
-        let active = self.get_active_mut();
-        *active = !*active;
+        #[cfg(target_pointer_width = "64")]
+        {
+            if let Some(function) = self.get_function() {
+                log::info!("Calling cheat function {:?}", function);
+                function();
+                return;
+            }
+
+            // If the cheat has no function pointer, then we need to toggle its active status.
+            let active = self.get_active_mut();
+            *active = !*active;
+        }
     }
 }
 
@@ -621,65 +629,88 @@ pub fn init() {
 //  was really useful for writing cheat descriptions.
 
 #[cfg(target_pointer_width = "32")]
-pub static VC_CHEAT_FUNCS: [usize; 27] = [
-    0x00077aa4, // [ 0] Weapon Set 1 (THUGSTOOLS)
-    0x00077b08, // [ 1] Weapon Set 2 (PROFESSIONALTOOLS)
-    0x00077b6c, // [ 2] Weapon Set 3 (NUTTERTOOLS)
-    0x00077bd0, // [ 3] Health (ASPIRINE)
-    0x00077c2c, // [ 4] Armor (PRECIOUSPROTECTION)
-    0x00077c84, // [ 5] Wanted Level Up (YOUWONTTAKEMEALIVE)
-    0x00077ce8, // [ 6] Wanted Level Clear (LEAVEMEALONE)
-    0x00077d54, // [ 7] Change Clothes (STILLLIKEDRESSINGUP)
-    0x00077dc4, // [ 8] Suicide (ICANTTAKEITANYMORE)
-    0x00077e34, // [ 9] Sunny Weather (ALOVELYDAY)
-    0x00077e84, // [10] Cloudy Weather (ABITDRIEG)
-    0x00077edc, // [11] Rainy Weather (CATSANDDOGS)
-    0x00077f30, // [12] Foggy Weather (CANTSEEATHING)
-    0x000785b4, // [13] Fast Gameplay (ONSPEED)
-    0x000785fc, // [14] Slow Gameplay (BOOOOOORING)
-    0x0007868c, // [15] Pedestrians Riot (FIGHTFIGHTFIGHT)
-    0x000786bc, // [16] Pedestrians Attack (NOBODYLIKESME)
-    0x000786ec, // [17] Pedestrians Have Weapons (OURGODGIVENRIGHTTOBEARARMS)
-    0x0007871c, // [18] Ladies Follow (FANNYMAGNET)
-    0x0007874c, // [19] Media Level Meter (CHICKSWITHGUNS)
-    0x0007877c, // [20] Blow Up Cars (BIGBANG)
-    0x00078900, // [21] Aggressive Drivers (MIAMITRAFFIC)
-    0x00078920, // [22] Pink Cars (AHHAIRDRESSERSCAR)
-    0x00079254, // [23] Spawn Rhino Tank (PANZER)
-    0x00079314, // [24] Spawn Sabre Turbo (GETTHEREFAST)
-    0x0007946c, // [25] Spawn Bloodring Banger (TRAVELINSTYLE)
-    0x000795b8, // [26] Spawn Caddy (BETTERTHANWALKING)
-];
+fn call_vc_cheat(index: usize) {
+    match index {
+        0 => hook::slide_fn::<extern "C" fn()>(0x000795b8)(), // THUGSTOOLS
+        1 => hook::slide_fn::<extern "C" fn()>(0x0007946c)(), // PROFESSIONALTOOLS
+        2 => hook::slide_fn::<extern "C" fn()>(0x00079314)(), // NUTTERTOOLS
+        3 => hook::slide_fn::<extern "C" fn()>(0x00077e34)(), // PRECIOUSPROTECTION
+        4 => hook::slide_fn::<extern "C" fn(u32)>(0x00079254)(1), // ASPIRINE
+        5 => hook::slide_fn::<extern "C" fn()>(0x00077edc)(), // YOUWONTTAKEMEALIVE
+        6 => hook::slide_fn::<extern "C" fn()>(0x00077e84)(), // LEAVEMEALONE
+        7 => hook::slide_fn::<extern "C" fn()>(0x0007874c)(), // APLEASANTDAY
+        8 => hook::slide_fn::<extern "C" fn()>(0x0007871c)(), // ALOVELYDAY
+        9 => hook::slide_fn::<extern "C" fn()>(0x000786ec)(), // ABITDRIEG
+        10 => hook::slide_fn::<extern "C" fn()>(0x000786bc)(), // CATSANDDOGS
+        11 => hook::slide_fn::<extern "C" fn()>(0x0007868c)(), // CANTSEEATHING
+        12 => hook::slide_fn::<extern "C" fn()>(0x00079130)(), // PANZER
+        13 => hook::slide_fn::<extern "C" fn()>(0x00079b94)(), // LIFEISPASSINGMEBY
+        14 => hook::slide_fn::<extern "C" fn()>(0x00077dc4)(), // BIGBANG
+        15 => hook::slide_fn::<extern "C" fn()>(0x0007877c)(), // STILLLIKEDRESSINGUP
+        16 => hook::slide_fn::<extern "C" fn()>(0x00077d54)(), // FIGHTFIGHTFIGHT
+        17 => hook::slide_fn::<extern "C" fn()>(0x00077ce8)(), // NOBODYLIKESME
+        18 => hook::slide_fn::<extern "C" fn()>(0x00077c84)(), // OURGODGIVENRIGHTTOBEARARMS
+        19 => hook::slide_fn::<extern "C" fn()>(0x00077c2c)(), // ONSPEED
+        20 => hook::slide_fn::<extern "C" fn()>(0x00077bd0)(), // BOOOOOORING
+        21 => hook::slide_fn::<extern "C" fn()>(0x00077b6c)(), // WHEELSAREALLINEED
+        22 => hook::slide_fn::<extern "C" fn()>(0x00077b08)(), // COMEFLYWITHME
+        23 => hook::slide_fn::<extern "C" fn()>(0x00077aa4)(), // GRIPISEVERYTHING
+        24 => hook::slide_fn::<extern "C" fn()>(0x00079d84)(), // CHASESTAT
+        25 => hook::slide_fn::<extern "C" fn()>(0x000785fc)(), // CHICKSWITHGUNS
+        26 => hook::slide_fn::<extern "C" fn()>(0x000785b4)(), // ICANTTAKEITANYMORE
+        27 => hook::slide_fn::<extern "C" fn()>(0x00079e2c)(), // GREENLIGHT
+        28 => hook::slide_fn::<extern "C" fn()>(0x00079e84)(), // MIAMITRAFFIC
+        29 => hook::slide_fn::<extern "C" fn()>(0x00079ed8)(), // AHAIRDRESSERSCAR
+        30 => hook::slide_fn::<extern "C" fn()>(0x00079f40)(), // IWANTITPAINTEDBLACK
+        31 => hook::slide_fn::<extern "C" fn(u32)>(0x00078920)(234), // TRAVELINSTYLE (Bloodring Banger)
+        32 => hook::slide_fn::<extern "C" fn(u32)>(0x00078920)(172), // THELASTRIDE (Romero's Hearse)
+        33 => hook::slide_fn::<extern "C" fn(u32)>(0x00078920)(201), // ROCKANDROLLCAR (Love Fist Limo)
+        34 => hook::slide_fn::<extern "C" fn(u32)>(0x00078920)(138), // RUBBISHCAR (Trashmaster)
+        35 => hook::slide_fn::<extern "C" fn(u32)>(0x00078920)(206), // GETTHEREFAST (Sabre Turbo)
+        36 => hook::slide_fn::<extern "C" fn(u32)>(0x00078920)(187), // BETTERTHANWALKING (Caddy)
+        _ => {}
+    }
+}
 
 #[cfg(target_pointer_width = "32")]
-static CHEATS: [Cheat; 27] = [
+static CHEATS: [Cheat; 37] = [
     Cheat::new(0, "THUGSTOOLS", MessageKey::CheatThugsArmoury),
     Cheat::new(1, "PROFESSIONALTOOLS", MessageKey::CheatProfessionalsKit),
     Cheat::new(2, "NUTTERTOOLS", MessageKey::CheatNuttersToys),
-    Cheat::new(3, "ASPIRINE", MessageKey::CheatINeedSomeHelp),
-    Cheat::new(4, "PRECIOUSPROTECTION", MessageKey::CheatFullInvincibility),
+    Cheat::new(3, "PRECIOUSPROTECTION", MessageKey::CheatFullInvincibility),
+    Cheat::new(4, "ASPIRINE", MessageKey::CheatINeedSomeHelp),
     Cheat::new(5, "YOUWONTTAKEMEALIVE", MessageKey::CheatTurnUpTheHeat),
     Cheat::new(6, "LEAVEMEALONE", MessageKey::CheatTurnDownTheHeat),
-    Cheat::new(7, "STILLLIKEDRESSINGUP", MessageKey::CheatBlueSuedeShoes),
-    Cheat::new(8, "ICANTTAKEITANYMORE", MessageKey::CheatGoodbyeCruelWorld),
-    Cheat::new(9, "ALOVELYDAY", MessageKey::CheatPleasantlyWarm),
-    Cheat::new(10, "ABITDRIEG", MessageKey::CheatDullDullDay),
-    Cheat::new(11, "CATSANDDOGS", MessageKey::CheatStayInAndWatchTv),
-    Cheat::new(12, "CANTSEEATHING", MessageKey::CheatCantSeeWhereImGoing),
-    Cheat::new(13, "ONSPEED", MessageKey::CheatSpeedFreak),
-    Cheat::new(14, "BOOOOOORING", MessageKey::CheatSlowItDown),
-    Cheat::new(15, "FIGHTFIGHTFIGHT", MessageKey::CheatStateOfEmergency),
-    Cheat::new(16, "NOBODYLIKESME", MessageKey::CheatStopPickingOnMe),
-    Cheat::new(17, "OURGODGIVENRIGHTTOBEARARMS", MessageKey::CheatAttackOfTheVillagePeople),
-    Cheat::new(18, "FANNYMAGNET", MessageKey::CheatHelloLadies),
-    Cheat::new(19, "CHICKSWITHGUNS", MessageKey::CheatCrazyTown),
-    Cheat::new(20, "BIGBANG", MessageKey::CheatAllCarsGoBoom),
-    Cheat::new(21, "MIAMITRAFFIC", MessageKey::CheatAllDriversAreCriminals),
-    Cheat::new(22, "AHHAIRDRESSERSCAR", MessageKey::CheatPinkIsTheNewCool),
-    Cheat::new(23, "PANZER", MessageKey::CheatPredator),
-    Cheat::new(24, "GETTHEREFAST", MessageKey::CheatOldSpeedDemon),
-    Cheat::new(25, "TRAVELINSTYLE", MessageKey::CheatNotForPublicRoads),
-    Cheat::new(26, "BETTERTHANWALKING", MessageKey::Cheat18Holes),
+    Cheat::new(7, "APLEASANTDAY", MessageKey::CheatTooDamnHot),
+    Cheat::new(8, "ALOVELYDAY", MessageKey::CheatPleasantlyWarm),
+    Cheat::new(9, "ABITDRIEG", MessageKey::CheatDullDullDay),
+    Cheat::new(10, "CATSANDDOGS", MessageKey::CheatStayInAndWatchTv),
+    Cheat::new(11, "CANTSEEATHING", MessageKey::CheatCantSeeWhereImGoing),
+    Cheat::new(12, "PANZER", MessageKey::CheatTimeToKickAss),
+    Cheat::new(13, "LIFEISPASSINGMEBY", MessageKey::CheatTimeJustFliesBy),
+    Cheat::new(14, "BIGBANG", MessageKey::CheatAllCarsGoBoom),
+    Cheat::new(15, "STILLLIKEDRESSINGUP", MessageKey::CheatBlueSuedeShoes),
+    Cheat::new(16, "FIGHTFIGHTFIGHT", MessageKey::CheatStateOfEmergency),
+    Cheat::new(17, "NOBODYLIKESME", MessageKey::CheatStopPickingOnMe),
+    Cheat::new(18, "OURGODGIVENRIGHTTOBEARARMS", MessageKey::CheatAttackOfTheVillagePeople),
+    Cheat::new(19, "ONSPEED", MessageKey::CheatSpeedFreak),
+    Cheat::new(20, "BOOOOOORING", MessageKey::CheatSlowItDown),
+    Cheat::new(21, "WHEELSAREALLINEED", MessageKey::CheatWheelsOnlyPlease),
+    Cheat::new(22, "COMEFLYWITHME", MessageKey::CheatFlyingFish),
+    Cheat::new(23, "GRIPISEVERYTHING", MessageKey::CheatStickLikeGlue),
+    Cheat::new(24, "CHASESTAT", MessageKey::CheatCelebrityStatus),
+    Cheat::new(25, "CHICKSWITHGUNS", MessageKey::CheatCrazyTown),
+    Cheat::new(26, "ICANTTAKEITANYMORE", MessageKey::CheatGoodbyeCruelWorld),
+    Cheat::new(27, "GREENLIGHT", MessageKey::CheatAllDriversAreCriminals),
+    Cheat::new(28, "MIAMITRAFFIC", MessageKey::CheatRoughNeighbourhood),
+    Cheat::new(29, "AHAIRDRESSERSCAR", MessageKey::CheatPinkIsTheNewCool),
+    Cheat::new(30, "IWANTITPAINTEDBLACK", MessageKey::CheatSoLongAsItsBlack),
+    Cheat::new(31, "TRAVELINSTYLE", MessageKey::CheatNotForPublicRoads),
+    Cheat::new(32, "THELASTRIDE", MessageKey::CheatWheresTheFuneral),
+    Cheat::new(33, "ROCKANDROLLCAR", MessageKey::CheatOhDude),
+    Cheat::new(34, "RUBBISHCAR", MessageKey::CheatTrueGrime),
+    Cheat::new(35, "GETTHEREFAST", MessageKey::CheatOldSpeedDemon),
+    Cheat::new(36, "BETTERTHANWALKING", MessageKey::Cheat18Holes),
 ];
 
 

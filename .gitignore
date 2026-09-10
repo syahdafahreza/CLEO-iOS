@@ -6,6 +6,10 @@ Changes.md
 README-*.md
 images/*_nxt.*
 dump_and_logs/
+dump_and_logs_vc/*
+!dump_and_logs_vc/README.md
+!dump_and_logs_vc/analyze_vc.py
+*.ipa
 *.log
 *.ips
 backup/

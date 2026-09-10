@@ -3,7 +3,7 @@ name = "cleo"
 version = "2.6.1"
 authors = ["squ1dd13 <squ1dd13dev@gmail.com>"]
 edition = "2021"
-description = "CLEO SA for iOS"
+description = "CLEO VC for iOS"
 publish = false
 
 [lib]

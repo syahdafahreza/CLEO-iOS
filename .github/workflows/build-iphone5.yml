@@ -4,10 +4,10 @@ name: Build CLEO iOS — iPhone 5 (ARMv7s)
 # Branch 'main' is for iPhone 6S+ (arm64) and is NOT affected by this workflow.
 on:
   push:
-    branches: [For-iPhone-5]
-    tags: ['*-iphone5']
+    branches: [For-iPhone-5, For-iPhone-5-VC]
+    tags: ['*-iphone5', '*-vc']
   pull_request:
-    branches: [For-iPhone-5]
+    branches: [For-iPhone-5, For-iPhone-5-VC]
   workflow_dispatch:
 
 jobs:

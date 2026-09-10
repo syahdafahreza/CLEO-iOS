@@ -347,3 +347,8 @@ cheat-slot-equipment = { cheat-crash-warning } Ranura de equipo
 cheat-slot-other = { cheat-crash-warning } Otro tragamonedas
 
 cheat-predator = No hace nada
+
+cheat-sabre-turbo = Spawn Sabre Turbo (classic muscle car)
+cheat-change-clothes = Change Tommy's clothes/skin
+cheat-chicks-with-guns = Female pedestrians carry guns
+cheat-seaways = Cars drive on water

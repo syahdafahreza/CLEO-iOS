@@ -326,3 +326,8 @@ cheat-slot-heavy = { cheat-crash-warning } កន្លែងផ្នុក អ
 cheat-slot-equipment = { cheat-crash-warning } កន្លែងផ្នុក គ្រឿងប្រដាប់.បរិក្ខារ
 cheat-slot-other = { cheat-crash-warning } កន្លែងផ្ទុក ផ្សេងៗទៀត
 cheat-predator = ទទេរគឺទទេរ
+
+cheat-sabre-turbo = Spawn Sabre Turbo (classic muscle car)
+cheat-change-clothes = Change Tommy's clothes/skin
+cheat-chicks-with-guns = Female pedestrians carry guns
+cheat-seaways = Cars drive on water

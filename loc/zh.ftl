@@ -341,3 +341,8 @@ cheat-slot-equipment = { cheat-crash-warning } 装备槽
 cheat-slot-other = { cheat-crash-warning } 其它槽
 
 cheat-predator = 无效
+
+cheat-sabre-turbo = Spawn Sabre Turbo (classic muscle car)
+cheat-change-clothes = Change Tommy's clothes/skin
+cheat-chicks-with-guns = Female pedestrians carry guns
+cheat-seaways = Cars drive on water

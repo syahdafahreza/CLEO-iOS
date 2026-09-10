@@ -718,6 +718,10 @@ pub enum MessageKey {
     CheatItsAllBull,
     CheatFlyingToStunt,
     CheatMonsterMash,
+    CheatSabreTurbo,
+    CheatChangeClothes,
+    CheatChicksWithGuns,
+    CheatSeaways,
 
     CheatWannaBeInMyGang,
     CheatNooneCanStopUs,

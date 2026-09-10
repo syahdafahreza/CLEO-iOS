@@ -261,6 +261,10 @@ cheat-hit-the-road-jack = Munculin Tanker sama trailer (Truk tangki)
 cheat-its-all-bull = Munculin Dozer (Buldoser)
 cheat-flying-to-stunt = Munculin Stunt Plane (Pesawat akrobat)
 cheat-monster-mash = Munculin Monster Truck (Truk monster)
+cheat-sabre-turbo = Munculin Sabre Turbo (Mobil sport klasik)
+cheat-change-clothes = Ganti baju/skin karakter Tommy
+cheat-chicks-with-guns = Pejalan kaki cewek bawa senjata
+cheat-seaways = Mobil bisa berjalan di atas air
 
 ## Gang recruitment
 cheat-wanna-be-in-my-gang = Rekrut orang jadi geng pake pistol

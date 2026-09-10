@@ -325,3 +325,8 @@ cheat-slot-heavy = { cheat-crash-warning } Agir silah slotu
 cheat-slot-equipment = { cheat-crash-warning } Ekipman slotu
 cheat-slot-other = { cheat-crash-warning } Diger slotu
 cheat-predator = Hicbir sey yapmiyor
+
+cheat-sabre-turbo = Spawn Sabre Turbo (classic muscle car)
+cheat-change-clothes = Change Tommy's clothes/skin
+cheat-chicks-with-guns = Female pedestrians carry guns
+cheat-seaways = Cars drive on water

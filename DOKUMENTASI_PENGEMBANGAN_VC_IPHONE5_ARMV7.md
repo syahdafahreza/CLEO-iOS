@@ -125,16 +125,48 @@
      - Contohnya, `0x00077dc4` (fungsi `BIGBANG` / Blow Up Cars) sebelumnya dipetakan ke index 8 (`ICANTTAKEITANYMORE`), sedangkan `0x0007877c` (fungsi ganti skin `STILLLIKEDRESSINGUP`) dipetakan ke index 20 (`BIGBANG`).
      - Alamat `0x00077b6c` (`WHEELSAREALLINEED` / Invisible Cars Wheels Only) sebelumnya dipetakan ke index 2 (`NUTTERTOOLS`).
      - Hal ini menyebabkan ketika memilih cheat "Mobil Meledak" (BIGBANG), fungsi yang terpanggil justru fungsi yang salah sehingga efek yang muncul adalah roda mobil saja atau hal lain.
-   - **Solusi**:
-     - Melakukan reverse engineering penuh terhadap fungsi dispatcher cheat asli GTA Vice City (`0x0007971c` s/d `0x0007a050`).
-     - Mendekripsi algoritma enkripsi string cheat GTA VC (`0x00076120` dengan jump table TBB) dan memetakan ke-37 cheat asli game secara akurat ke fungsi targetnya:
-       - `BIGBANG` (Blow Up Cars): `0x00077dc4`
-       - `ASPIRINE` (Health & Car Repair): `0x00079254` (parameter `r0 = 1`)
-       - `PRECIOUSPROTECTION` (Armor): `0x00077e34`
-       - `THUGSTOOLS` (Weapon 1): `0x000795b8`
-       - `PROFESSIONALTOOLS` (Weapon 2): `0x0007946c`
-       - `NUTTERTOOLS` (Weapon 3): `0x00079314`
-       - `PANZER` (Rhino Tank): `0x00079130`
-       - `WHEELSAREALLINEED` (Wheels Only): `0x00077b6c`
-       - Kendaraan (`TRAVELINSTYLE`, `THELASTRIDE`, `ROCKANDROLLCAR`, `RUBBISHCAR`, `GETTHEREFAST`, `BETTERTHANWALKING`): dipanggil via fungsi generik spawner `0x00078920(model_id)`.
-     - Jumlah cheat VC diupdate menjadi 37 cheat terverifikasi penuh.
+   - **Solusi Awal**:
+     - Melakukan reverse engineering terhadap dispatcher cheat asli GTA Vice City (`0x0007971c` s/d `0x0007a050`).
+     - Mendekripsi algoritma enkripsi string cheat GTA VC (`0x00076120` dengan jump table TBB) dan memetakan cheat asli game ke fungsi targetnya.
+
+7. **Investigasi Mendalam Spawn Rhino (Muncul Landstalker) & Audit Menyeluruh Cheat Vice City**:
+   - **Penyebab Spawn Rhino Memunculkan Landstalker**:
+     - Pada kode asli Rockstar, cheat `PANZER` di `0x00079b4e` memanggil fungsi internal `0x00079130`.
+     - Hasil disassembly mendalam terhadap `0x00079130` membuktikan bahwa fungsi tersebut bukanlah fungsi pemuncul tank khusus, melainkan fungsi debug internal Rockstar (`TankCheat %d`) yang mengiterasi seluruh ID kendaraan mulai dari `130..239`.
+     - Variabel static di `0x264cb0` diinisialisasi dengan angka `130` (yaitu ID model `landstal` / Landstalker di `default.ide`). Setiap kali fungsi `0x00079130` dipanggil, ia menaikkan index model sebesar +1. Akibatnya, pemanggilan pertama selalu memunculkan mobil Landstalker!
+     - Model asli Rhino Tank di GTA Vice City adalah model `162` (`rhino`).
+     - Fungsi generik spawner kendaraan yang benar adalah `0x00078920(model_id: u32)`. Memanggil `0x00078920(162)` secara langsung memunculkan Rhino Tank asli 100%!
+   - **Penyebab Muncul Hunter Malah Jadi Limo & Masalah Mobil Balap**:
+     - GTA Vice City tidak memiliki kode teks cheat asli untuk helikopter Hunter, namun model helikopter militer Hunter (`155`) ada di dalam file `default.ide`.
+     - Sebelumnya `CheatOhDude` ("Munculin Hunter") secara keliru dipetakan ke `ROCKANDROLLCAR` (`0x00078920(201)`, Love Fist Limousine) sehingga men-spawn limousine.
+     - Cheat `GETTHEREFAST` (`0x00078920(206)`, Sabre Turbo) sebelumnya dipetakan ke deskripsi `CheatNotForPublicRoads` ("Munculin Hotring Racer A"). Seharusnya Hotring Racer A adalah model `232` (`GETTHEREVERYFASTINDEED`), dan Hotring Racer B adalah model `233` (`GETTHEREAMAZINGLYFAST`).
+   - **Penyebab Potensi Crash / Kerusakan Stack Frame pada Cheat Flag**:
+     - Cheat seperti `LIFEISPASSINGMEBY`, `CHASESTAT`, `GREENLIGHT`, `MIAMITRAFFIC`, `AHAIRDRESSERSCAR`, dan `IWANTITPAINTEDBLACK` bukanlah fungsi standalone (tidak memiliki prolog fungsi `push {..., lr}`).
+     - Alamat tersebut adalah snippet inline di dalam `CCheat::DoCheats` yang melakukan `ldr r0, [r0]` dan diakhiri dengan `pop {r4, r5, r7, pc}`. Memanggil alamat tersebut secara langsung merusak stack frame pemanggil (stack corruption).
+     - **Solusi**: Diimplementasikan dengan mengubah/toggle variabel global flag game secara aman via memori pointer:
+       - `GREENLIGHT` (Lampu lalu lintas hijau): `0x423b80`
+       - `MIAMITRAFFIC` (Lalu lintas agresif): `0x5ad7a0`
+       - `AHAIRDRESSERSCAR` (Mobil warna pink): `0x473398 = 1`, `0x473394 = 0`
+       - `IWANTITPAINTEDBLACK` (Mobil warna hitam): `0x473394 = 1`, `0x473398 = 0`
+       - `SEAWAYS` (Mobil bisa jalan di air): `0x5aaea0` dan `0x434644`
+       - `LIFEISPASSINGMEBY` (Waktu cepat): `0x3dd1b0`
+       - `CHASESTAT` (Media level debug): `0x5ce4ec`
+   - **Daftar Lengkap 42 Cheat Terverifikasi 100%**:
+     - **Weapons (3)**: `THUGSTOOLS` (1), `PROFESSIONALTOOLS` (2), `NUTTERTOOLS` (3)
+     - **Health & Wanted (4)**: `PRECIOUSPROTECTION` (Armor 100%), `ASPIRINE` (Health 100% + Repair Mobil), `YOUWONTTAKEMEALIVE` (Wanted +2), `LEAVEMEALONE` (Wanted 0)
+     - **Cuaca (5)**: `APLEASANTDAY` (Panas), `ALOVELYDAY` (Cerah), `ABITDRIEG` (Mendung), `CATSANDDOGS` (Hujan), `CANTSEEATHING` (Kabut)
+     - **Kendaraan (11)**:
+       - `PANZER` -> Model `162` (Rhino Tank)
+       - `HUNTER` -> Model `155` (Hunter Military Helicopter)
+       - `TRAVELINSTYLE` -> Model `234` (Bloodring Banger A)
+       - `GETTHEREQUICKLY` -> Model `235` (Bloodring Banger B)
+       - `GETTHEREVERYFASTINDEED` -> Model `232` (Hotring Racer A)
+       - `GETTHEREAMAZINGLYFAST` -> Model `233` (Hotring Racer B)
+       - `GETTHEREFAST` -> Model `206` (Sabre Turbo)
+       - `THELASTRIDE` -> Model `172` (Romero Hearse)
+       - `ROCKANDROLLCAR` -> Model `201` (Love Fist Limousine)
+       - `RUBBISHCAR` -> Model `138` (Trashmaster)
+       - `BETTERTHANWALKING` -> Model `187` (Caddy Golf Cart)
+     - **Traffic & Physics (9)**: `BIGBANG` (Ledakkan semua mobil), `WHEELSAREALLINEED` (Mobil tembus pandang/roda saja), `COMEFLYWITHME` (Mobil terbang), `GRIPISEVERYTHING` (Handling mantap), `SEAWAYS` (Mobil jalan di air), `GREENLIGHT` (Lampu hijau), `MIAMITRAFFIC` (Lalu lintas agresif), `AHAIRDRESSERSCAR` (Lalu lintas pink), `IWANTITPAINTEDBLACK` (Lalu lintas hitam)
+     - **Player & World (10)**: `LIFEISPASSINGMEBY` (Waktu cepat), `ONSPEED` (Gameplay cepat), `BOOOOOORING` (Slo-mo), `STILLLIKEDRESSINGUP` (Ganti baju/skin), `ICANTTAKEITANYMORE` (Bunuh diri), `FIGHTFIGHTFIGHT` (Kerusuhan), `NOBODYLIKESME` (Pejalan kaki serang Tommy), `OURGODGIVENRIGHTTOBEARARMS` (Pejalan kaki bersenjata), `CHICKSWITHGUNS` (Pejalan kaki wanita bersenjata), `CHASESTAT` (Media level)
+

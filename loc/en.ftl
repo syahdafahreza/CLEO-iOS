@@ -271,6 +271,10 @@ cheat-hit-the-road-jack = Spawn Tanker and trailer (tanker truck)
 cheat-its-all-bull = Spawn Dozer (bulldozer)
 cheat-flying-to-stunt = Spawn Stunt Plane (stunt plane)
 cheat-monster-mash = Spawn Monster Truck (monster truck)
+cheat-sabre-turbo = Spawn Sabre Turbo (classic muscle car)
+cheat-change-clothes = Change Tommy's clothes/skin
+cheat-chicks-with-guns = Female pedestrians carry guns
+cheat-seaways = Cars drive on water
 
 ## Gang recruitment
 cheat-wanna-be-in-my-gang = Recruit anyone into your gang and give them a pistol by aiming a pistol at them

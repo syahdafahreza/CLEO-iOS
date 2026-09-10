@@ -341,3 +341,8 @@ cheat-slot-equipment = { cheat-crash-warning } Slot vybavení
 cheat-slot-other = { cheat-crash-warning } Jiný slot
 
 cheat-predator = Nic nedělá
+
+cheat-sabre-turbo = Spawn Sabre Turbo (classic muscle car)
+cheat-change-clothes = Change Tommy's clothes/skin
+cheat-chicks-with-guns = Female pedestrians carry guns
+cheat-seaways = Cars drive on water

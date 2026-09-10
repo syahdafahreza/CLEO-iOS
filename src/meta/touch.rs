@@ -439,8 +439,8 @@ impl MenuGesture {
 
     /// Returns `true` if the given touch is a downwards swiping motion.
     fn is_touch_swipe(touch: &TrackedTouch) -> bool {
-        const MIN_SPEED: f32 = 800.0;
-        const MIN_DISTANCE: f32 = 100.0;
+        const MIN_SPEED: f32 = 300.0;
+        const MIN_DISTANCE: f32 = 60.0;
 
         let displacement = touch.current_position() - touch.initial_position();
         let duration = touch.last_changed() - touch.start_time();
@@ -453,10 +453,10 @@ impl MenuGesture {
             0.0
         };
 
-        if distance > 30.0 {
+        if distance > 20.0 {
             log::info!(
-                "Swipe check: dist={:.1} (min 100), dur={:.3}s, spd={:.1} (min 800), dy={:.1}, dx={:.1}",
-                distance, duration, speed, displacement.y, displacement.x
+                "Swipe check: dist={:.1} (min {:.0}), dur={:.3}s, spd={:.1} (min {:.0}), dy={:.1}, dx={:.1}",
+                distance, MIN_DISTANCE, duration, speed, MIN_SPEED, displacement.y, displacement.x
             );
         }
 
@@ -469,10 +469,14 @@ impl MenuGesture {
         }
 
         // Only allow a downwards swipe, so don't tolerate very much sideways movement.
-        let x_is_static = (displacement.x / distance).abs() < 0.4;
+        let x_is_static = (displacement.x / distance).abs() < 0.6;
         let y_is_downwards = displacement.y / distance > 0.4;
 
-        x_is_static && y_is_downwards
+        let is_swipe = x_is_static && y_is_downwards;
+        if is_swipe {
+            log::info!("CLEO swipe down gesture validated!");
+        }
+        is_swipe
     }
 
     /// Returns `true` if a single swipe gesture is detected in `interface`.
@@ -606,12 +610,35 @@ fn process_touch(x: f32, y: f32, timestamp: f64, force: f32, touch_type: u64) {
 }
 
 #[cfg(target_pointer_width = "32")]
-extern "C" fn process_touch(touch_type: u32, y_raw: u32, x_raw: u32, p3: u32, p4: u32) {
+extern "C" fn process_touch(
+    touch_type: u32,
+    x_raw: u32,
+    y_raw: u32,
+    timestamp_lo: u32,
+    timestamp_hi: u32,
+) {
     // ALWAYS call original first so the game engine and UI receive touches immediately.
-    call_original!(targets::process_touch, touch_type, y_raw, x_raw, p3, p4);
+    call_original!(
+        targets::process_touch,
+        touch_type,
+        x_raw,
+        y_raw,
+        timestamp_lo,
+        timestamp_hi
+    );
 
     let x = f32::from_bits(x_raw);
     let y = f32::from_bits(y_raw);
+
+    // Reconstruct 64-bit double timestamp from UITouch (-[UITouch timestamp]).
+    let timestamp_f64 = f64::from_bits(((timestamp_hi as u64) << 32) | (timestamp_lo as u64));
+    let timestamp = if timestamp_f64 > 0.0 && timestamp_f64.is_finite() {
+        timestamp_f64 as f32
+    } else {
+        static START: once_cell::sync::Lazy<std::time::Instant> =
+            once_cell::sync::Lazy::new(std::time::Instant::now);
+        START.elapsed().as_secs_f32()
+    };
 
     // Log the first few touch events so we can confirm the hook is active.
     {
@@ -620,8 +647,8 @@ extern "C" fn process_touch(touch_type: u32, y_raw: u32, x_raw: u32, p3: u32, p4
         let count = TOUCH_LOG_COUNT.fetch_add(1, Ordering::Relaxed);
         if count < 5 {
             log::info!(
-                "process_touch called: x={:.1}, y={:.1}, type={} (event #{})",
-                x, y, touch_type, count + 1
+                "process_touch called: x={:.1}, y={:.1}, type={}, t={:.3} (event #{})",
+                x, y, touch_type, timestamp, count + 1
             );
         } else if count == 5 {
             log::info!("process_touch hook confirmed working — suppressing further touch logs.");
@@ -640,7 +667,7 @@ extern "C" fn process_touch(touch_type: u32, y_raw: u32, x_raw: u32, p3: u32, p4
 
     let event = event_type(EventInfo {
         position: Vec2d::new(x, y),
-        timestamp: 0.0,
+        timestamp,
     });
 
     TouchInterface::shared_mut().handle_event(event);

@@ -712,6 +712,7 @@ impl Menu {
     fn new(tab_data: Vec<TabData>) -> Menu {
         let language = super::language::current();
 
+        #[cfg(target_pointer_width = "64")]
         let (screen_w, screen_h) = unsafe {
             let container = get_menu_container();
             if !container.is_null() {
@@ -727,6 +728,9 @@ impl Menu {
                 (w, h)
             }
         };
+
+        #[cfg(target_pointer_width = "32")]
+        let (screen_w, screen_h) = (568.0 as CGFloat, 320.0 as CGFloat);
 
         let frame = CGRect::new(0.0 as CGFloat, 0.0 as CGFloat, screen_w, screen_h);
 
@@ -839,9 +843,14 @@ impl Menu {
         unsafe {
             let container = get_menu_container();
             if !container.is_null() {
-                let bounds: CGRect = msg_send![container, bounds];
-                let screen_w = bounds.size.width.max(bounds.size.height);
-                let screen_h = bounds.size.width.min(bounds.size.height);
+                #[cfg(target_pointer_width = "64")]
+                let (screen_w, screen_h) = {
+                    let bounds: CGRect = msg_send![container, bounds];
+                    (bounds.size.width.max(bounds.size.height), bounds.size.width.min(bounds.size.height))
+                };
+                #[cfg(target_pointer_width = "32")]
+                let (screen_w, screen_h) = (568.0 as CGFloat, 320.0 as CGFloat);
+
                 let frame = CGRect::new(0.0 as CGFloat, 0.0 as CGFloat, screen_w, screen_h);
                 let _: () = msg_send![self.blur_view, setFrame: frame];
 

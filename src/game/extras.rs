@@ -2,6 +2,7 @@
 
 use libc::c_char;
 
+#[cfg(target_pointer_width = "64")]
 use crate::{
     call_original, hook,
     meta::settings::{FpsVisibility, Options},

@@ -58,6 +58,7 @@ pub fn _request_update() {
     UPDATE_COUNTER.store(1000, std::sync::atomic::Ordering::Relaxed);
 }
 
+#[cfg(target_pointer_width = "64")]
 fn update_pads() {
     crate::call_original!(crate::targets::update_pads);
 

@@ -37,6 +37,7 @@ pub fn find_absolute_path(path: &impl AsRef<str>) -> Option<String> {
     ))
 }
 
+#[cfg(target_pointer_width = "64")]
 fn find_absolute_path_c(p1: i32, p2: *const u8, p3: i32) -> *const u8 {
     let c_path = crate::call_original!(crate::targets::find_absolute_path, p1, p2, p3);
     let resolved_path = unsafe { std::ffi::CStr::from_ptr(c_path.cast()) }

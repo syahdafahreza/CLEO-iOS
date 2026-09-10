@@ -146,6 +146,8 @@ fps-counter-opt-enabled = Muncul
 ## Menu
 
 cheat-tab-title = Cheat
+vehicles-tab-title = Kendaraan
+weapons-tab-title = Senjata
 
 # Two lines of text shown at the top of the cheats menu.
 cheat-menu-warning = Nge-cheat bisa bikin game crash sama ngerusak progress savean lo.
@@ -155,6 +157,7 @@ cheat-menu-warning = Nge-cheat bisa bikin game crash sama ngerusak progress save
 
 cheat-on = Nyala
 cheat-off = Mati
+cheat-action-ok = AKTIF
 
 # Cheat will be turned on when the menu is closed.
 cheat-queued-on = Antre Nyala

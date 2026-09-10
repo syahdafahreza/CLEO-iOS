@@ -80,6 +80,17 @@ impl Cheat {
         *self.get_active_mut()
     }
 
+    pub fn is_toggle(&self) -> bool {
+        #[cfg(target_pointer_width = "32")]
+        {
+            matches!(self.index, 24..=34 | 37..=41)
+        }
+        #[cfg(target_pointer_width = "64")]
+        {
+            self.get_function().is_none()
+        }
+    }
+
     fn queue(&self) {
         let mut waiting = WAITING_CHEATS.lock().unwrap();
         waiting.push(self.index);
@@ -198,23 +209,15 @@ fn do_cheats() {
 
 struct CheatData {
     cheat: &'static Cheat,
-    queued_state: Option<bool>,
+    just_triggered: bool,
 }
 
 impl CheatData {
     fn new(cheat: &'static Cheat) -> CheatData {
         CheatData {
             cheat,
-            queued_state: if cheat.is_in_queue() {
-                Some(!cheat.is_active())
-            } else {
-                None
-            },
+            just_triggered: false,
         }
-    }
-
-    fn will_be_active(&self) -> bool {
-        self.queued_state.unwrap_or_else(|| self.cheat.is_active())
     }
 }
 
@@ -233,42 +236,27 @@ impl RowData for CheatData {
     }
 
     fn value(&self) -> Message {
-        /*
-            State                       Tint        Status
-
-            In queue, turning on        Blue        "Queued On"
-            In queue, turning off       Red         "Queued Off"
-            Not in queue, on            Green       "On"
-            Not in queue, off           None        "Off"
-        */
-
-        let will_be_active = self.will_be_active();
-
-        let key = if self.cheat.is_in_queue() {
-            if will_be_active {
-                MessageKey::CheatQueuedOn
+        if self.cheat.is_toggle() {
+            if self.cheat.is_active() {
+                MessageKey::CheatOn.to_message()
             } else {
-                MessageKey::CheatQueuedOff
+                MessageKey::CheatOff.to_message()
             }
-        } else if will_be_active {
-            MessageKey::CheatOn
+        } else if self.just_triggered {
+            MessageKey::CheatActionOk.to_message()
         } else {
-            MessageKey::CheatOff
-        };
-
-        key.to_message()
+            Message::custom("AKTIFKAN")
+        }
     }
 
     fn tint(&self) -> Option<(u8, u8, u8)> {
-        let will_be_active = self.will_be_active();
-
-        if self.cheat.is_in_queue() {
-            if will_be_active {
-                Some(gui::colours::BLUE)
+        if self.cheat.is_toggle() {
+            if self.cheat.is_active() {
+                Some(gui::colours::GREEN)
             } else {
-                Some(gui::colours::RED)
+                None
             }
-        } else if will_be_active {
+        } else if self.just_triggered {
             Some(gui::colours::GREEN)
         } else {
             None
@@ -276,24 +264,90 @@ impl RowData for CheatData {
     }
 
     fn handle_tap(&mut self) -> bool {
-        let is_queued = self.queued_state.is_some();
-
-        if is_queued {
-            // Remove the cheat from the queue.
-            self.cheat.cancel();
-            self.queued_state = None;
-        } else {
-            self.queued_state = Some(!self.cheat.is_active());
-
-            // Not queued yet.
-            self.cheat.queue();
-        }
+        self.cheat.queue();
+        self.just_triggered = true;
 
         if let CheatTransience::Persistent = Options::get().cheat_transience {
-            // Request that the cheats be saved because it is likely that a status will change.
             SAVE_FLAGS.1.store(true, Ordering::SeqCst);
         }
 
+        true
+    }
+}
+
+struct PlayerQuickActionRow {
+    action: crate::game::player::PlayerAction,
+    title: &'static str,
+    detail: &'static str,
+    triggered: bool,
+}
+
+impl RowData for PlayerQuickActionRow {
+    fn title(&self) -> Message {
+        Message::custom(self.title)
+    }
+
+    fn detail(&self) -> menu::RowDetail {
+        menu::RowDetail::Info(Message::custom(self.detail))
+    }
+
+    fn value(&self) -> Message {
+        if self.triggered {
+            MessageKey::CheatActionOk.to_message()
+        } else {
+            Message::custom("TERAPKAN")
+        }
+    }
+
+    fn tint(&self) -> Option<(u8, u8, u8)> {
+        if self.triggered {
+            Some(gui::colours::GREEN)
+        } else {
+            None
+        }
+    }
+
+    fn handle_tap(&mut self) -> bool {
+        crate::game::player::queue_action(self.action);
+        self.triggered = true;
+        true
+    }
+}
+
+struct PlayerToggleRow {
+    atomic: &'static std::sync::atomic::AtomicBool,
+    title: &'static str,
+    detail: &'static str,
+}
+
+impl RowData for PlayerToggleRow {
+    fn title(&self) -> Message {
+        Message::custom(self.title)
+    }
+
+    fn detail(&self) -> menu::RowDetail {
+        menu::RowDetail::Info(Message::custom(self.detail))
+    }
+
+    fn value(&self) -> Message {
+        if self.atomic.load(std::sync::atomic::Ordering::Relaxed) {
+            MessageKey::CheatOn.to_message()
+        } else {
+            MessageKey::CheatOff.to_message()
+        }
+    }
+
+    fn tint(&self) -> Option<(u8, u8, u8)> {
+        if self.atomic.load(std::sync::atomic::Ordering::Relaxed) {
+            Some(gui::colours::GREEN)
+        } else {
+            None
+        }
+    }
+
+    fn handle_tap(&mut self) -> bool {
+        let current = self.atomic.load(std::sync::atomic::Ordering::Relaxed);
+        self.atomic.store(!current, std::sync::atomic::Ordering::Relaxed);
         true
     }
 }
@@ -319,7 +373,7 @@ impl CheatCategory {
             CheatCategory::HealthWanted => "KESEHATAN & POLISI",
             CheatCategory::Vehicles => "SPAWN KENDARAAN",
             CheatCategory::Traffic => "LALU LINTAS",
-            CheatCategory::Player => "KARAKTER CJ",
+            CheatCategory::Player => "KARAKTER & STATUS",
             CheatCategory::WeatherTime => "CUACA & WAKTU",
             CheatCategory::Chaos => "KEKACAUAN (CHAOS)",
             CheatCategory::Misc => "LAIN-LAIN",
@@ -551,11 +605,70 @@ pub fn tab_data() -> TabData {
 
     let count = filtered_cheats.len();
 
-    let mut rows: Vec<Box<dyn RowData>> = Vec::with_capacity(count + 1);
+    let mut rows: Vec<Box<dyn RowData>> = Vec::with_capacity(count + 12);
     rows.push(Box::new(CategoryFilterRow {
         category: current_cat,
         count,
     }));
+
+    if current_cat == CheatCategory::All || current_cat == CheatCategory::HealthWanted || current_cat == CheatCategory::Player {
+        rows.push(Box::new(PlayerQuickActionRow {
+            action: crate::game::player::PlayerAction::AddMoney(250_000),
+            title: "TAMBAH UANG (+$250,000)",
+            detail: "Menambahkan $250.000 ke saldo Tommy",
+            triggered: false,
+        }));
+        rows.push(Box::new(PlayerQuickActionRow {
+            action: crate::game::player::PlayerAction::SetMoney(99_999_999),
+            title: "UANG MAKSIMAL ($99,999,999)",
+            detail: "Mengisi rekening Tommy hingga batas maksimal",
+            triggered: false,
+        }));
+        rows.push(Box::new(PlayerQuickActionRow {
+            action: crate::game::player::PlayerAction::FullHealthAndRepair,
+            title: "DARAH PENUH & SERVIS MOBIL",
+            detail: "Memulihkan darah 100% dan mereparasi kendaraan aktif",
+            triggered: false,
+        }));
+        rows.push(Box::new(PlayerQuickActionRow {
+            action: crate::game::player::PlayerAction::FullArmor,
+            title: "ARMOR PENUH 100%",
+            detail: "Mengisi pelindung rompi antipeluru 100%",
+            triggered: false,
+        }));
+        rows.push(Box::new(PlayerToggleRow {
+            atomic: &crate::game::player::INFINITE_HEALTH,
+            title: "DARAH TAK TERBATAS (GOD MODE)",
+            detail: "Tommy & kendaraan kebal dari tembakan, ledakan, dan jatuh",
+        }));
+        rows.push(Box::new(PlayerToggleRow {
+            atomic: &crate::game::player::INFINITE_AMMO,
+            title: "AMUNISI TAK TERBATAS",
+            detail: "Peluru semua senjata tidak akan pernah berkurang",
+        }));
+        rows.push(Box::new(PlayerToggleRow {
+            atomic: &crate::game::player::INFINITE_SPRINT,
+            title: "LARI TANPA BATAS (INFINITE SPRINT)",
+            detail: "Tommy bisa berlari tanpa batas tanpa kelelahan",
+        }));
+        rows.push(Box::new(PlayerToggleRow {
+            atomic: &crate::game::player::FAST_RELOAD,
+            title: "RELOAD KILAT (FAST RELOAD)",
+            detail: "Animasi reload senjata berlangsung instan",
+        }));
+        rows.push(Box::new(PlayerQuickActionRow {
+            action: crate::game::player::PlayerAction::ClearWanted,
+            title: "BEBAS POLISI (0 BINTANG)",
+            detail: "Menghapus semua bintang buronan seketika",
+            triggered: false,
+        }));
+        rows.push(Box::new(PlayerQuickActionRow {
+            action: crate::game::player::PlayerAction::RaiseWanted,
+            title: "TAMBAH BURONAN (+2 BINTANG)",
+            detail: "Menaikkan 2 bintang level kejaran polisi",
+            triggered: false,
+        }));
+    }
 
     for cheat in filtered_cheats {
         rows.push(Box::new(CheatData::new(cheat)));

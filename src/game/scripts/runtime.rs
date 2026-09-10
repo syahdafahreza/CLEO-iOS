@@ -542,7 +542,10 @@ fn script_update() {
     call_original!(targets::script_tick);
 
     #[cfg(target_pointer_width = "32")]
-    crate::game::cheats::run_waiting_cheats();
+    {
+        crate::game::player::tick();
+        crate::game::cheats::run_waiting_cheats();
+    }
 
     Script::update_all(&mut SCRIPTS.lock().unwrap());
 }

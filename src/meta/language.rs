@@ -510,6 +510,7 @@ impl Language {
 pub enum Message {
     Message(MessageKey),
     Formatted(MessageKey, std::rc::Rc<FluentArgs<'static>>),
+    Custom(String),
 }
 
 impl Message {
@@ -529,13 +530,20 @@ impl Message {
                     .format(key.key_str(), args.as_ref())
                     .into_owned(),
             ),
+
+            Message::Custom(ref s) => Cow::Owned(s.clone()),
         }
     }
 
     pub fn key(&self) -> MessageKey {
         match self {
             Message::Message(key) | Message::Formatted(key, _) => *key,
+            Message::Custom(_) => MessageKey::MenuClose,
         }
+    }
+
+    pub fn custom(text: impl Into<String>) -> Message {
+        Message::Custom(text.into())
     }
 }
 
@@ -628,11 +636,17 @@ pub enum MessageKey {
     FpsCounterOptEnabled,
 
     CheatTabTitle,
+    #[strum(serialize = "vehicles-tab-title")]
+    VehiclesTabTitle,
+    #[strum(serialize = "weapons-tab-title")]
+    WeaponsTabTitle,
 
     CheatMenuWarning,
 
     CheatOn,
     CheatOff,
+    #[strum(serialize = "cheat-action-ok")]
+    CheatActionOk,
     CheatQueuedOn,
     CheatQueuedOff,
 

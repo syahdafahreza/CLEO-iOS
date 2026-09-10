@@ -155,6 +155,8 @@ fps-counter-opt-enabled = Enabled
 ## Menu
 
 cheat-tab-title = Cheats
+vehicles-tab-title = Vehicles
+weapons-tab-title = Weapons
 
 # Two lines of text shown at the top of the cheats menu.
 cheat-menu-warning = Using cheats can lead to crashes and possibly a loss of game progress.
@@ -164,6 +166,7 @@ cheat-menu-warning = Using cheats can lead to crashes and possibly a loss of gam
 
 cheat-on = On
 cheat-off = Off
+cheat-action-ok = OK
 
 # Cheat will be turned on when the menu is closed.
 cheat-queued-on = Queued on

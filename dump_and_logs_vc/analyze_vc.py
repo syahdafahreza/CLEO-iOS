@@ -59,16 +59,47 @@ def find_target_file(dir_path: Path):
 
 def extract_binary_from_ipa(ipa_path: Path, out_dir: Path) -> Path:
     print(f"[*] Extracting executable from IPA archive: {ipa_path.name}...")
+    import plistlib
     with zipfile.ZipFile(ipa_path, 'r') as zf:
+        # First find Info.plist to get CFBundleExecutable
+        exec_name = None
+        app_dir = None
+        for name in zf.namelist():
+            if name.startswith('Payload/') and name.endswith('.app/Info.plist'):
+                try:
+                    plist_data = zf.read(name)
+                    pl = plistlib.loads(plist_data)
+                    exec_name = pl.get('CFBundleExecutable')
+                    app_dir = str(Path(name).parent).replace('\\', '/')
+                    print(f"[+] Info.plist indicates CFBundleExecutable = '{exec_name}'")
+                    break
+                except Exception as e:
+                    print(f"[-] Failed reading Info.plist: {e}")
+
+        if not exec_name:
+            exec_name = "gta3vc"
+        if not app_dir:
+            app_dir = "Payload/gta3vc.app"
+
+        target_member = f"{app_dir}/{exec_name}"
+        if target_member in zf.namelist():
+            extracted_path = out_dir / exec_name
+            print(f"[*] Extracting {target_member} -> {extracted_path}...")
+            with zf.open(target_member) as src, open(extracted_path, 'wb') as dst:
+                dst.write(src.read())
+            return extracted_path
+
+        # Fallback: scan files
         for name in zf.namelist():
             parts = name.split('/')
-            if len(parts) == 3 and parts[0] == 'Payload' and parts[1].endswith('.app') and parts[2] and not parts[2].startswith('.'):
-                bin_name = parts[2]
-                print(f"[+] Found app executable in IPA: {bin_name}")
-                extracted_path = out_dir / bin_name
-                with zf.open(name) as src, open(extracted_path, 'wb') as dst:
-                    dst.write(src.read())
-                return extracted_path
+            if len(parts) == 3 and parts[0] == 'Payload' and parts[1].endswith('.app'):
+                fname = parts[2]
+                if fname in ("gta3vc", "gtavc", "ViceCity") and not fname.endswith(".plist"):
+                    extracted_path = out_dir / fname
+                    with zf.open(name) as src, open(extracted_path, 'wb') as dst:
+                        dst.write(src.read())
+                    return extracted_path
+
     raise RuntimeError("No main executable found in Payload/*.app/ inside the IPA!")
 
 

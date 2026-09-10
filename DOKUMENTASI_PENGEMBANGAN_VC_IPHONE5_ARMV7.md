@@ -1,77 +1,106 @@
 # Dokumentasi Pengembangan & Porting CLEO-iOS untuk GTA Vice City (iPhone 5 / ARMv7 32-bit)
 
-**Target**: GTA Vice City iOS (ARMv7 32-bit)  
+**Target Game**: GTA Vice City iOS v1.3 (ARMv7 32-bit)  
 **Perangkat Target**: iPhone 5 (iPhone5,2 / iOS 10.3.4)  
 **Branch**: `For-iPhone-5-VC`  
-**Bundle ID**: `com.rockstargames.gtavc`  
-**Executable**: `gta3vc` / `gtavc` / `ViceCity`  
+**Bundle ID**: `com.rockstargames.gta3vc`  
+**Executable**: `gta3vc`  
 
 ---
 
 ## 1. Spesifikasi Teknis & Lingkungan (Target Environment)
 
-- **Arsitektur**: ARMv7 / ARMv7s (32-bit).
+- **Arsitektur Binary**: Mach-O ARMv7 32-bit (thin binary).
+- **Ukuran Binary**: 2,894,448 byte (~2.76 MB).
 - **Sistem Operasi**: iOS 10.3.4 (Jailbroken, Rootful).
+- **Base Memory Segments**:
+  - `__PAGEZERO`: `0x00000000 - 0x00001000`
+  - `__TEXT` base: `0x00001000` (ukuran: `0x239000`)
+  - `__DATA` base: `0x0023A000` (ukuran: `0x3A3000`)
+  - `__LINKEDIT`: `0x005DD000 - 0x00630000`
 - **ABI & Tipe Data**:
   - `CGFloat` pada 32-bit adalah `f32`.
   - `usize` / `isize` berukuran 4 byte (32-bit).
-  - Thumb-2 mode calling convention: target fungsi internal game executable memerlukan bit LSB 1 (`address | 1`).
+  - Calling convention ARM Thumb-2: alamat fungsi internal wajib berakhiran bit 1 (`address | 1`).
 - **Packaging & Cydia Substrate**:
-  - Filter plist: `com.rockstargames.gtavc`.
-  - Kompresi package deb wajib `gzip` (`data.tar.gz`), karena dpkg di iOS 10 belum mendukung `xz`.
-  - Lokasi dylib: `/Library/MobileSubstrate/DynamicLibraries/CLEO.dylib` dan `CLEO.plist`.
+  - Filter plist: `com.rockstargames.gta3vc` (executable: `gta3vc`).
+  - Format paket: `.deb` dengan kompresi `gzip` (`data.tar.gz`).
+  - Target dylib: `/Library/MobileSubstrate/DynamicLibraries/CLEO.dylib`.
 
 ---
 
-## 2. Perbedaan Arsitektur: GTA Vice City vs GTA San Andreas
+## 2. Peta Alamat Memori GTA Vice City v1.3 (ARMv7 32-bit)
 
-| Aspek | GTA San Andreas (SA) | GTA Vice City (VC) | Catatan Porting |
-| :--- | :--- | :--- | :--- |
-| **Bundle ID** | `com.rockstargames.gta3sa` | `com.rockstargames.gtavc` | Disesuaikan di `deb/cleo.plist` |
-| **Nama Binary** | `gta3sa` | `gta3vc` / `ViceCity` | Disesuaikan di filter Substrate |
-| **Engine Script (SCM)** | SCM SA (kompleks, 0x0A8C+ opcode cleo) | SCM VC (format GTA III/VC) | Perlu mapping opcode dispatch VC |
-| **Sistem Cheat** | Index function table (109 cheat di SA 32-bit) | String/Key hash atau Cheat Table VC | Cheat khas VC: *PANZER, ASPIRINE, THUGSTOOLS, dll* |
-| **Touch Gesture** | `process_touch` (`0x003ece38` di SA v1.09) | `CTouchInterface` handler | Signature ARMv7: `fn(u32, f32, f32, f64)` |
-| **Script Tick** | `0x0011e6f4` (`CRunningScript::Process`) | `CRunningScript::Process` di VC | Loop tick eksekusi script CLEO |
-| **GXT Text Lookup** | `0x00356380` | Lookup text GXT VC (`text.gxt`) | Digunakan untuk format nama mobil/senjata |
-| **FPS Cap** | `RsGlobal` / frame limiter | `RsGlobal` / frame limiter | Target 30 / 60 FPS |
+### A. Engine Script & CLEO SCM Runtime (`src/game/scripts/runtime.rs` & `src/lib.rs`)
 
----
-
-## 3. Matriks Alamat Memori Target GTA Vice City (32-bit)
-
-*(Tabel ini akan diisi secara lengkap setelah file binary `gta3vc` atau `.ipa` dicopas ke folder `dump_and_logs_vc/` dan dianalisis).*
-
-### A. Core Hooks (`src/lib.rs`)
-
-| Simbol / Fungsi | Alamat Memori (VC 32-bit) | Status | Keterangan |
-| :--- | :--- | :--- | :--- |
-| `script_tick` | `TBD` | Menunggu binary | `CRunningScript::Process` engine script |
-| `process_touch` | `TBD` | Menunggu binary | Input gesture layar sentuh |
-| `get_gxt_string` | `TBD` | Menunggu binary | Lookup teks GXT |
-| `button_hack` | `TBD` | Menunggu binary | Reachability hook menu swipe |
-| `idle` / `process` | `TBD` | Menunggu binary | Main game loop / frame update |
-| `cycles_per_ms` | `TBD` | Menunggu binary | Timer game cycles |
-| `do_cheats` | `TBD` | Menunggu binary | Cheat processing engine |
-
-### B. Segment Base Address
-
-| Segmen | VM Address Range | Ukuran | Keterangan |
-| :--- | :--- | :--- | :--- |
-| `__TEXT` Base | `TBD` | `TBD` | Base address kode mesin executable |
-| `__DATA` Base | `TBD` | `TBD` | Base address variabel global |
+| Simbol / Fungsi | Alamat Memori (v1.3 32-bit) | Keterangan & Signature |
+| :--- | :--- | :--- |
+| **`CTheScripts::Process` (`script_tick`)** | `0x00138ea8` | Loop tick utama eksekusi script GTA VC (`fn()`) |
+| **`CRunningScript::Process`** | `0x00138978` | Tick per-script running instance (`fn(*mut CleoScript)`) |
+| **`CRunningScript::ProcessOneCommand`** | `0x00138878` | Dispatcher opcode GTA VC (tempat intercept custom opcode CLEO `>= 0x0a8c`) |
+| **`CollectParameters`** | `0x00132ff0` | Mengumpulkan argumen opcode dari script (`fn(*mut CleoScript, u32)`) |
+| **`ReadParamValue`** | `0x001330d4` | Membaca 1 argumen dari script (`fn(*mut CleoScript) -> T`) |
+| **`StoreParameters`** | `0x00133158` | Menyimpan nilai return ke variabel script (`fn(*mut CleoScript, u32)`) |
+| **`ScriptSpace` (Global Space)** | `0x00549440` | Base pointer ruang script & variabel global game |
+| **`pActiveScripts` (Script List)** | `0x00588e60` | Pointer linked-list script yang sedang berjalan |
+| **`CTimer::m_snTimeInMilliseconds`** | `0x005d9fe4` | Waktu permainan global (`u32`) |
 
 ---
 
-## 4. Checklist Langkah Kerja Selanjutnya
+### B. Input & Touch Handling (`src/lib.rs`)
 
-1. [x] Buat branch baru `For-iPhone-5-VC`.
-2. [x] Siapkan folder kerja analisis `dump_and_logs_vc/` & script helper `analyze_vc.py`.
-3. [x] Update filter bundle ID Cydia Substrate ke `com.rockstargames.gtavc`.
-4. [x] Update metadata `control.iphone5` dan `Cargo.toml`.
-5. [x] Update workflow GitHub Actions CI untuk build branch `For-iPhone-5-VC`.
-6. [ ] **User menyalin binary IPA / executable GTA Vice City ke `dump_and_logs_vc/`**.
-7. [ ] Jalankan `python dump_and_logs_vc/analyze_vc.py` untuk mengekstrak segmen dan mencari simbol/offset.
-8. [ ] Petakan alamat-alamat hook ke `src/targets` dan `src/game/`.
-9. [ ] Sesuaikan cheat system untuk cheat khas Vice City.
-10. [ ] Build paket `.deb` dan test di iPhone 5.
+| Simbol / Method | Alamat Memori | Keterangan |
+| :--- | :--- | :--- |
+| **`EAGLView touchesBegan:withEvent:`** | `0x0020b79d` | Touch input mulai disentuh |
+| **`EAGLView touchesMoved:withEvent:`** | `0x0020b6a5` | Touch input digeser (swipe down menu CLEO) |
+| **`EAGLView touchesEnded:withEvent:`** | `0x0020b5ad` | Touch input dilepas |
+| **Native Touch Processor** | `0x0020e100` | Fungsi internal pengolah touch gesture game |
+| **Native Pad / Timer Polling** | `0x0020e37c` | Polling controller & sentuhan layar per-tick |
+
+---
+
+### C. Teks & GXT (`src/game/text.rs`)
+
+| Simbol / Fungsi | Alamat Memori | Keterangan |
+| :--- | :--- | :--- |
+| **`CText::Get` (`get_gxt_string`)** | `0x001af6b8` | Lookup string GXT (`fn(usize, *const c_char) -> *const u16`) |
+
+---
+
+### D. Cheat System (`src/game/cheats.rs`)
+
+| Komponen / Fungsi | Alamat Memori | Keterangan |
+| :--- | :--- | :--- |
+| **`CCheat::DoCheats`** | `0x000778fc` | Eksekusi loop cheat game |
+| **`CCheat::ResetCheats`** | `0x000779ac` | Reset flag & status cheat |
+| **Weapons Cheat 1** | `0x00077aa4` | Senjata set 1 |
+| **Weapons Cheat 2** | `0x00077b08` | Senjata set 2 |
+| **Weapons Cheat 3** | `0x00077b6c` | Senjata set 3 |
+| **Spawn Panzer (Tank)** | `0x00079254` | Memunculkan Tank Rhino/Panzer |
+| **Spawn Sabre Turbo** | `0x00079314` | Memunculkan mobil Sabre Turbo |
+| **Spawn Bloodring Banger** | `0x0007946c` | Memunculkan mobil Bloodring Banger |
+| **Spawn Caddy** | `0x000795b8` | Memunculkan mobil Golf Caddy |
+
+---
+
+### E. Player & Game Loop
+
+| Simbol / Fungsi | Alamat Memori | Keterangan |
+| :--- | :--- | :--- |
+| **`FindPlayerPed()`** | `0x000ea448` | Mendapatkan pointer ke Tommy Vercetti (`CPlayerPed*`) |
+| **`FindPlayerVehicle()`** | `0x000ea394` | Mendapatkan pointer ke mobil pemain (`CVehicle*`) |
+| **`CGame::Initialise`** | `0x00061688` | Inisialisasi awal engine game |
+| **`drawFrame` (Render Loop)** | `0x0020f945` | Main render tick pada `IOSViewController` |
+| **`CHud::SetHelpMessage`** | `0x00166edc` | Menampilkan teks bantuan / cheat message di layar |
+| **`CHud::Draw` & FPS Counter** | `0x001662b0` | Fungsi render bawaan FPS counter dan HUD |
+
+---
+
+## 3. Langkah Selanjutnya
+
+1. [x] Binary diekstrak dan dibedah secara komprehensif.
+2. [x] Base segments `__TEXT` (`0x1000`) dan `__DATA` (`0x23A000`) terverifikasi.
+3. [x] Seluruh alamat hook inti (script tick, opcode dispatcher, touch, GXT, cheat, player) berhasil dipetakan.
+4. [ ] Perbarui `src/lib.rs` dan `src/targets` dengan alamat memori GTA Vice City ini.
+5. [ ] Sesuaikan modul cheat `src/game/cheats.rs` untuk daftar cheat khas GTA Vice City.
+6. [ ] Lakukan build pengujian `.deb` via GitHub Actions CI.

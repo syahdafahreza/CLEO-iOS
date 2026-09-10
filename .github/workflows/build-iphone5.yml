@@ -107,12 +107,12 @@ jobs:
           DYLIB_DIR="$PKG_DIR/Library/MobileSubstrate/DynamicLibraries"
           mkdir -p "$DYLIB_DIR"
 
-          # Copy dylib and plist
-          cp target/armv7s-apple-ios/release/libcleo.dylib "$DYLIB_DIR/CLEO.dylib"
-          cp deb/cleo.plist "$DYLIB_DIR/CLEO.plist"
+          # Copy dylib and plist (CLEOVC to avoid conflict with GTA SA CLEO)
+          cp target/armv7s-apple-ios/release/libcleo.dylib "$DYLIB_DIR/CLEOVC.dylib"
+          cp deb/cleo.plist "$DYLIB_DIR/CLEOVC.plist"
 
           # Build .deb with gzip compression (iOS 10 / 32-bit dpkg does not include xz/lzma tools by default)
-          DEB_NAME="cleo.iphone5.deb"
+          DEB_NAME="cleovc.iphone5.deb"
           dpkg-deb -Z gzip -b "$PKG_DIR" "$DEB_NAME"
 
           echo "Built $DEB_NAME"
@@ -124,8 +124,8 @@ jobs:
       - name: Upload .deb artifact
         uses: actions/upload-artifact@v4
         with:
-          name: cleo-iphone5-deb
-          path: "cleo.iphone5.deb"
+          name: cleovc-iphone5-deb
+          path: "cleovc.iphone5.deb"
           if-no-files-found: error
 
   release:
@@ -141,31 +141,31 @@ jobs:
       - name: Download artifact
         uses: actions/download-artifact@v4
         with:
-          name: cleo-iphone5-deb
+          name: cleovc-iphone5-deb
           path: artifacts
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
-          files: artifacts/cleo.iphone5.deb
+          files: artifacts/cleovc.iphone5.deb
           generate_release_notes: true
           draft: false
           prerelease: ${{ contains(github.ref, 'alpha') }}
-          name: "CLEO iOS — iPhone 5 ${{ github.ref_name }}"
+          name: "CLEO VC iOS — iPhone 5 ${{ github.ref_name }}"
           body: |
-            ## CLEO iOS — iPhone 5 Build
+            ## CLEO VC iOS — iPhone 5 Build
 
             **Target device**: iPhone 5 (Apple A6, ARMv7s 32-bit)
             **iOS**: 10.3.4
-            **GTA SA version**: v1.09 (gta3sa.app)
+            **GTA VC version**: v1.3 (com.rockstargames.gta3vc)
             **Jailbreak**: Rootful only (socket-based jailbreaks)
             **MobileSubstrate**: Compatible with Cydia Substrate >= 0.9.6000
 
             ### Installation
-            1. Copy `cleo.iphone5.deb` to your iPhone 5
-            2. Install via `dpkg -i cleo.iphone5.deb` or Filza/Cydia
+            1. Copy `cleovc.iphone5.deb` to your iPhone 5
+            2. Install via `dpkg -i cleovc.iphone5.deb` or Filza/Cydia
             3. Respring your device
-            4. Launch GTA San Andreas
+            4. Launch GTA Vice City
 
             ### Log location
-            `/var/mobile/Documents/CLEO/cleo.log`
+            `<App Container>/Documents/cleo/cleo.log`

@@ -502,6 +502,7 @@ pub fn create_label(
     is fairly insignificant, but on a jailbroken device with crash reporting tools installed,
     the constant crash reports can get annoying.
 */
+#[cfg(target_pointer_width = "64")]
 fn persistent_store_coordinator(_this: *mut Object, _sel: Sel) -> *const Object {
     trace!("-[SCAppDelegate persistentStoreCoordinator] called. Returning null to prevent crash.");
     std::ptr::null()
@@ -510,17 +511,20 @@ fn persistent_store_coordinator(_this: *mut Object, _sel: Sel) -> *const Object 
 pub fn init() {
     log::info!("installing GUI hooks...");
 
-    crate::hook::hook_objc(
-        "LegalSplash",
-        "viewDidLoad",
-        "origViewDidLoad",
-        legal_splash_did_load as *const (),
-    );
+    #[cfg(target_pointer_width = "64")]
+    {
+        crate::hook::hook_objc(
+            "LegalSplash",
+            "viewDidLoad",
+            "origViewDidLoad",
+            legal_splash_did_load as *const (),
+        );
 
-    crate::hook::hook_objc(
-        "SCAppDelegate",
-        "persistentStoreCoordinator",
-        "origPersistentStoreCoordinator",
-        persistent_store_coordinator as *const (),
-    );
+        crate::hook::hook_objc(
+            "SCAppDelegate",
+            "persistentStoreCoordinator",
+            "origPersistentStoreCoordinator",
+            persistent_store_coordinator as *const (),
+        );
+    }
 }

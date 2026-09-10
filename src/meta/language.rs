@@ -417,27 +417,41 @@ impl Language {
             }
         };
 
-        let language_count: i32 = unsafe { objc::msg_send![preferred_languages, count] };
+        if preferred_languages.is_null() {
+            return None;
+        }
 
-        let mut preferred_languages = (0..language_count).into_iter().map(|index| {
-            let language_code = &unsafe {
+        let language_count: usize = unsafe { objc::msg_send![preferred_languages, count] };
+
+        let preferred_languages: Vec<String> = (0..language_count)
+            .into_iter()
+            .filter_map(|index| unsafe {
                 let nsstring: *const Object =
                     objc::msg_send![preferred_languages, objectAtIndex: index];
+                if nsstring.is_null() {
+                    return None;
+                }
 
-                CStr::from_ptr(objc::msg_send![nsstring, UTF8String])
-            }
-            .to_str()
-            // Take only the first two characters, because we don't want the region identifier.
-            // Also, iOS does some pretty weird things, like invent `nl-GB`.
-            .expect("invalid language identifier string")[..2];
+                let utf8: *const libc::c_char = objc::msg_send![nsstring, UTF8String];
+                if utf8.is_null() {
+                    return None;
+                }
 
-            log::info!("Language {index} is {language_code}");
+                let language_code = CStr::from_ptr(utf8).to_str().ok()?;
+                if language_code.len() < 2 {
+                    return None;
+                }
 
-            language_code
-        });
+                let code_prefix = language_code[..2].to_string();
+                log::info!("Language {index} is {code_prefix}");
+                Some(code_prefix)
+            })
+            .collect();
 
         // Find the first language in the array that we have in CLEO.
-        preferred_languages.find_map(Language::from_id)
+        preferred_languages
+            .into_iter()
+            .find_map(|code| Language::from_id(&code))
     }
 
     /// Returns the next most-spoken language after this one. Returns `None` if this is the

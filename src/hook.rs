@@ -294,20 +294,38 @@ pub fn hook_objc(
     unsafe {
         use objc::runtime::*;
 
-        let class_name_c = std::ffi::CString::new(class_name).unwrap();
-        let selector_c = std::ffi::CString::new(selector).unwrap();
-        let orig_selector_c = std::ffi::CString::new(orig_selector).unwrap();
+        let class_name_c = match std::ffi::CString::new(class_name) {
+            Ok(c) => c,
+            Err(_) => return,
+        };
+        let selector_c = match std::ffi::CString::new(selector) {
+            Ok(c) => c,
+            Err(_) => return,
+        };
+        let orig_selector_c = match std::ffi::CString::new(orig_selector) {
+            Ok(c) => c,
+            Err(_) => return,
+        };
 
-        let class = objc::runtime::objc_getClass(class_name_c.into_raw());
+        let class = objc::runtime::objc_getClass(class_name_c.as_ptr());
+        if class.is_null() {
+            log::warn!("Class {class_name} not found, skipping hook.");
+            return;
+        }
 
         log::debug!("Found class {class_name}.");
 
-        let target_sel = objc::runtime::sel_registerName(selector_c.into_raw());
-        let renamed_sel = objc::runtime::sel_registerName(orig_selector_c.into_raw());
+        let target_sel = objc::runtime::sel_registerName(selector_c.as_ptr());
+        let renamed_sel = objc::runtime::sel_registerName(orig_selector_c.as_ptr());
 
         log::debug!("Created selectors {selector}/{orig_selector}.");
 
         let target_meth = objc::runtime::class_getInstanceMethod(class, target_sel);
+        if target_meth.is_null() {
+            log::warn!("Method {selector} not found on class {class_name}, skipping hook.");
+            return;
+        }
+
         let target_impl_addr = objc::runtime::method_getImplementation(target_meth) as usize;
 
         log::debug!(
@@ -316,6 +334,10 @@ pub fn hook_objc(
         );
 
         let type_enc = objc::runtime::method_getTypeEncoding(target_meth);
+        if type_enc.is_null() {
+            log::warn!("Type encoding for {selector} on {class_name} is null, skipping hook.");
+            return;
+        }
 
         log::debug!(
             "Found target type encoding: {}",
@@ -339,6 +361,10 @@ pub fn hook_objc(
         }
 
         let new_meth = objc::runtime::class_getInstanceMethod(class, renamed_sel);
+        if new_meth.is_null() {
+            log::error!("Failed to find new method {orig_selector}.");
+            return;
+        }
 
         objc::runtime::method_exchangeImplementations(
             target_meth as *mut Method,

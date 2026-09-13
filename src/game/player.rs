@@ -144,23 +144,27 @@ pub fn spawn_vehicle_direct(model_id: u32) -> *mut u8 {
 
         // Heading angle in radians: in GTA coordinate system (forward.x = -sin(heading), forward.y = cos(heading))
         let heading = (-dir_x).atan2(dir_y);
+        // Rotate vehicle 90 degrees sideways so Tommy stands directly in front of the driver seat (left door)
+        let veh_heading = heading + std::f32::consts::FRAC_PI_2;
 
         // 3. Determine vehicle class and allocation size
-        let is_boat = hook::slide_fn::<extern "C" fn(u32) -> u8>(0x001912d4)(model_id) != 0;
-        let is_bike = hook::slide_fn::<extern "C" fn(u32) -> u8>(0x0019132c)(model_id) != 0;
+        let is_bike = matches!(model_id, 166 | 178 | 191 | 192 | 193 | 198)
+            || hook::slide_fn::<extern "C" fn(u32) -> u32>(0x0019132c)(model_id) != 0;
+        let is_boat = matches!(model_id, 136 | 153 | 176 | 182 | 183 | 184 | 200 | 201 | 212)
+            || hook::slide_fn::<extern "C" fn(u32) -> u32>(0x001912d4)(model_id) != 0;
 
         let in_car = !find_player_vehicle().is_null();
         let dist = if in_car {
-            9.5f32
+            8.5f32
         } else if model_id == 155 || model_id == 162 || model_id == 138 || model_id == 186 || model_id == 165 {
             // Large vehicles: Hunter heli (155), Rhino tank (162), Trashmaster (138), Coach (186), Bus (165)
             8.5f32
         } else if is_boat {
-            10.5f32
+            10.0f32
         } else if is_bike {
-            5.0f32
+            3.5f32
         } else {
-            6.5f32
+            5.0f32
         };
 
         let spawn_x = px + dir_x * dist;
@@ -211,14 +215,14 @@ pub fn spawn_vehicle_direct(model_id: u32) -> *mut u8 {
         // 7. Calculate suspension height above road and set position & orientation
         let height_raw = hook::slide_fn::<extern "C" fn(*mut u8) -> u32>(0x0015d0d4)(veh);
         let height = f32::from_bits(height_raw);
-        let final_z = spawn_z + if height > 0.0 && height < 5.0 { height } else { 0.4 };
+        let final_z = spawn_z + if height > 0.0 && height < 5.0 { height + 0.1 } else { 0.4 };
 
-        // Set vehicle rotation to align with Tommy's heading (CMatrix::SetRotate at 0x00075798)
+        // Set vehicle rotation sideways so Tommy stands directly in front of the driver seat
         hook::slide_fn::<extern "C" fn(*mut u8, u32, u32, u32)>(0x00075798)(
             veh.add(4),
             0.0f32.to_bits(),
             0.0f32.to_bits(),
-            heading.to_bits(),
+            veh_heading.to_bits(),
         );
 
         // Set vehicle coordinates in CPlaceable matrix at veh + 0x34
@@ -230,7 +234,13 @@ pub fn spawn_vehicle_direct(model_id: u32) -> *mut u8 {
         let status_flags = veh.add(0x52) as *mut u8;
         *status_flags = (*status_flags & !0x38) | (4 << 3); // STATUS_PLAYER
 
-        if veh_type == 2 {
+        if veh_type == 1 {
+            // Native CBike initialization from CCheat::VehicleCheat (0x78d30 - 0x78da2)
+            *(veh.add(0x1f9) as *mut u8) = (*(veh.add(0x1f9) as *mut u8) & 0xc7) | 0x28;
+            *(veh.add(0x2e3) as *mut u8) = 0;
+            *(veh.add(0x2c0) as *mut u8) = 0;
+            hook::slide_fn::<extern "C" fn(u8)>(0x000f0c0c)(0);
+        } else if veh_type == 2 {
             *(veh.add(0x230) as *mut u32) = 1; // Unlocked doors
         } else if veh_type == 0 {
             *(veh.add(0x15c) as *mut f32) = 20.0;
@@ -294,12 +304,11 @@ pub fn tick() {
                                 *(veh.add(0x204) as *mut f32) = 1000.0;
                                 hook::slide_fn::<extern "C" fn(*mut u8)>(0x000c1cc0)(veh.add(0x2a0));
 
-                                let is_bike = hook::slide_fn::<extern "C" fn(u32) -> u8>(0x0019132c)(
-                                    *(veh.add(0x5c) as *const u16) as u32,
-                                ) != 0;
-                                let is_boat = hook::slide_fn::<extern "C" fn(u32) -> u8>(0x001912d4)(
-                                    *(veh.add(0x5c) as *const u16) as u32,
-                                ) != 0;
+                                let model_id = *(veh.add(0x5c) as *const u16) as u32;
+                                let is_bike = matches!(model_id, 166 | 178 | 191 | 192 | 193 | 198)
+                                    || hook::slide_fn::<extern "C" fn(u32) -> u32>(0x0019132c)(model_id) != 0;
+                                let is_boat = matches!(model_id, 136 | 153 | 176 | 182 | 183 | 184 | 200 | 201 | 212)
+                                    || hook::slide_fn::<extern "C" fn(u32) -> u32>(0x001912d4)(model_id) != 0;
 
                                 if !is_bike && !is_boat {
                                     hook::slide_fn::<extern "C" fn(*mut u8)>(0x001c6100)(veh);

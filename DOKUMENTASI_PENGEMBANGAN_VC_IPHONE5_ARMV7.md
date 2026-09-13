@@ -180,9 +180,25 @@
        2. Ambil forward facing vector Tommy dari CMatrix di `ped + 0x04` (`fx, fy`).
        3. Hitung spawn offset di depan Tommy ($X_{\text{spawn}} = P_x + \text{dir}_x \times D$, $Y_{\text{spawn}} = P_y + \text{dir}_y \times D$).
        4. Ambil elevasi tanah presisi via `CWorld::FindGroundZForCoord` (`0x0004909c`).
-       5. Alokasikan memori via `operator new` (`0x0013f024`) dan panggil konstruktor yang tepat (`CBoat` `0x0005b5f0`, `CBike` `0x000f3294`, `CAutomobile` `0x001d7620`).
-       6. Set orientasi kendaraan ke arah hadap Tommy via `CMatrix::SetRotate` (`0x00075798`) dan elevasi roda via `CVehicle::GetHeightAboveRoad` (`0x0015d0d4`).
-       7. Buka kunci pintu (`0x230 = 1`), set status player (`0x52`), dan daftarkan ke dunia via `CWorld::Add` (`0x0004bc24`).
+       5. Klasifikasi kendaraan presisi:
+          - Motor roda 2 (`CBike`): model `166` (Angel), `178` (Pizza Boy), `191` (PCJ-600), `192` (Faggio), `193` (Freeway), `198` (Sanchez), atau helper `0x0019132c`. Alokasi ukuran `0x360` via `operator new` dan panggil `CBike::CBike` (`0x000f3294`).
+          - Perahu (`CBoat`): model `136, 153, 176, 182, 183, 184, 200, 201, 212` atau helper `0x001912d4`. Alokasi `0x4c0` dan panggil `CBoat::CBoat` (`0x0005b5f0`).
+          - Mobil (`CAutomobile`): alokasi `0x5dc` dan panggil `CAutomobile::CAutomobile` (`0x001d7620`).
+       6. Orientasi Menyamping Menghadap Pintu Sopir:
+          - Arah hadap kendaraan diatur menyamping 90 derajat via `veh_heading = heading + PI/2` menggunakan `CMatrix::SetRotate` (`0x00075798`).
+          - Dengan sudut ini, sisi kiri kendaraan (pintu sopir pada mobil / posisi naik pada motor) menghadap **tepat ke arah Tommy**, sehingga Tommy langsung berada di depan kursi pengemudi.
+       7. Inisialisasi Flag Khusus:
+          - Pada motor (`CBike`): byte `0x1f9` diset `(byte & 0xc7) | 0x28`, byte `0x2e3` dan `0x2c0` direset ke `0`, dan panggil reset motor `0x000f0c0c(0)`. Offset `0x230` (door lock mobil) **tidak disentuh** pada motor.
+          - Pada mobil (`CAutomobile`): buka kunci pintu `*(veh.add(0x230) as *mut u32) = 1;`.
+       8. Set status player (`0x52`), elevasi roda via `CVehicle::GetHeightAboveRoad` (`0x0015d0d4`), dan daftarkan ke dunia via `CWorld::Add` (`0x0004bc24`).
+   - **Penyebab & Solusi Crash Saat Menaiki Motor (PCJ-600, Sanchez, dll)**:
+     - **Gejala Crash**: Roda motor tampak berukuran kecil/aneh, dan saat Tommy hendak menaiki motor, game langsung crash dengan log `EXC_BAD_ACCESS (SIGSEGV) at 0x00000010` pada `gta3vc 0x00160b8e` (`RwMatrixCopy`).
+     - **Penyebab**: Helper klasifikasi tipe kendaraan sebelumnya me-return `false` untuk motor sehingga objek diinstansiasi sebagai `CAutomobile` (`0x001d7620`). Akibatnya:
+       1. Model motor dipaksa memakai handling/skala roda mobil sehingga rodanya terlihat mengecil dan aneh.
+       2. Vtable yang terpasang adalah vtable `CAutomobile`. Saat Tommy menekan tombol naik kendaraan, engine game memicu `CPed::EnteringCar` -> `CAutomobile::ProcessOpenDoor` -> `CAutomobile::OpenDoor` (`0x001d0a40`).
+       3. Fungsi pintu mobil membaca node pintu sopir (`CAR_DOOR_LF`) di offset `veh + 0x394`. Karena model motor tidak memiliki node pintu mobil, pointer bernilai `NULL` (`0`).
+       4. Engine menambahkan offset `0x10` ke pointer tersebut (`0 + 0x10 = 0x00000010`), lalu me-dereference alamat `0x00000010` pada `CMatrix::Attach` (`0x00075aae`), memicu crash SIGSEGV seketika.
+     - **Solusi**: Deteksi model motor secara eksplisit dan inisialisasi sebagai `CBike` (`0x000f3294`) beserta flag native-nya. Tommy menaiki motor dengan animasi mount motor standar tanpa membuka pintu mobil, dan roda motor berukuran normal.
    - **Penyebab & Solusi Bug Efek Darah Mengucur Terus-Menerus**:
      - **Penyebab**: Kode amunisi tak terbatas sebelumnya menulis `*(ped.add(0x14c) as *mut u32) |= 0x04000000;`. Pada GTA Vice City, bit `0x04000000` pada `0x14c` (yaitu bit ke-2 dari byte `0x14f`) adalah flag **`bIsBleeding`**! Akibatnya setiap kali toggle amunisi tak terbatas aktif atau memilih paket senjata, game mendeteksi Tommy pendarahan hebat sehingga efek partikel dan genangan darah terus keluar di bawah kaki Tommy.
      - **Solusi**:

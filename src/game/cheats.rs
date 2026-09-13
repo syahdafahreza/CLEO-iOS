@@ -766,18 +766,18 @@ fn call_vc_cheat(index: usize) {
         10 => hook::slide_fn::<extern "C" fn()>(0x000786bc)(), // CATSANDDOGS
         11 => hook::slide_fn::<extern "C" fn()>(0x0007868c)(), // CANTSEEATHING
 
-        // Vehicles Spawner (using generic vehicle spawner 0x00078920)
-        12 => hook::slide_fn::<extern "C" fn(u32)>(0x00078920)(162), // PANZER (Rhino Tank - Model 162)
-        13 => hook::slide_fn::<extern "C" fn(u32)>(0x00078920)(155), // HUNTER (Hunter Helicopter - Model 155)
-        14 => hook::slide_fn::<extern "C" fn(u32)>(0x00078920)(234), // TRAVELINSTYLE (Bloodring Banger A - Model 234)
-        15 => hook::slide_fn::<extern "C" fn(u32)>(0x00078920)(235), // GETTHEREQUICKLY (Bloodring Banger B - Model 235)
-        16 => hook::slide_fn::<extern "C" fn(u32)>(0x00078920)(232), // GETTHEREVERYFASTINDEED (Hotring Racer A - Model 232)
-        17 => hook::slide_fn::<extern "C" fn(u32)>(0x00078920)(233), // GETTHEREAMAZINGLYFAST (Hotring Racer B - Model 233)
-        18 => hook::slide_fn::<extern "C" fn(u32)>(0x00078920)(206), // GETTHEREFAST (Sabre Turbo - Model 206)
-        19 => hook::slide_fn::<extern "C" fn(u32)>(0x00078920)(172), // THELASTRIDE (Romero's Hearse - Model 172)
-        20 => hook::slide_fn::<extern "C" fn(u32)>(0x00078920)(201), // ROCKANDROLLCAR (Love Fist Limousine - Model 201)
-        21 => hook::slide_fn::<extern "C" fn(u32)>(0x00078920)(138), // RUBBISHCAR (Trashmaster - Model 138)
-        22 => hook::slide_fn::<extern "C" fn(u32)>(0x00078920)(187), // BETTERTHANWALKING (Caddy Golf Cart - Model 187)
+        // Vehicles Spawner (using native vehicle spawner directly in front of Tommy)
+        12 => crate::game::player::queue_spawn_vehicle(162), // PANZER (Rhino Tank - Model 162)
+        13 => crate::game::player::queue_spawn_vehicle(155), // HUNTER (Hunter Helicopter - Model 155)
+        14 => crate::game::player::queue_spawn_vehicle(234), // TRAVELINSTYLE (Bloodring Banger A - Model 234)
+        15 => crate::game::player::queue_spawn_vehicle(235), // GETTHEREQUICKLY (Bloodring Banger B - Model 235)
+        16 => crate::game::player::queue_spawn_vehicle(232), // GETTHEREVERYFASTINDEED (Hotring Racer A - Model 232)
+        17 => crate::game::player::queue_spawn_vehicle(233), // GETTHEREAMAZINGLYFAST (Hotring Racer B - Model 233)
+        18 => crate::game::player::queue_spawn_vehicle(206), // GETTHEREFAST (Sabre Turbo - Model 206)
+        19 => crate::game::player::queue_spawn_vehicle(172), // THELASTRIDE (Romero's Hearse - Model 172)
+        20 => crate::game::player::queue_spawn_vehicle(201), // ROCKANDROLLCAR (Love Fist Limousine - Model 201)
+        21 => crate::game::player::queue_spawn_vehicle(138), // RUBBISHCAR (Trashmaster - Model 138)
+        22 => crate::game::player::queue_spawn_vehicle(187), // BETTERTHANWALKING (Caddy Golf Cart - Model 187)
 
         // Traffic, Handling & Physics
         23 => hook::slide_fn::<extern "C" fn()>(0x00077dc4)(), // BIGBANG (Blow up all cars)

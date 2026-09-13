@@ -109,6 +109,145 @@ pub fn queue_action(action: PlayerAction) {
     }
 }
 
+/// Spawns a vehicle directly in front of Tommy facing the same direction as Tommy,
+/// matching the reliable GTA SA CLEO spawner behavior without relying on vanilla road path nodes.
+pub fn spawn_vehicle_direct(model_id: u32) -> *mut u8 {
+    #[cfg(target_pointer_width = "32")]
+    unsafe {
+        let ped = find_player_ped();
+        if ped.is_null() {
+            return std::ptr::null_mut();
+        }
+
+        // 1. Request and load model synchronously
+        hook::slide_fn::<extern "C" fn(u32, u32)>(0x00099414)(model_id, 1);
+        hook::slide_fn::<extern "C" fn(u8)>(0x0009c55c)(0);
+
+        // 2. Read player position and forward facing vector from CMatrix at ped + 0x04
+        let px = *(ped.add(0x34) as *const f32);
+        let py = *(ped.add(0x38) as *const f32);
+        let pz = *(ped.add(0x3c) as *const f32);
+
+        let fx = *(ped.add(0x14) as *const f32);
+        let fy = *(ped.add(0x18) as *const f32);
+
+        // Normalize 2D forward vector
+        let len = (fx * fx + fy * fy).sqrt();
+        let (dir_x, dir_y) = if len > 0.001 {
+            (fx / len, fy / len)
+        } else {
+            (0.0, 1.0)
+        };
+
+        // Heading angle in radians: in GTA coordinate system (forward.x = -sin(heading), forward.y = cos(heading))
+        let heading = (-dir_x).atan2(dir_y);
+
+        // 3. Determine vehicle class and allocation size
+        let is_boat = hook::slide_fn::<extern "C" fn(u32) -> u8>(0x001912d4)(model_id) != 0;
+        let is_bike = hook::slide_fn::<extern "C" fn(u32) -> u8>(0x0019132c)(model_id) != 0;
+
+        let in_car = !find_player_vehicle().is_null();
+        let dist = if in_car {
+            9.5f32
+        } else if model_id == 155 || model_id == 162 || model_id == 138 || model_id == 186 || model_id == 165 {
+            // Large vehicles: Hunter heli (155), Rhino tank (162), Trashmaster (138), Coach (186), Bus (165)
+            8.5f32
+        } else if is_boat {
+            10.5f32
+        } else if is_bike {
+            5.0f32
+        } else {
+            6.5f32
+        };
+
+        let spawn_x = px + dir_x * dist;
+        let spawn_y = py + dir_y * dist;
+
+        // 4. Query exact ground elevation at spawn coordinates via CWorld::FindGroundZForCoord
+        let ground_z_raw = hook::slide_fn::<extern "C" fn(u32, u32) -> u32>(0x0004909c)(
+            spawn_x.to_bits(),
+            spawn_y.to_bits(),
+        );
+        let ground_z = f32::from_bits(ground_z_raw);
+        let spawn_z = if ground_z > -50.0 && (ground_z - pz).abs() < 12.0 {
+            ground_z
+        } else {
+            pz
+        };
+
+        // 5. Allocate vehicle memory using game operator new (0x0013f024)
+        let (size, veh_type) = if is_boat {
+            (0x4c0usize, 0u8) // CBoat
+        } else if is_bike {
+            (0x360usize, 1u8) // CBike
+        } else {
+            (0x5dcusize, 2u8) // CAutomobile
+        };
+
+        let veh = hook::slide_fn::<extern "C" fn(usize) -> *mut u8>(0x0013f024)(size);
+        if veh.is_null() {
+            return std::ptr::null_mut();
+        }
+
+        // 6. Invoke vehicle C++ constructor
+        match veh_type {
+            0 => {
+                // CBoat::CBoat(ptr, model_id, 2)
+                hook::slide_fn::<extern "C" fn(*mut u8, u32, u8) -> *mut u8>(0x0005b5f0)(veh, model_id, 2);
+            }
+            1 => {
+                // CBike::CBike(ptr, model_id, 1)
+                hook::slide_fn::<extern "C" fn(*mut u8, u32, u8) -> *mut u8>(0x000f3294)(veh, model_id, 1);
+            }
+            _ => {
+                // CAutomobile::CAutomobile(ptr, model_id, 1)
+                hook::slide_fn::<extern "C" fn(*mut u8, u32, u8) -> *mut u8>(0x001d7620)(veh, model_id, 1);
+            }
+        }
+
+        // 7. Calculate suspension height above road and set position & orientation
+        let height_raw = hook::slide_fn::<extern "C" fn(*mut u8) -> u32>(0x0015d0d4)(veh);
+        let height = f32::from_bits(height_raw);
+        let final_z = spawn_z + if height > 0.0 && height < 5.0 { height } else { 0.4 };
+
+        // Set vehicle rotation to align with Tommy's heading (CMatrix::SetRotate at 0x00075798)
+        hook::slide_fn::<extern "C" fn(*mut u8, u32, u32, u32)>(0x00075798)(
+            veh.add(4),
+            0.0f32.to_bits(),
+            0.0f32.to_bits(),
+            heading.to_bits(),
+        );
+
+        // Set vehicle coordinates in CPlaceable matrix at veh + 0x34
+        *(veh.add(0x34) as *mut f32) = spawn_x;
+        *(veh.add(0x38) as *mut f32) = spawn_y;
+        *(veh.add(0x3c) as *mut f32) = final_z;
+
+        // 8. Configure status and permissions so player can immediately enter
+        let status_flags = veh.add(0x52) as *mut u8;
+        *status_flags = (*status_flags & !0x38) | (4 << 3); // STATUS_PLAYER
+
+        if veh_type == 2 {
+            *(veh.add(0x230) as *mut u32) = 1; // Unlocked doors
+        } else if veh_type == 0 {
+            *(veh.add(0x15c) as *mut f32) = 20.0;
+            *(veh.add(0x160) as *mut u8) = 20;
+        }
+
+        // 9. Add vehicle entity to CWorld (0x0004bc24)
+        hook::slide_fn::<extern "C" fn(*mut u8)>(0x0004bc24)(veh);
+
+        // 10. Mark model as deletable so it can be streamed out later
+        hook::slide_fn::<extern "C" fn(u32)>(0x000998ec)(model_id);
+
+        veh
+    }
+    #[cfg(target_pointer_width = "64")]
+    {
+        std::ptr::null_mut()
+    }
+}
+
 /// Queues a vehicle to be spawned right in front of Tommy.
 pub fn queue_spawn_vehicle(model_id: u32) {
     if let Ok(mut q) = QUEUED_VEHICLE.lock() {
@@ -149,10 +288,10 @@ pub fn tick() {
             }
         }
 
-        // 2. Process queued vehicle spawn
+        // 2. Process queued vehicle spawn (spawns directly in front of Tommy)
         if let Ok(mut q) = QUEUED_VEHICLE.lock() {
             if let Some(model_id) = q.take() {
-                hook::slide_fn::<extern "C" fn(u32)>(0x00078920)(model_id);
+                spawn_vehicle_direct(model_id);
             }
         }
 
@@ -171,6 +310,12 @@ pub fn tick() {
         // 4. Handle persistent toggle states
         let ped = find_player_ped();
         if !ped.is_null() {
+            // Fix blood bug: clear bIsBleeding (bit 2 of ped + 0x14f) and m_nBleeding timer (ped + 0x51f)
+            unsafe {
+                *(ped.add(0x14f) as *mut u8) &= !4;
+                *(ped.add(0x51f) as *mut u8) = 0;
+            }
+
             // Infinite Health / God Mode (locks Tommy to 250 HP and 250 Armor)
             if INFINITE_HEALTH.load(Ordering::Relaxed) {
                 unsafe {
@@ -187,10 +332,24 @@ pub fn tick() {
                 }
             }
 
-            // Infinite Ammo (sets bInfiniteAmmo bit on CPed->m_nPedFlags at offset 0x14c)
+            // Infinite Ammo: safely keep ammo and clip full across all 10 weapon slots (ped + 0x400 + slot * 0x18)
+            // without corrupting ped flags
             if INFINITE_AMMO.load(Ordering::Relaxed) {
                 unsafe {
-                    *(ped.add(0x14c) as *mut u32) |= 0x04000000;
+                    for slot in 0..10 {
+                        let wep_ptr = ped.add(0x400 + slot * 0x18);
+                        let wep_type = *(wep_ptr as *const u32);
+                        if wep_type > 0 {
+                            let clip_ptr = wep_ptr.add(0x08) as *mut u32;
+                            let total_ptr = wep_ptr.add(0x0c) as *mut u32;
+                            if *total_ptr < 9000 {
+                                *total_ptr = 9999;
+                            }
+                            if *clip_ptr < 50 {
+                                *clip_ptr = 99;
+                            }
+                        }
+                    }
                 }
             }
         }

@@ -170,3 +170,22 @@
      - **Traffic & Physics (9)**: `BIGBANG` (Ledakkan semua mobil), `WHEELSAREALLINEED` (Mobil tembus pandang/roda saja), `COMEFLYWITHME` (Mobil terbang), `GRIPISEVERYTHING` (Handling mantap), `SEAWAYS` (Mobil jalan di air), `GREENLIGHT` (Lampu hijau), `MIAMITRAFFIC` (Lalu lintas agresif), `AHAIRDRESSERSCAR` (Lalu lintas pink), `IWANTITPAINTEDBLACK` (Lalu lintas hitam)
      - **Player & World (10)**: `LIFEISPASSINGMEBY` (Waktu cepat), `ONSPEED` (Gameplay cepat), `BOOOOOORING` (Slo-mo), `STILLLIKEDRESSINGUP` (Ganti baju/skin), `ICANTTAKEITANYMORE` (Bunuh diri), `FIGHTFIGHTFIGHT` (Kerusuhan), `NOBODYLIKESME` (Pejalan kaki serang Tommy), `OURGODGIVENRIGHTTOBEARARMS` (Pejalan kaki bersenjata), `CHICKSWITHGUNS` (Pejalan kaki wanita bersenjata), `CHASESTAT` (Media level)
 
+8. **Perbaikan Spawner Kendaraan Tepat di Depan Player & Perbaikan Bug Efek Darah Karakter**:
+   - **Penyebab Spawner Kendaraan Bawaan Sering Gagal / Hadap Melenceng**:
+     - Fungsi cheat bawaan `0x00078920` (`CCheat::VehicleCheat`) memanggil `0x0004cae8` (`ThePaths.FindNodeClosestToCoors`). Jika player berada di area tanpa node jalan raya (pantai, atap mansion Vercetti, lapangan golf, rerumputan), game me-return kegagalan sehingga kendaraan **tidak pernah muncul**.
+     - Ketika kendaraan muncul, arah hadapnya (`0x00075798`) diselaraskan dengan arah jalur jalan raya tersebut, bukan arah pandang/hadap Tommy.
+   - **Solusi Native Spawner (Mirip VehicleSpawn.csi GTA SA)**:
+     - Dibuat fungsi native `spawn_vehicle_direct(model_id: u32)` di `src/game/player.rs`:
+       1. Request & synchronous stream model (`0x00099414` & `0x0009c55c`).
+       2. Ambil forward facing vector Tommy dari CMatrix di `ped + 0x04` (`fx, fy`).
+       3. Hitung spawn offset di depan Tommy ($X_{\text{spawn}} = P_x + \text{dir}_x \times D$, $Y_{\text{spawn}} = P_y + \text{dir}_y \times D$).
+       4. Ambil elevasi tanah presisi via `CWorld::FindGroundZForCoord` (`0x0004909c`).
+       5. Alokasikan memori via `operator new` (`0x0013f024`) dan panggil konstruktor yang tepat (`CBoat` `0x0005b5f0`, `CBike` `0x000f3294`, `CAutomobile` `0x001d7620`).
+       6. Set orientasi kendaraan ke arah hadap Tommy via `CMatrix::SetRotate` (`0x00075798`) dan elevasi roda via `CVehicle::GetHeightAboveRoad` (`0x0015d0d4`).
+       7. Buka kunci pintu (`0x230 = 1`), set status player (`0x52`), dan daftarkan ke dunia via `CWorld::Add` (`0x0004bc24`).
+   - **Penyebab & Solusi Bug Efek Darah Mengucur Terus-Menerus**:
+     - **Penyebab**: Kode amunisi tak terbatas sebelumnya menulis `*(ped.add(0x14c) as *mut u32) |= 0x04000000;`. Pada GTA Vice City, bit `0x04000000` pada `0x14c` (yaitu bit ke-2 dari byte `0x14f`) adalah flag **`bIsBleeding`**! Akibatnya setiap kali toggle amunisi tak terbatas aktif atau memilih paket senjata, game mendeteksi Tommy pendarahan hebat sehingga efek partikel dan genangan darah terus keluar di bawah kaki Tommy.
+     - **Solusi**:
+       1. Hapus penulisan bit perusak ke `ped + 0x14c`.
+       2. Clear flag pendarahan secara aktif di `tick()`: `*(ped.add(0x14f) as *mut u8) &= !4` dan `*(ped.add(0x51f) as *mut u8) = 0` (`m_nBleeding`).
+       3. Implementasikan Infinite Ammo yang aman dan native dengan mengiterasi 10 slot senjata Tommy di `ped + 0x400 + slot * 0x18` dan menjaga total ammo serta clip tetap 9999.

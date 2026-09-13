@@ -186,7 +186,7 @@ pub fn spawn_vehicle_direct(model_id: u32) -> *mut u8 {
         let (size, veh_type) = if is_boat {
             (0x4c0usize, 0u8) // CBoat
         } else if is_bike {
-            (0x360usize, 1u8) // CBike
+            (0x4ecusize, 1u8) // CBike (actual size is 0x4ec)
         } else {
             (0x5dcusize, 2u8) // CAutomobile
         };
@@ -203,11 +203,11 @@ pub fn spawn_vehicle_direct(model_id: u32) -> *mut u8 {
                 hook::slide_fn::<extern "C" fn(*mut u8, u32, u8) -> *mut u8>(0x0005b5f0)(veh, model_id, 2);
             }
             1 => {
-                // CBike::CBike(ptr, model_id, 1)
-                hook::slide_fn::<extern "C" fn(*mut u8, u32, u8) -> *mut u8>(0x000f3294)(veh, model_id, 1);
+                // CBike::CBike(ptr, model_id, 1) at 0x00152710
+                hook::slide_fn::<extern "C" fn(*mut u8, u32, u8) -> *mut u8>(0x00152710)(veh, model_id, 1);
             }
             _ => {
-                // CAutomobile::CAutomobile(ptr, model_id, 1)
+                // CAutomobile::CAutomobile(ptr, model_id, 1) at 0x001d7620
                 hook::slide_fn::<extern "C" fn(*mut u8, u32, u8) -> *mut u8>(0x001d7620)(veh, model_id, 1);
             }
         }
@@ -215,7 +215,7 @@ pub fn spawn_vehicle_direct(model_id: u32) -> *mut u8 {
         // 7. Calculate suspension height above road and set position & orientation
         let height_raw = hook::slide_fn::<extern "C" fn(*mut u8) -> u32>(0x0015d0d4)(veh);
         let height = f32::from_bits(height_raw);
-        let final_z = spawn_z + if height > 0.0 && height < 5.0 { height + 0.1 } else { 0.4 };
+        let final_z = spawn_z + if height > 0.05 && height < 5.0 { height } else if is_bike { 0.25 } else { 0.4 };
 
         // Set vehicle rotation sideways so Tommy stands directly in front of the driver seat
         hook::slide_fn::<extern "C" fn(*mut u8, u32, u32, u32)>(0x00075798)(
@@ -234,13 +234,7 @@ pub fn spawn_vehicle_direct(model_id: u32) -> *mut u8 {
         let status_flags = veh.add(0x52) as *mut u8;
         *status_flags = (*status_flags & !0x38) | (4 << 3); // STATUS_PLAYER
 
-        if veh_type == 1 {
-            // Native CBike initialization from CCheat::VehicleCheat (0x78d30 - 0x78da2)
-            *(veh.add(0x1f9) as *mut u8) = (*(veh.add(0x1f9) as *mut u8) & 0xc7) | 0x28;
-            *(veh.add(0x2e3) as *mut u8) = 0;
-            *(veh.add(0x2c0) as *mut u8) = 0;
-            hook::slide_fn::<extern "C" fn(u8)>(0x000f0c0c)(0);
-        } else if veh_type == 2 {
+        if veh_type == 2 {
             *(veh.add(0x230) as *mut u32) = 1; // Unlocked doors
         } else if veh_type == 0 {
             *(veh.add(0x15c) as *mut f32) = 20.0;

@@ -181,24 +181,26 @@
        3. Hitung spawn offset di depan Tommy ($X_{\text{spawn}} = P_x + \text{dir}_x \times D$, $Y_{\text{spawn}} = P_y + \text{dir}_y \times D$).
        4. Ambil elevasi tanah presisi via `CWorld::FindGroundZForCoord` (`0x0004909c`).
        5. Klasifikasi kendaraan presisi:
-          - Motor roda 2 (`CBike`): model `166` (Angel), `178` (Pizza Boy), `191` (PCJ-600), `192` (Faggio), `193` (Freeway), `198` (Sanchez), atau helper `0x0019132c`. Alokasi ukuran `0x360` via `operator new` dan panggil `CBike::CBike` (`0x000f3294`).
+          - Motor roda 2 (`CBike`): model `166` (Angel), `178` (Pizza Boy), `191` (PCJ-600), `192` (Faggio), `193` (Freeway), `198` (Sanchez), atau helper `0x0019132c`. Alokasi ukuran `0x4ec` via `operator new` dan panggil konstruktor asli `CBike::CBike` (`0x00152710`).
           - Perahu (`CBoat`): model `136, 153, 176, 182, 183, 184, 200, 201, 212` atau helper `0x001912d4`. Alokasi `0x4c0` dan panggil `CBoat::CBoat` (`0x0005b5f0`).
           - Mobil (`CAutomobile`): alokasi `0x5dc` dan panggil `CAutomobile::CAutomobile` (`0x001d7620`).
        6. Orientasi Menyamping Menghadap Pintu Sopir:
           - Arah hadap kendaraan diatur menyamping 90 derajat via `veh_heading = heading + PI/2` menggunakan `CMatrix::SetRotate` (`0x00075798`).
           - Dengan sudut ini, sisi kiri kendaraan (pintu sopir pada mobil / posisi naik pada motor) menghadap **tepat ke arah Tommy**, sehingga Tommy langsung berada di depan kursi pengemudi.
-       7. Inisialisasi Flag Khusus:
-          - Pada motor (`CBike`): byte `0x1f9` diset `(byte & 0xc7) | 0x28`, byte `0x2e3` dan `0x2c0` direset ke `0`, dan panggil reset motor `0x000f0c0c(0)`. Offset `0x230` (door lock mobil) **tidak disentuh** pada motor.
+       7. Inisialisasi Flag & Status:
           - Pada mobil (`CAutomobile`): buka kunci pintu `*(veh.add(0x230) as *mut u32) = 1;`.
+          - Pada perahu (`CBoat`): set batas buoyancy air pada `veh + 0x15c` dan `veh + 0x160`.
+          - Pada motor (`CBike`): tidak menyentuh offset pintu mobil `0x230`.
        8. Set status player (`0x52`), elevasi roda via `CVehicle::GetHeightAboveRoad` (`0x0015d0d4`), dan daftarkan ke dunia via `CWorld::Add` (`0x0004bc24`).
-   - **Penyebab & Solusi Crash Saat Menaiki Motor (PCJ-600, Sanchez, dll)**:
-     - **Gejala Crash**: Roda motor tampak berukuran kecil/aneh, dan saat Tommy hendak menaiki motor, game langsung crash dengan log `EXC_BAD_ACCESS (SIGSEGV) at 0x00000010` pada `gta3vc 0x00160b8e` (`RwMatrixCopy`).
-     - **Penyebab**: Helper klasifikasi tipe kendaraan sebelumnya me-return `false` untuk motor sehingga objek diinstansiasi sebagai `CAutomobile` (`0x001d7620`). Akibatnya:
-       1. Model motor dipaksa memakai handling/skala roda mobil sehingga rodanya terlihat mengecil dan aneh.
-       2. Vtable yang terpasang adalah vtable `CAutomobile`. Saat Tommy menekan tombol naik kendaraan, engine game memicu `CPed::EnteringCar` -> `CAutomobile::ProcessOpenDoor` -> `CAutomobile::OpenDoor` (`0x001d0a40`).
-       3. Fungsi pintu mobil membaca node pintu sopir (`CAR_DOOR_LF`) di offset `veh + 0x394`. Karena model motor tidak memiliki node pintu mobil, pointer bernilai `NULL` (`0`).
-       4. Engine menambahkan offset `0x10` ke pointer tersebut (`0 + 0x10 = 0x00000010`), lalu me-dereference alamat `0x00000010` pada `CMatrix::Attach` (`0x00075aae`), memicu crash SIGSEGV seketika.
-     - **Solusi**: Deteksi model motor secara eksplisit dan inisialisasi sebagai `CBike` (`0x000f3294`) beserta flag native-nya. Tommy menaiki motor dengan animasi mount motor standar tanpa membuka pintu mobil, dan roda motor berukuran normal.
+   - **Penyebab & Solusi Motor Melayang & Menimbulkan Efek Angin Helikopter (Downwash)**:
+     - **Gejala Bug**: Motor berhasil di-spawn, tetapi posisinya melayang ~8 meter di udara dan menghasilkan efek partikel angin kencang baling-baling helikopter (seperti diliput helikopter berita VCN / helikopter polisi).
+     - **Akar Masalah**:
+       - Alamat `0x000f3294` / `0x000f30dc` dengan ukuran `0x360` dan helper `0x000f0c0c` ternyata adalah konstruktor **`CHeli::CHeli`** (helikopter), bukan motor! Akibatnya objek motor terdaftar sebagai entitas helikopter di engine Vice City, yang secara otomatis memicu mekanik melayang (*hover*) setinggi 8 meter di atas tanah dan mengeluarkan efek angin baling-baling helikopter (*downwash*).
+       - Konstruktor asli motor **`CBike::CBike`** berada di alamat **`0x00152710`** (wrapper dari fungsi `0x00152320`) dengan ukuran objek sebesar **`0x4ec`** byte (berdampingan langsung dengan vtable `0x0026f378` dan method native `CBike::GetHeightAboveRoad` di `0x0015271c`).
+     - **Solusi**:
+       1. Ubah ukuran alokasi motor ke `0x4ec` byte dan panggil `CBike::CBike` di `0x00152710(veh, model_id, 1)`.
+       2. Hapus seluruh pemanggilan `CHeli` (`0x000f0c0c`).
+       3. Atur ketinggian elevasi `final_z = spawn_z + 0.25` sehingga roda motor mendarat tepat di aspal jalanan secara mulus dan normal tanpa efek angin helikopter.
    - **Penyebab & Solusi Bug Efek Darah Mengucur Terus-Menerus**:
      - **Penyebab**: Kode amunisi tak terbatas sebelumnya menulis `*(ped.add(0x14c) as *mut u32) |= 0x04000000;`. Pada GTA Vice City, bit `0x04000000` pada `0x14c` (yaitu bit ke-2 dari byte `0x14f`) adalah flag **`bIsBleeding`**! Akibatnya setiap kali toggle amunisi tak terbatas aktif atau memilih paket senjata, game mendeteksi Tommy pendarahan hebat sehingga efek partikel dan genangan darah terus keluar di bawah kaki Tommy.
      - **Solusi**:

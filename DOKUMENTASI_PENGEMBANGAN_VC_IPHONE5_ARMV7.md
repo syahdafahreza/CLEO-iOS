@@ -189,3 +189,15 @@
        1. Hapus penulisan bit perusak ke `ped + 0x14c`.
        2. Clear flag pendarahan secara aktif di `tick()`: `*(ped.add(0x14f) as *mut u8) &= !4` dan `*(ped.add(0x51f) as *mut u8) = 0` (`m_nBleeding`).
        3. Implementasikan Infinite Ammo yang aman dan native dengan mengiterasi 10 slot senjata Tommy di `ped + 0x400 + slot * 0x18` dan menjaga total ammo serta clip tetap 9999.
+
+9. **Cheat Anti Polisi / Bebas Polisi Permanen (Never Wanted)**:
+   - **Mekanisme Native Game**:
+     - Variabel global batas maksimal level bintang buronan di Vice City ARMv7 terletak di `0x0026a6d8` (`CWanted::MaximumWantedLevel: i32`, default: `6`).
+     - Fungsi internal reset dan pembubaran kejaran polisi di Vice City terletak di `0x001f51d8(info: *mut u8, level: u32)`.
+   - **Implementasi**:
+     - Dibuat toggle `pub static NEVER_WANTED: AtomicBool = AtomicBool::new(false);`.
+     - Ketika aktif (`true`):
+       1. Mengunci `CWanted::MaximumWantedLevel` (`0x0026a6d8`) ke `0`. Semua laporan kejahatan (`RegisterCrime`) otomatis di-clamp ke `0` sehingga bintang buronan tidak pernah bisa naik.
+       2. Jika player memiliki bintang buronan saat cheat diaktifkan, level buronan langsung dibersihkan ke `0` (`info + 0x20 = 0`) dan memanggil `0x001f51d8(info, 0)` untuk membubarkan polisi, helikopter, dan sirene yang sedang mengejar.
+     - Ketika dinonaktifkan (`false`):
+       - Mengembalikan `CWanted::MaximumWantedLevel` ke nilai normal `6`.

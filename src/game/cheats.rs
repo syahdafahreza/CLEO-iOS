@@ -662,6 +662,11 @@ pub fn tab_data() -> TabData {
             detail: "Menghapus semua bintang buronan seketika",
             triggered: false,
         }));
+        rows.push(Box::new(PlayerToggleRow {
+            atomic: &crate::game::player::NEVER_WANTED,
+            title: "BEBAS POLISI PERMANEN (NEVER WANTED)",
+            detail: "Polisi tidak akan pernah mengejar Tommy (bintang beku di 0)",
+        }));
         rows.push(Box::new(PlayerQuickActionRow {
             action: crate::game::player::PlayerAction::RaiseWanted,
             title: "TAMBAH BURONAN (+2 BINTANG)",

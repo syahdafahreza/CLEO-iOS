@@ -9,6 +9,7 @@ pub static INFINITE_HEALTH: AtomicBool = AtomicBool::new(false);
 pub static INFINITE_AMMO: AtomicBool = AtomicBool::new(false);
 pub static INFINITE_SPRINT: AtomicBool = AtomicBool::new(false);
 pub static FAST_RELOAD: AtomicBool = AtomicBool::new(false);
+pub static NEVER_WANTED: AtomicBool = AtomicBool::new(false);
 
 lazy_static! {
     static ref QUEUED_VEHICLE: Mutex<Option<u32>> = Mutex::new(None);
@@ -354,8 +355,35 @@ pub fn tick() {
             }
         }
 
+        // Never Wanted / Anti Polisi: lock MaximumWantedLevel (0x0026a6d8) to 0
+        let max_wanted_ptr = hook::slide::<*mut i32>(0x0026a6d8);
+        if NEVER_WANTED.load(Ordering::Relaxed) {
+            unsafe {
+                if !max_wanted_ptr.is_null() {
+                    *max_wanted_ptr = 0;
+                }
+            }
+        } else {
+            unsafe {
+                if !max_wanted_ptr.is_null() && *max_wanted_ptr == 0 {
+                    *max_wanted_ptr = 6;
+                }
+            }
+        }
+
         let info = get_player_info_ptr();
         if !info.is_null() {
+            // If Never Wanted is active, clear any active wanted stars immediately
+            if NEVER_WANTED.load(Ordering::Relaxed) {
+                unsafe {
+                    let wanted_lvl = *(info.add(0x20) as *const i32);
+                    if wanted_lvl > 0 {
+                        *(info.add(0x20) as *mut i32) = 0;
+                        hook::slide_fn::<extern "C" fn(*mut u8, u32)>(0x001f51d8)(info, 0);
+                    }
+                }
+            }
+
             if INFINITE_SPRINT.load(Ordering::Relaxed) {
                 unsafe {
                     *(info.add(0x140) as *mut u8) = 1;

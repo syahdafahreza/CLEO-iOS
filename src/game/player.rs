@@ -10,6 +10,7 @@ pub static INFINITE_AMMO: AtomicBool = AtomicBool::new(false);
 pub static INFINITE_SPRINT: AtomicBool = AtomicBool::new(false);
 pub static FAST_RELOAD: AtomicBool = AtomicBool::new(false);
 pub static NEVER_WANTED: AtomicBool = AtomicBool::new(false);
+pub static GOD_MODE_VEHICLE: AtomicBool = AtomicBool::new(false);
 
 lazy_static! {
     static ref QUEUED_VEHICLE: Mutex<Option<u32>> = Mutex::new(None);
@@ -25,6 +26,7 @@ pub enum PlayerAction {
     FullArmor,
     ClearWanted,
     RaiseWanted,
+    RepairCurrentVehicle,
 }
 
 /// Returns the pointer to Tommy Vercetti (`CPed*`).
@@ -285,6 +287,29 @@ pub fn tick() {
                     PlayerAction::RaiseWanted => {
                         hook::slide_fn::<extern "C" fn()>(0x00077edc)();
                     }
+                    PlayerAction::RepairCurrentVehicle => {
+                        let veh = find_player_vehicle();
+                        if !veh.is_null() {
+                            unsafe {
+                                *(veh.add(0x204) as *mut f32) = 1000.0;
+                                hook::slide_fn::<extern "C" fn(*mut u8)>(0x000c1cc0)(veh.add(0x2a0));
+
+                                let is_bike = hook::slide_fn::<extern "C" fn(u32) -> u8>(0x0019132c)(
+                                    *(veh.add(0x5c) as *const u16) as u32,
+                                ) != 0;
+                                let is_boat = hook::slide_fn::<extern "C" fn(u32) -> u8>(0x001912d4)(
+                                    *(veh.add(0x5c) as *const u16) as u32,
+                                ) != 0;
+
+                                if !is_bike && !is_boat {
+                                    hook::slide_fn::<extern "C" fn(*mut u8)>(0x001c6100)(veh);
+                                } else {
+                                    *(veh.add(0x1fb) as *mut u8) &= !2;
+                                    *(veh.add(0x1fd) as *mut u8) &= !0x3f;
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -329,6 +354,23 @@ pub fn tick() {
                 if !veh.is_null() {
                     unsafe {
                         *(veh.add(0x204) as *mut f32) = 1000.0;
+                    }
+                }
+            }
+
+            // Vehicle God Mode / Mobil Kebal: when Tommy is in a vehicle, make it 100% indestructible
+            let current_veh = find_player_vehicle();
+            if !current_veh.is_null() {
+                if GOD_MODE_VEHICLE.load(Ordering::Relaxed) {
+                    unsafe {
+                        // 1. Lock vehicle health to 1000.0f
+                        *(current_veh.add(0x204) as *mut f32) = 1000.0;
+                        // 2. Full immunities: bullet, fire, collision, melee, explosion (bits 16..19, 21 on entity + 0x52)
+                        *(current_veh.add(0x52) as *mut u32) |= 0x002f0000;
+                        // 3. Ban anti bocor / tyres don't burst (bit 1 on 0x1fd)
+                        *(current_veh.add(0x1fd) as *mut u8) |= 2;
+                        // 4. Engine status intact
+                        *(current_veh.add(0x2a4) as *mut u8) = 0;
                     }
                 }
             }

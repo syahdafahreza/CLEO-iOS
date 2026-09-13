@@ -314,6 +314,56 @@ impl RowData for PlayerQuickActionRow {
     }
 }
 
+struct VehicleRepairRow {
+    title: &'static str,
+    detail: &'static str,
+    triggered: bool,
+    not_in_veh: bool,
+}
+
+impl RowData for VehicleRepairRow {
+    fn title(&self) -> Message {
+        Message::custom(self.title)
+    }
+
+    fn detail(&self) -> menu::RowDetail {
+        menu::RowDetail::Info(Message::custom(self.detail))
+    }
+
+    fn value(&self) -> Message {
+        if self.not_in_veh {
+            Message::custom("HARUS NAIK MOBIL")
+        } else if self.triggered {
+            MessageKey::CheatActionOk.to_message()
+        } else {
+            Message::custom("SERVIS SEKARANG")
+        }
+    }
+
+    fn tint(&self) -> Option<(u8, u8, u8)> {
+        if self.not_in_veh {
+            Some(gui::colours::RED)
+        } else if self.triggered {
+            Some(gui::colours::GREEN)
+        } else {
+            None
+        }
+    }
+
+    fn handle_tap(&mut self) -> bool {
+        let veh = crate::game::player::find_player_vehicle();
+        if veh.is_null() {
+            self.not_in_veh = true;
+            self.triggered = false;
+        } else {
+            self.not_in_veh = false;
+            self.triggered = true;
+            crate::game::player::queue_action(crate::game::player::PlayerAction::RepairCurrentVehicle);
+        }
+        true
+    }
+}
+
 struct PlayerToggleRow {
     atomic: &'static std::sync::atomic::AtomicBool,
     title: &'static str,
@@ -672,6 +722,29 @@ pub fn tab_data() -> TabData {
             title: "TAMBAH BURONAN (+2 BINTANG)",
             detail: "Menaikkan 2 bintang level kejaran polisi",
             triggered: false,
+        }));
+        rows.push(Box::new(VehicleRepairRow {
+            title: "SERVIS MOBIL AKTIF (INSTAN)",
+            detail: "Memperbaiki seluruh bodi, mesin, kaca, dan ban kendaraan saat ini (100% mulus)",
+            triggered: false,
+            not_in_veh: false,
+        }));
+        rows.push(Box::new(PlayerToggleRow {
+            atomic: &crate::game::player::GOD_MODE_VEHICLE,
+            title: "MOBIL KEBAL (VEHICLE GOD MODE)",
+            detail: "Kendaraan yang dinaiki Tommy kebal peluru, api, ledakan, tabrakan, dan ban anti bocor",
+        }));
+    } else if current_cat == CheatCategory::Vehicles {
+        rows.push(Box::new(VehicleRepairRow {
+            title: "SERVIS MOBIL AKTIF (INSTAN)",
+            detail: "Memperbaiki seluruh bodi, mesin, kaca, dan ban kendaraan saat ini (100% mulus)",
+            triggered: false,
+            not_in_veh: false,
+        }));
+        rows.push(Box::new(PlayerToggleRow {
+            atomic: &crate::game::player::GOD_MODE_VEHICLE,
+            title: "MOBIL KEBAL (VEHICLE GOD MODE)",
+            detail: "Kendaraan yang dinaiki Tommy kebal peluru, api, ledakan, tabrakan, dan ban anti bocor",
         }));
     }
 

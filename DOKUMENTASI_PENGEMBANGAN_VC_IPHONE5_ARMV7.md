@@ -201,3 +201,26 @@
        2. Jika player memiliki bintang buronan saat cheat diaktifkan, level buronan langsung dibersihkan ke `0` (`info + 0x20 = 0`) dan memanggil `0x001f51d8(info, 0)` untuk membubarkan polisi, helikopter, dan sirene yang sedang mengejar.
      - Ketika dinonaktifkan (`false`):
        - Mengembalikan `CWanted::MaximumWantedLevel` ke nilai normal `6`.
+
+10. **Cheat Servis Kendaraan Instan (Instant Vehicle Repair) & Kendaraan Kebal (Vehicle God Mode)**:
+    - **Servis Mobil Instan (`SERVIS MOBIL AKTIF (INSTAN)`)**:
+      - **Validasi State**: Hanya dapat dieksekusi jika Tommy sedang berada di dalam kendaraan (`find_player_vehicle() != null`). Jika dipicu saat Tommy berjalan kaki (*on-foot*), menu secara otomatis menampilkan status teks merah `"HARUS NAIK MOBIL"`. Saat berhasil dipicu dalam mobil, menu menampilkan teks hijau `"BERHASIL"`.
+      - **Native Engine Implementation**:
+        1. Set health kendaraan ke `1000.0f` pada offset `veh + 0x204`.
+        2. Panggil fungsi native game `CDamageManager::Reset` pada alamat `0x000c1cc0(veh + 0x2a0)` untuk mereset data kerusakan bodi dan ban.
+        3. Deteksi kategori kendaraan menggunakan helper native: `CModelInfo::IsBike` (`0x0019132c`) dan `CModelInfo::IsBoat` (`0x001912d4`).
+        4. Jika tipe mobil biasa/truk (`!is_bike && !is_boat`), panggil fungsi native `CAutomobile::Fix` pada alamat `0x001c6100(veh)`. Fungsi ini secara utuh memasang kembali semua pintu/kap/bagasi yang copot, membersihkan retakan kaca, dan mengembalikan bodi mobil ke kondisi 100% mulus dari pabrik.
+        5. Jika motor atau perahu, reset status ban kempes pada offset `veh + 0x1fb` dan `veh + 0x1fd`.
+    - **Kendaraan Kebal (`MOBIL KEBAL (VEHICLE GOD MODE)`)**:
+      - Menggunakan toggle atomic `pub static GOD_MODE_VEHICLE: AtomicBool = AtomicBool::new(false);`.
+      - Pada loop per-frame (`tick()`), jika cheat aktif dan Tommy sedang berada di dalam kendaraan (`find_player_vehicle() != null`):
+        1. **Health Locking**: Nilai health kendaraan (`veh + 0x204`) dikunci pada `1000.0f`.
+        2. **Total Damage Immunity**: Mengaktifkan bit-bit kekebalan pada `CEntity` flags (`veh + 0x52`):
+           - `0x00010000`: `bBulletProof` (kebal tembakan peluru).
+           - `0x00020000`: `bFireProof` (kebal semprotan api / molotov).
+           - `0x00040000`: `bCollisionProof` (kebal penyok & damage saat menabrak gedung/kendaraan lain).
+           - `0x00080000`: `bMeleeProof` (kebal serangan fisik/pentungan).
+           - `0x00200000`: `bExplosionProof` (kebal ledakan granat, RPG, tank).
+           - Mask gabungan: `*(veh.add(0x52) as *mut u32) |= 0x002f0000;`.
+        3. **Ban Anti Bocor (*Tyres Don't Burst*)**: Mengaktifkan bit ke-1 pada byte flag ban: `*(veh.add(0x1fd) as *mut u8) |= 2;`. Ban tidak akan pernah meletus atau kempes meski ditembak sniper atau terkena spike.
+        4. **Engine Status Protection**: Nilai status mesin di `veh + 0x2a4` dikunci ke `0` (intact), mencegah mobil terbakar atau mesin meledak saat terbalik.

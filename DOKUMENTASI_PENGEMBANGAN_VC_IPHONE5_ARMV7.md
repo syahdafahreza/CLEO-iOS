@@ -73,13 +73,19 @@
 | :--- | :--- | :--- |
 | **`CPad::UpdatePads`** | `0x000778fc` | Pembaruan buffer input pad/touch game per-frame (TIDAK BOLEH di-hard hook) |
 | **`CPad::ResetCheats`** | `0x000779ac` | Reset status cheat bawaan |
-| **Weapons Cheat 1** | `0x00077aa4` | Senjata set 1 |
-| **Weapons Cheat 2** | `0x00077b08` | Senjata set 2 |
-| **Weapons Cheat 3** | `0x00077b6c` | Senjata set 3 |
-| **Spawn Panzer (Tank)** | `0x00079254` | Memunculkan Tank Rhino/Panzer |
-| **Spawn Sabre Turbo** | `0x00079314` | Memunculkan mobil Sabre Turbo |
-| **Spawn Bloodring Banger** | `0x0007946c` | Memunculkan mobil Bloodring Banger |
-| **Spawn Caddy** | `0x000795b8` | Memunculkan mobil Golf Caddy |
+| **`CCheat::WeaponCheat1` (Thugs)** | `0x000795b8` | Senjata set 1: Meminta model, memuat, dan memberikan paket senjata Thug |
+| **`CCheat::WeaponCheat2` (Professionals)** | `0x0007946c` | Senjata set 2: Meminta model, memuat, dan memberikan paket senjata Professional |
+| **`CCheat::WeaponCheat3` (Nutters)** | `0x00079314` | Senjata set 3: Meminta model, memuat, dan memberikan paket senjata Nutter |
+| **`CCheat::HealthCheat` (ASPIRINE)** | `0x00079254` | Darah 100% dan servis mobil aktif |
+| **`CCheat::ArmorCheat` (PRECIOUSPROTECTION)** | `0x00077e34` | Armor 100% |
+| **`CCheat::WantedLevelUpCheat`** | `0x00077edc` | Menaikkan 2 bintang level kejaran polisi |
+| **`CCheat::WantedLevelDownCheat`** | `0x00077e84` | Menghapus semua level kejaran polisi |
+| **`CCheat::BlowUpCarsCheat` (BIGBANG)** | `0x00077dc4` | Meledakkan semua kendaraan di sekitar |
+| **`CCheat::StrongGrip` (GRIPISEVERYTHING)** | `0x00077aa4` | Handling lengket / grip tinggi |
+| **`CCheat::FlyingCars` (COMEFLYWITHME)** | `0x00077b08` | Mobil bisa terbang melayang |
+| **`CCheat::WheelsOnly` (WHEELSAREALLINEED)** | `0x00077b6c` | Bodi mobil transparan / hanya roda kelihatan |
+| **`CCheat::Seaways` (SEAWAYS)** | `0x0007978a` | Mobil bisa mengapung dan berjalan di atas air |
+| **`CCheat::DriveBy` / Peds Armed** | `0x00077c84` | Pejalan kaki memegang senjata |
 
 ---
 
@@ -242,3 +248,25 @@
            - Mask gabungan: `*(veh.add(0x52) as *mut u32) |= 0x002f0000;`.
         3. **Ban Anti Bocor (*Tyres Don't Burst*)**: Mengaktifkan bit ke-1 pada byte flag ban: `*(veh.add(0x1fd) as *mut u8) |= 2;`. Ban tidak akan pernah meletus atau kempes meski ditembak sniper atau terkena spike.
         4. **Engine Status Protection**: Nilai status mesin di `veh + 0x2a4` dikunci ke `0` (intact), mencegah mobil terbakar atau mesin meledak saat terbalik.
+
+11. **Penyelesaian Bug Cheat Senjata, Model Hilang (Tangan Kosong), dan Crash Saat Menembak**:
+    - **Penyebab Utama**:
+      1. **Crash & Tangan Kosong**: `CPed::GiveWeapon(0x00126cd4)` memberikan status kepemilikan senjata ke slot inventory Tommy, namun **tidak** memuat asset 3D model senjata ke streaming pool game. Saat pemain beralih (*cycle/scroll*) ke senjata tersebut, `CPed::SetCurrentWeapon(0x00126148)` memanggil `CWeaponModelInfo::CreateInstance()`. Karena model belum di-load oleh `CStreaming`, instance clump bernilai `NULL` (Tommy memegang senjata tak terlihat / tangan kosong). Ketika tombol tembak ditekan, `CWeapon::Fire` melakukan dereference pointer clump yang bernilai `NULL`, memicu `EXC_BAD_ACCESS` / Crash game seketika.
+      2. **Weapon ID Tertukar**: Konfigurasi `weapon_id` pada menu CLEO sebelumnya tidak sesuai dengan enum `eWeaponType` dan data `weapon.dat` GTA Vice City. Contoh: RPG salah di-set ke ID `28` (Sniper Rifle), Minigun ke ID `30` (RPG), Katana ke ID `12` (Grenade), dsb.
+    - **Solusi & Implementasi**:
+      1. **Model Streaming Pre-loading**: Dibuat pemetaan model ID native (`get_weapon_models`) di `src/game/player.rs`. Setiap kali senjata diberikan (`tick()` step 3):
+         - Model diminta via `CStreaming::RequestModel(model_id, 1)` pada alamat `0x00099414`. (Khusus senjata seperti Minigun dimuatkan model bodi `290` dan laras putar `294`, Detonator Grenade dimuatkan `270` dan `291`).
+         - Engine dipaksa memuat model secara sinkron via `CStreaming::LoadAllRequestedModels(0)` pada alamat `0x0009c55c`.
+         - Senjata diberikan ke Tommy via `CPed::GiveWeapon(ped, wid, ammo, 1)` pada alamat `0x00126cd4`.
+         - Model ditandai dapat dibebaskan memory manager via `CStreaming::SetModelIsDeletable(model_id)` pada alamat `0x0009ab9c` (persis seperti pola fungsi cheat native `0x000795b8`).
+      2. **Normalisasi ID Senjata & Bundles**: Seluruh `weapon_id` di `src/game/weapons.rs` dinormalisasi sesuai enum internal Vice City:
+         - Melee: Brass Knuckles (`1`), Screwdriver (`2`), Golf Club (`3`), Nightstick (`4`), Knife (`5`), Bat (`6`), Hammer (`7`), Cleaver (`8`), Machete (`9`), Katana (`10`), Chainsaw (`11`).
+         - Pistols: Colt .45 (`17`), .357 Python (`18`).
+         - Shotguns: Chrome Shotgun (`19`), SPAS-12 (`20`), Stubby (`21`).
+         - SMG: Tec-9 (`22`), Uzi (`23`), Mac-10 (`24`), MP5 (`25`).
+         - Assault: M4 (`26`), Kruger (`27`).
+         - Snipers: Sniper Rifle (`28`), PSG-1 (`29`).
+         - Heavy: Rocket Launcher / RPG (`30`), Flamethrower (`31`), M60 (`32`), Minigun (`33`).
+         - Thrown: Grenade (`12`), Remote Grenade (`13`), Tear Gas (`14`), Molotov (`15`).
+         - Bundles: Set 1 Thugs (`[1, 6, 15, 17, 19, 22, 27, 28, 31]`), Set 2 Professionals (`[10, 13, 18, 21, 24, 26, 29, 30]`), Set 3 Nutters (`[11, 12, 18, 20, 25, 26, 29, 33]`).
+

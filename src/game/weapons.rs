@@ -72,51 +72,54 @@ pub struct WeaponDef {
 
 pub static WEAPONS: &[WeaponDef] = &[
     // --- Melee ---
-    WeaponDef { weapon_id: 12, name: "Katana", category: WeaponCategory::Melee, description: "Pedang samurai tajam mematikan" },
-    WeaponDef { weapon_id: 13, name: "Chainsaw", category: WeaponCategory::Melee, description: "Gergaji mesin pemotong brutal" },
-    WeaponDef { weapon_id: 7,  name: "Baseball Bat", category: WeaponCategory::Melee, description: "Tongkat bisbol pemukul andalan" },
-    WeaponDef { weapon_id: 6,  name: "Combat Knife", category: WeaponCategory::Melee, description: "Pisau komando taktis berburu" },
+    WeaponDef { weapon_id: 10, name: "Katana", category: WeaponCategory::Melee, description: "Pedang samurai tajam mematikan" },
+    WeaponDef { weapon_id: 11, name: "Chainsaw", category: WeaponCategory::Melee, description: "Gergaji mesin pemotong brutal" },
+    WeaponDef { weapon_id: 6,  name: "Baseball Bat", category: WeaponCategory::Melee, description: "Tongkat bisbol pemukul andalan" },
+    WeaponDef { weapon_id: 5,  name: "Combat Knife", category: WeaponCategory::Melee, description: "Pisau komando taktis berburu" },
     WeaponDef { weapon_id: 1,  name: "Brass Knuckles", category: WeaponCategory::Melee, description: "Keling tinju besi pelindung tangan" },
     WeaponDef { weapon_id: 3,  name: "Golf Club", category: WeaponCategory::Melee, description: "Stik golf Leaf Links panjang" },
-    WeaponDef { weapon_id: 11, name: "Machete", category: WeaponCategory::Melee, description: "Golok parang penebas" },
+    WeaponDef { weapon_id: 9,  name: "Machete", category: WeaponCategory::Melee, description: "Golok parang penebas" },
     WeaponDef { weapon_id: 8,  name: "Meat Cleaver", category: WeaponCategory::Melee, description: "Pisau jagal daging dapur" },
-    WeaponDef { weapon_id: 4,  name: "Hammer", category: WeaponCategory::Melee, description: "Palu besi bangunan" },
-    WeaponDef { weapon_id: 5,  name: "Nightstick", category: WeaponCategory::Melee, description: "Tongkat pentungan polisi" },
+    WeaponDef { weapon_id: 7,  name: "Hammer", category: WeaponCategory::Melee, description: "Palu besi bangunan" },
+    WeaponDef { weapon_id: 4,  name: "Nightstick", category: WeaponCategory::Melee, description: "Tongkat pentungan polisi" },
+    WeaponDef { weapon_id: 2,  name: "Screwdriver", category: WeaponCategory::Melee, description: "Obeng runcing mematikan" },
 
     // --- Pistols ---
     WeaponDef { weapon_id: 18, name: ".357 Python", category: WeaponCategory::Pistols, description: "Revolver Magnum daya rusak super tinggi (1 shot kill)" },
     WeaponDef { weapon_id: 17, name: "Colt .45", category: WeaponCategory::Pistols, description: "Pistol semi-otomatis standar" },
 
     // --- Shotguns ---
-    WeaponDef { weapon_id: 21, name: "SPAS-12", category: WeaponCategory::Shotguns, description: "Shotgun tempur otomatis berdaya hancur tinggi" },
+    WeaponDef { weapon_id: 20, name: "SPAS-12", category: WeaponCategory::Shotguns, description: "Shotgun tempur otomatis berdaya hancur tinggi" },
     WeaponDef { weapon_id: 19, name: "Chrome Shotgun", category: WeaponCategory::Shotguns, description: "Shotgun pompa klasik sebaran luas" },
-    WeaponDef { weapon_id: 20, name: "Stubby Shotgun", category: WeaponCategory::Shotguns, description: "Shotgun laras pendek tembakan cepat" },
+    WeaponDef { weapon_id: 21, name: "Stubby Shotgun", category: WeaponCategory::Shotguns, description: "Shotgun laras pendek tembakan cepat" },
 
     // --- SMG ---
     WeaponDef { weapon_id: 25, name: "MP5", category: WeaponCategory::Smg, description: "Submachine gun akurasi dan stabilitas tinggi" },
-    WeaponDef { weapon_id: 23, name: "Mac-10", category: WeaponCategory::Smg, description: "Submachine gun laju tembak sangat cepat" },
+    WeaponDef { weapon_id: 24, name: "Mac-10", category: WeaponCategory::Smg, description: "Submachine gun laju tembak sangat cepat" },
     WeaponDef { weapon_id: 22, name: "Tec-9", category: WeaponCategory::Smg, description: "Pistol mitraliur kapasitas magasin besar" },
-    WeaponDef { weapon_id: 24, name: "Uzi", category: WeaponCategory::Smg, description: "Senapan mesin mikro lincah" },
+    WeaponDef { weapon_id: 23, name: "Uzi", category: WeaponCategory::Smg, description: "Senapan mesin mikro lincah" },
 
     // --- Assault Rifles ---
-    WeaponDef { weapon_id: 27, name: "M4", category: WeaponCategory::Assault, description: "Senapan serbu militer otomatis jarak jauh terbaik" },
-    WeaponDef { weapon_id: 26, name: "Kruger (Ruger)", category: WeaponCategory::Assault, description: "Senapan tempur presisi semi/otomatis" },
+    WeaponDef { weapon_id: 26, name: "M4", category: WeaponCategory::Assault, description: "Senapan serbu militer otomatis jarak jauh terbaik" },
+    WeaponDef { weapon_id: 27, name: "Kruger (Ruger)", category: WeaponCategory::Assault, description: "Senapan tempur presisi semi/otomatis" },
 
     // --- Heavy ---
-    WeaponDef { weapon_id: 30, name: "Minigun", category: WeaponCategory::Heavy, description: "Meriam putar 6 laras perontok semua kendaraan & lawan" },
-    WeaponDef { weapon_id: 28, name: "Rocket Launcher (RPG)", category: WeaponCategory::Heavy, description: "Peluncur roket penghancur tank & helikopter" },
-    WeaponDef { weapon_id: 29, name: "Flame Thrower", category: WeaponCategory::Heavy, description: "Penyembur api pembakar area" },
-    WeaponDef { weapon_id: 31, name: "M60", category: WeaponCategory::Heavy, description: "Senapan mesin berat militer bertenaga besar" },
+    WeaponDef { weapon_id: 33, name: "Minigun", category: WeaponCategory::Heavy, description: "Meriam putar 6 laras perontok semua kendaraan & lawan" },
+    WeaponDef { weapon_id: 30, name: "Rocket Launcher (RPG)", category: WeaponCategory::Heavy, description: "Peluncur roket penghancur tank & helikopter" },
+    WeaponDef { weapon_id: 31, name: "Flame Thrower", category: WeaponCategory::Heavy, description: "Penyembur api pembakar area" },
+    WeaponDef { weapon_id: 32, name: "M60", category: WeaponCategory::Heavy, description: "Senapan mesin berat militer bertenaga besar" },
 
     // --- Snipers ---
-    WeaponDef { weapon_id: 33, name: "PSG-1 (Laser Scope)", category: WeaponCategory::Snipers, description: "Sniper rifle semi-otomatis dengan teropong laser" },
-    WeaponDef { weapon_id: 32, name: "Sniper Rifle", category: WeaponCategory::Snipers, description: "Senapan runduk jarak jauh akurat" },
+    WeaponDef { weapon_id: 29, name: "PSG-1 (Laser Scope)", category: WeaponCategory::Snipers, description: "Sniper rifle semi-otomatis dengan teropong laser" },
+    WeaponDef { weapon_id: 28, name: "Sniper Rifle", category: WeaponCategory::Snipers, description: "Senapan runduk jarak jauh akurat" },
 
     // --- Thrown ---
-    WeaponDef { weapon_id: 14, name: "Grenade", category: WeaponCategory::Thrown, description: "Granat lempar ledakan dahsyat" },
-    WeaponDef { weapon_id: 16, name: "Molotov Cocktail", category: WeaponCategory::Thrown, description: "Bom botol pembakar api" },
-    WeaponDef { weapon_id: 15, name: "Remote Grenade", category: WeaponCategory::Thrown, description: "Granat bom peledak detonator jarak jauh" },
-    WeaponDef { weapon_id: 10, name: "Tear Gas", category: WeaponCategory::Thrown, description: "Granat gas air mata pelumpuh" },
+    WeaponDef { weapon_id: 12, name: "Grenade", category: WeaponCategory::Thrown, description: "Granat lempar ledakan dahsyat" },
+    WeaponDef { weapon_id: 15, name: "Molotov Cocktail", category: WeaponCategory::Thrown, description: "Bom botol pembakar api" },
+    WeaponDef { weapon_id: 13, name: "Remote Grenade", category: WeaponCategory::Thrown, description: "Granat bom peledak detonator jarak jauh" },
+    WeaponDef { weapon_id: 14, name: "Tear Gas", category: WeaponCategory::Thrown, description: "Granat gas air mata pelumpuh" },
+    WeaponDef { weapon_id: 36, name: "Camera", category: WeaponCategory::Thrown, description: "Kamera pengintai foto" },
+    WeaponDef { weapon_id: 34, name: "Detonator", category: WeaponCategory::Thrown, description: "Pemicu ledakan bom detonator" },
 ];
 
 struct CategoryFilterRow;
@@ -184,11 +187,11 @@ impl RowData for WeaponBundleRow {
 
         let weapons: &[u32] = match self.bundle_id {
             // Set 1 (Thugs)
-            1 => &[1, 6, 16, 17, 19, 22, 26, 32, 29],
+            1 => &[1, 6, 15, 17, 19, 22, 27, 28, 31],
             // Set 2 (Professionals)
-            2 => &[12, 15, 18, 20, 23, 27, 33, 28],
+            2 => &[10, 13, 18, 21, 24, 26, 29, 30],
             // Set 3 (Nutters)
-            _ => &[13, 14, 18, 21, 25, 27, 33, 30],
+            _ => &[11, 12, 18, 20, 25, 26, 29, 33],
         };
 
         for &wid in weapons {
@@ -251,7 +254,7 @@ pub fn tab_data() -> TabData {
         rows.push(Box::new(WeaponBundleRow {
             bundle_id: 1,
             name: "PAKET 1: THUG TOOLS",
-            detail: "Katana/Pisau, Molotov, Pistol .45, Shotgun, Tec-9, Kruger, Sniper, Flamethrower",
+            detail: "Brass Knuckles, Bat, Molotov, Colt .45, Shotgun, Tec-9, Kruger, Sniper, Flamethrower",
             activated: false,
         }));
         rows.push(Box::new(WeaponBundleRow {

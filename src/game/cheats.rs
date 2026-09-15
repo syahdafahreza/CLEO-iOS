@@ -827,9 +827,18 @@ pub fn init() {
 fn call_vc_cheat(index: usize) {
     match index {
         // Weapons
-        0 => hook::slide_fn::<extern "C" fn()>(0x000795b8)(), // THUGSTOOLS
-        1 => hook::slide_fn::<extern "C" fn()>(0x0007946c)(), // PROFESSIONALTOOLS
-        2 => hook::slide_fn::<extern "C" fn()>(0x00079314)(), // NUTTERTOOLS
+        0 => {
+            crate::game::player::INFINITE_AMMO.store(true, std::sync::atomic::Ordering::Relaxed);
+            hook::slide_fn::<extern "C" fn()>(0x000795b8)(); // THUGSTOOLS
+        }
+        1 => {
+            crate::game::player::INFINITE_AMMO.store(true, std::sync::atomic::Ordering::Relaxed);
+            hook::slide_fn::<extern "C" fn()>(0x0007946c)(); // PROFESSIONALTOOLS
+        }
+        2 => {
+            crate::game::player::INFINITE_AMMO.store(true, std::sync::atomic::Ordering::Relaxed);
+            hook::slide_fn::<extern "C" fn()>(0x00079314)(); // NUTTERTOOLS
+        }
 
         // Health, Armor & Wanted
         3 => hook::slide_fn::<extern "C" fn()>(0x00077e34)(), // PRECIOUSPROTECTION (Armor 100%)

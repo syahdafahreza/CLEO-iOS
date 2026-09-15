@@ -262,6 +262,49 @@ pub fn queue_spawn_vehicle(model_id: u32) {
     }
 }
 
+/// Returns the streaming model IDs required for a given weapon ID in GTA Vice City.
+pub fn get_weapon_models(weapon_id: u32) -> &'static [u32] {
+    match weapon_id {
+        1 => &[259],       // Brass Knuckles
+        2 => &[260],       // Screwdriver
+        3 => &[261],       // Golf Club
+        4 => &[262],       // Nightstick
+        5 => &[263],       // Knife
+        6 => &[264],       // Baseball Bat
+        7 => &[265],       // Hammer
+        8 => &[266],       // Cleaver
+        9 => &[267],       // Machete
+        10 => &[268],      // Katana
+        11 => &[269],      // Chainsaw
+        12 => &[270],      // Grenade
+        13 => &[270, 291], // Detonator Grenade + Detonator
+        14 => &[271],      // Tear Gas
+        15 => &[272],      // Molotov
+        16 => &[273],      // Rocket projectile
+        17 => &[274],      // Colt .45
+        18 => &[275],      // .357 Python
+        19 => &[277],      // Shotgun (Chrome)
+        20 => &[278],      // SPAS-12
+        21 => &[279],      // Stubby Shotgun
+        22 => &[281],      // Tec-9
+        23 => &[282],      // Uzi
+        24 => &[283],      // Mac-10 (Silenced Ingram)
+        25 => &[284],      // MP5
+        26 => &[280],      // M4
+        27 => &[276],      // Kruger (Ruger)
+        28 => &[285],      // Sniper Rifle
+        29 => &[286],      // Laser Scope (PSG-1)
+        30 => &[287],      // Rocket Launcher (RPG)
+        31 => &[288],      // Flame Thrower
+        32 => &[289],      // M60
+        33 => &[290, 294], // Minigun (base + barrel)
+        34 => &[291],      // Detonator
+        35 => &[289],      // Heli Cannon
+        36 => &[292],      // Camera
+        _ => &[],
+    }
+}
+
 /// Queues a weapon to be given to Tommy with ammo.
 pub fn queue_give_weapon(weapon_id: u32, ammo: u32) {
     if let Ok(mut q) = QUEUED_WEAPONS.lock() {
@@ -324,14 +367,34 @@ pub fn tick() {
             }
         }
 
-        // 3. Process queued weapons
+        // 3. Process queued weapons (with streaming model loading)
         if let Ok(mut q) = QUEUED_WEAPONS.lock() {
             let ped = find_player_ped();
-            if !ped.is_null() {
-                for (wid, ammo) in q.drain(..) {
+            if !ped.is_null() && !q.is_empty() {
+                let weapons: Vec<(u32, u32)> = q.drain(..).collect();
+
+                // 3a. Request all required models from CStreaming
+                for &(wid, _) in &weapons {
+                    for &mid in get_weapon_models(wid) {
+                        hook::slide_fn::<extern "C" fn(u32, u32)>(0x00099414)(mid, 1);
+                    }
+                }
+
+                // 3b. Synchronously load all requested models
+                hook::slide_fn::<extern "C" fn(u8)>(0x0009c55c)(0);
+
+                // 3c. Give weapons to Tommy
+                for &(wid, ammo) in &weapons {
                     hook::slide_fn::<extern "C" fn(*mut u8, u32, u32, u32) -> u32>(0x00126cd4)(
                         ped, wid, ammo, 1,
                     );
+                }
+
+                // 3d. Mark models as deletable so CStreaming cache is managed normally
+                for &(wid, _) in &weapons {
+                    for &mid in get_weapon_models(wid) {
+                        hook::slide_fn::<extern "C" fn(u32)>(0x0009ab9c)(mid);
+                    }
                 }
             }
         }

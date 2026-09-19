@@ -199,14 +199,14 @@ pub fn spawn_vehicle_direct(model_id: u32) -> *mut u8 {
             (0.0, 1.0)
         };
 
-        // Determine vehicle class: Boats in GTA III iOS (verified from binary model table):
-        // 119 (predator), 141 (speeder), 142 (reefer)
-        let is_boat = matches!(model_id, 119 | 141 | 142);
+        // Determine vehicle class: Boats in GTA III (verified from default.ide in IPA):
+        // 120 (predator), 142 (speeder), 143 (reefer), 150 (ghost)
+        let is_boat = matches!(model_id, 120 | 142 | 143 | 150);
         let in_car = !find_player_vehicle().is_null();
         let dist = if in_car {
             8.5f32
         } else if is_boat {
-            10.0f32
+            12.0f32
         } else {
             6.5f32
         };
@@ -220,12 +220,14 @@ pub fn spawn_vehicle_direct(model_id: u32) -> *mut u8 {
             spawn_y.to_bits(),
         );
         let ground_z = f32::from_bits(gz_bits);
-        // If ground_z is within 3 meters of player, use it; otherwise reject bogus raycast results (like 20.0f default)
-        let base_z = if (ground_z - pz).abs() < 3.0 && !ground_z.is_nan() {
+        // If ground_z is valid and near player, use it; otherwise fall back to player Z
+        let base_z = if (ground_z - pz).abs() < 5.0 && !ground_z.is_nan() {
             ground_z
         } else {
-            pz - 0.5f32
+            pz
         };
+
+        let heading = (-dir_x).atan2(dir_y);
 
         if is_boat {
             // Allocate CBoat (0x5AC bytes)
@@ -236,23 +238,23 @@ pub fn spawn_vehicle_direct(model_id: u32) -> *mut u8 {
             // Construct CBoat(veh, model_id, 2) - MISSION_VEHICLE
             hook::slide_fn::<extern "C" fn(*mut u8, u32, u8) -> *mut u8>(0x00068e1c)(veh, model_id, 2);
 
-            // Set boat orientation FIRST using native CMatrix::SetRotate (0x0005A9D0).
-            // NOTE: SetRotate zeroes the translation vector (pos.x, pos.y, pos.z)!
-            // Therefore SetRotate MUST be called BEFORE writing spawn coordinates.
-            let heading = (-dir_x).atan2(dir_y);
-            hook::slide_fn::<extern "C" fn(*mut u8, u32, u32, u32)>(0x0005a9d0)(
+            // Set boat orientation using native CMatrix::RotateZ (0x0005AAB0).
+            // Matches native GTA III caller at 0x0000DA62.
+            hook::slide_fn::<extern "C" fn(*mut u8, u32)>(0x0005aab0)(
                 veh.add(0x04),
-                0,
-                0,
                 heading.to_bits(),
             );
 
-            let spawn_z = pz + 0.2f32;
+            let spawn_z = pz + 0.5f32;
 
-            // Set spawn coordinates into the embedded CMatrix position (veh + 0x34..0x3C) AFTER SetRotate
+            // Set spawn coordinates into the embedded CMatrix position (veh + 0x34..0x3C)
             *(veh.add(0x34) as *mut f32) = spawn_x;
             *(veh.add(0x38) as *mut f32) = spawn_y;
             *(veh.add(0x3c) as *mut f32) = spawn_z;
+
+            // Clear area around vehicle using native CCarCtrl::ClearAreaAroundVehicle (0x000C5064)
+            let target_pos = [spawn_x, spawn_y, spawn_z];
+            hook::slide_fn::<extern "C" fn(*const f32, *mut u8)>(0x000c5064)(target_pos.as_ptr(), veh);
 
             // Zero linear & angular momentum (0x000B31F0)
             hook::slide_fn::<extern "C" fn(*mut u8)>(0x000b31f0)(veh);
@@ -263,6 +265,11 @@ pub fn spawn_vehicle_direct(model_id: u32) -> *mut u8 {
 
             // Set bIsCheatedCar = 1 (veh + 0x1F9, bit 3)
             *(veh.add(0x1f9) as *mut u8) |= 8;
+
+            // Boat physics limits (matches native CREATE_BOAT at 0x000456A2..0x000456B0)
+            *(veh.add(0x15e) as *mut u8) = 0;
+            *(veh.add(0x164) as *mut f32) = 9.0f32;
+            *(veh.add(0x168) as *mut u8) = 9;
 
             // Set bIsBoat flag at veh + 0x1FB, bit 2 (matches native boat opcode 0x000456DA)
             *(veh.add(0x1fb) as *mut u8) |= 4;
@@ -283,35 +290,35 @@ pub fn spawn_vehicle_direct(model_id: u32) -> *mut u8 {
             // CreatedBy = 2 (MISSION_VEHICLE) guarantees CCarCtrl::Prune does NOT cull the vehicle.
             hook::slide_fn::<extern "C" fn(*mut u8, u32, u8) -> *mut u8>(0x0009c23c)(veh, model_id, 2);
 
-            // Set vehicle orientation FIRST using native CMatrix::SetRotate (0x0005A9D0).
-            // Args: (matrix, angle_x = 0, angle_y = 0, angle_z = heading).
-            // Passing 0 for X (pitch) and 0 for Y (roll) guarantees the vehicle is 100% upright.
-            // NOTE: SetRotate zeroes the translation vector (pos.x, pos.y, pos.z)!
-            // Therefore SetRotate MUST be called BEFORE writing spawn coordinates.
-            let heading = (-dir_x).atan2(dir_y);
-            hook::slide_fn::<extern "C" fn(*mut u8, u32, u32, u32)>(0x0005a9d0)(
+            // Set vehicle orientation using native CMatrix::RotateZ (0x0005AAB0).
+            // Matches native GTA III callers at 0x0000DA62 and 0x0000E2FC.
+            // Rotates only around Z axis, preserving upright level matrix, RwMatrix flags, and child frames.
+            hook::slide_fn::<extern "C" fn(*mut u8, u32)>(0x0005aab0)(
                 veh.add(0x04),
-                0,
-                0,
                 heading.to_bits(),
             );
 
-            // Calculate height above ground using model collision bounds.
+            // Calculate height above ground using model collision bounds (0x0002C970).
             let h_bits = hook::slide_fn::<extern "C" fn(*mut u8) -> u32>(0x0002c970)(veh);
             let height_from_base = f32::from_bits(h_bits);
             let valid_height = if height_from_base.is_nan() || height_from_base <= 0.0 || height_from_base > 5.0 {
-                0.75f32
+                0.85f32
             } else {
                 height_from_base
             };
-            // Spawn the car with tyres just touching the ground (+0.15m clearance)
-            let spawn_z = base_z + valid_height + 0.15f32;
+            // Drop car gently (+0.6m above ground contact) so tires hit the road cleanly
+            // and suspension compresses naturally without polygon intersection glitches.
+            let spawn_z = base_z + valid_height + 0.6f32;
 
             // Set spawn coordinates into the embedded CMatrix translation vector (veh + 0x34..0x3C)
-            // AFTER SetRotate so coordinates are preserved and car appears at the correct position.
             *(veh.add(0x34) as *mut f32) = spawn_x;
             *(veh.add(0x38) as *mut f32) = spawn_y;
             *(veh.add(0x3c) as *mut f32) = spawn_z;
+
+            // Clear area around vehicle using native CCarCtrl::ClearAreaAroundVehicle (0x000C5064)
+            // Matches native 0x0004554C and VehicleCheat 0x000C0A60.
+            let target_pos = [spawn_x, spawn_y, spawn_z];
+            hook::slide_fn::<extern "C" fn(*const f32, *mut u8)>(0x000c5064)(target_pos.as_ptr(), veh);
 
             // Zero linear & angular momentum (0x000B31F0 - matches native CREATE_CAR)
             hook::slide_fn::<extern "C" fn(*mut u8)>(0x000b31f0)(veh);
@@ -340,6 +347,7 @@ pub fn spawn_vehicle_direct(model_id: u32) -> *mut u8 {
                 model_id, spawn_x, spawn_y, spawn_z, heading
             );
             veh
+        }
         }
     }
     #[cfg(target_pointer_width = "64")]

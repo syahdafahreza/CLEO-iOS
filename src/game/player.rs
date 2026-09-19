@@ -147,16 +147,22 @@ pub fn is_model_loaded(model_id: u32) -> bool {
     false
 }
 
-/// Spawns a vehicle directly in front of Claude using Rockstar's native vehicle creation logic:
-///   - CStreaming::RequestModel: 0x0011AEF0 (flags: 1 = GAME_REQUIRED)
-///   - CStreaming::LoadAllRequestedModels: 0x0011D954
-///   - CWorld::FindGroundZForCoord: 0x00038B48
-///   - GetDistanceFromCentreOfMassToBaseOfModel: 0x0002C970
-///   - operator new: 0x001388DC
-///   - CAutomobile::CAutomobile: 0x0009C23C (size 0x488)
-///   - CBoat::CBoat: 0x00068E1C (size 0x5AC)
-///   - ClearAreaOfCars: 0x000C5064 (&target_pos, veh)
-///   - CWorld::Add: 0x0003B090
+/// Spawns a vehicle directly in front of Claude using Rockstar's native vehicle creation logic.
+///
+/// Sequence mirrors GTA III's native CCheat::VehicleCheat (re3 reference):
+///   1. CStreaming::RequestModel (0x0011AEF0, flag 1 = GAME_REQUIRED)
+///   2. CStreaming::LoadAllRequestedModels (0x0011D954)
+///   3. operator new (0x001388DC)
+///   4. CAutomobile::CAutomobile(veh, model_id, RANDOM_VEHICLE=1) (0x0009C23C, size 0x488)
+///   5. CMatrix::SetRotateZ on the vehicle matrix (0x0005A904)
+///   6. Write position directly into the embedded CMatrix
+///   7. CWorld::Add(veh) (0x0003B090)
+///
+/// IMPORTANT: CWorld::AlignToGroundAndRoof (0x000C5064) is intentionally NOT called here.
+/// When spawning near bridges/overpasses it would compress the vehicle between the
+/// ground and the bridge underside, causing "invisible rectangle" visual artifact,
+/// extreme down-force physics, and wheel instability. The native VehicleCheat does
+/// not call AlignToGroundAndRoof either.
 pub fn spawn_vehicle_direct(model_id: u32) -> *mut u8 {
     #[cfg(target_pointer_width = "32")]
     unsafe {
@@ -226,23 +232,21 @@ pub fn spawn_vehicle_direct(model_id: u32) -> *mut u8 {
             if veh.is_null() {
                 return std::ptr::null_mut();
             }
+            // Construct CBoat(veh, model_id, RANDOM_VEHICLE=1)
             hook::slide_fn::<extern "C" fn(*mut u8, u32, u8) -> *mut u8>(0x00068e1c)(veh, model_id, 1);
 
             let spawn_z = pz + 0.2f32;
 
-            // Rotate boat matrix around Z using native CMatrix::RotateZ (0x0005A904)
-            // Preserves all RenderWare matrix flags and pointers
+            // Rotate boat matrix around Z using native CMatrix::SetRotateZ (0x0005A904).
+            // GTA III uses softfp ABI: floats are passed in general registers (r0/r1),
+            // so we pass heading.to_bits() as u32 which is placed in r1 — correct for softfp.
             let heading = (-dir_x).atan2(dir_y);
             hook::slide_fn::<extern "C" fn(*mut u8, u32)>(0x0005a904)(veh.add(0x04), heading.to_bits());
 
-            // Set spawn coordinates
+            // Set spawn coordinates into the embedded CMatrix position (veh+0x34..0x3C)
             *(veh.add(0x34) as *mut f32) = spawn_x;
             *(veh.add(0x38) as *mut f32) = spawn_y;
             *(veh.add(0x3c) as *mut f32) = spawn_z;
-
-            // Clear colliding entities in area
-            let target_pos = [spawn_x, spawn_y, spawn_z];
-            hook::slide_fn::<extern "C" fn(*const f32, *mut u8)>(0x000c5064)(target_pos.as_ptr(), veh);
 
             // Set status to STATUS_ABANDONED (4)
             let status_flags = veh.add(0x53) as *mut u8;
@@ -250,7 +254,7 @@ pub fn spawn_vehicle_direct(model_id: u32) -> *mut u8 {
 
             // Add vehicle entity to CWorld
             hook::slide_fn::<extern "C" fn(*mut u8)>(0x0003b090)(veh);
-            log::info!("spawn_vehicle_direct: Boat {} spawned successfully at ({:.2}, {:.2}, {:.2})", model_id, spawn_x, spawn_y, spawn_z);
+            log::info!("spawn_vehicle_direct: Boat {} spawned at ({:.2}, {:.2}, {:.2})", model_id, spawn_x, spawn_y, spawn_z);
             veh
         } else {
             // Allocate CAutomobile (0x488 bytes)
@@ -259,49 +263,63 @@ pub fn spawn_vehicle_direct(model_id: u32) -> *mut u8 {
                 return std::ptr::null_mut();
             }
 
-            // Construct CAutomobile(veh, model_id, 2)
-            hook::slide_fn::<extern "C" fn(*mut u8, u32, u8) -> *mut u8>(0x0009c23c)(veh, model_id, 2);
+            // Construct CAutomobile(veh, model_id, RANDOM_VEHICLE=1).
+            // Use type 1 (RANDOM_VEHICLE) matching CCheat::VehicleCheat native behavior.
+            // Type 2 (MISSION_VEHICLE) can cause different physics/despawn behavior.
+            hook::slide_fn::<extern "C" fn(*mut u8, u32, u8) -> *mut u8>(0x0009c23c)(veh, model_id, 1);
 
-            // Calculate height above ground using model collision bounds
+            // Calculate height above ground using model collision bounds.
+            // GetDistanceFromCentreOfMassToBaseOfModel(veh) → half-height of vehicle model.
             let h_bits = hook::slide_fn::<extern "C" fn(*mut u8) -> u32>(0x0002c970)(veh);
             let height_from_base = f32::from_bits(h_bits);
             let valid_height = if height_from_base.is_nan() || height_from_base <= 0.0 || height_from_base > 5.0 {
-                0.7f32
+                0.75f32   // safe default for most GTA III cars (~sedan half-height)
             } else {
                 height_from_base
             };
-            let spawn_z = base_z + valid_height + 0.1f32;
+            // Spawn the car slightly above ground so suspension can settle naturally.
+            let spawn_z = base_z + valid_height + 0.25f32;
 
-            // Rotate vehicle matrix around Z using native CMatrix::RotateZ (0x0005A904)
-            // This preserves all RenderWare matrix flags (preventing component slicing / invisible plane bug)
+            // Rotate vehicle matrix around Z using native CMatrix::SetRotateZ (0x0005A904).
+            // GTA III iOS uses softfp ABI: float is passed in r1, so heading.to_bits() as u32
+            // is placed in r1 — identical to what the C function expects (softfp convention).
             let heading = (-dir_x).atan2(dir_y);
             hook::slide_fn::<extern "C" fn(*mut u8, u32)>(0x0005a904)(veh.add(0x04), heading.to_bits());
 
-            // Set spawn coordinates directly in vehicle matrix
+            // Write position into the embedded CMatrix translation vector (veh + 0x34..0x3C).
+            // This is equivalent to CPlaceable::SetPosition — identical memory layout.
             *(veh.add(0x34) as *mut f32) = spawn_x;
             *(veh.add(0x38) as *mut f32) = spawn_y;
             *(veh.add(0x3c) as *mut f32) = spawn_z;
 
-            // Clear overlapping cars from the spawn area (matches CREATE_CAR & CCheat::VehicleCheat 0x000C5064)
-            let target_pos = [spawn_x, spawn_y, spawn_z];
-            hook::slide_fn::<extern "C" fn(*const f32, *mut u8)>(0x000c5064)(target_pos.as_ptr(), veh);
-
-            // Set status to STATUS_ABANDONED (4)
+            // Set status to STATUS_ABANDONED (4): bits 3-5 in the entity flags byte at +0x53.
             let status_flags = veh.add(0x53) as *mut u8;
             *status_flags = (*status_flags & !0x38) | (4 << 3);
 
-            // Set bIsCheatedCar = 1 (veh + 0x1f9 |= 8)
+            // Mark as cheated car (bIsCheatedCar flag at veh + 0x1F9, bit 3).
             *(veh.add(0x1f9) as *mut u8) |= 8;
 
-            // Crucial Automobile physics/suspension setup (matches CREATE_CAR & CCheat::VehicleCheat):
+            // Physics / suspension correction (verified against CREATE_CAR opcode 0x00045570
+            // and native VehicleCheat 0x000C0A86 disassembly):
+            //   +0x15E: bStuckOnRound flag → 0
+            //   +0x15F: wheel-stuck bitfield  → 0
+            //   +0x164: max spring length (f32) → 20.0  (avoids zero-length spring collapse)
+            //   +0x168: spring-iterations byte  → 20
             *(veh.add(0x15e) as *mut u8) = 0;
             *(veh.add(0x15f) as *mut u8) = 0;
-            *(veh.add(0x164) as *mut f32) = 20.0f32; // max suspension length / spring limit
+            *(veh.add(0x164) as *mut f32) = 20.0f32;
             *(veh.add(0x168) as *mut u8) = 20;
 
-            // Add vehicle entity to CWorld
+            // Add vehicle entity to CWorld (registers in spatial sectors for collision + rendering).
+            // NOTE: CWorld::AlignToGroundAndRoof (0x000C5064) is intentionally skipped.
+            // That function detects overhead geometry (bridges, overpasses) and compresses the
+            // vehicle's Z between ground and ceiling, causing: invisible rectangle shadow artifact,
+            // extreme-gravity physics, and wheel instability. Native VehicleCheat never calls it.
             hook::slide_fn::<extern "C" fn(*mut u8)>(0x0003b090)(veh);
-            log::info!("spawn_vehicle_direct: Automobile {} spawned successfully at ({:.2}, {:.2}, {:.2})", model_id, spawn_x, spawn_y, spawn_z);
+            log::info!(
+                "spawn_vehicle_direct: Automobile {} spawned at ({:.2}, {:.2}, {:.2}) heading={:.2}rad",
+                model_id, spawn_x, spawn_y, spawn_z, heading
+            );
             veh
         }
     }
@@ -463,21 +481,19 @@ pub fn tick() {
                 // 3b. Synchronously load all requested models
                 hook::slide_fn::<extern "C" fn(u8)>(0x0011d954)(0);
 
-                // 3c. Give weapons to Claude via CPed::GiveWeapon
+                // 3c. Give weapons to Claude via CPed::GiveWeapon(ped, weapon_type, ammo)
                 for &(wid, ammo) in &weapons {
                     if wid >= 1 && wid <= 11 {
-                        hook::slide_fn::<extern "C" fn(*mut u8, u32, u32, u32) -> u32>(0x000de170)(
-                            ped, wid, ammo, 1,
+                        hook::slide_fn::<extern "C" fn(*mut u8, u32, u32)>(0x000de170)(
+                            ped, wid, ammo,
                         );
                     }
                 }
 
-                // 3d. Mark models as deletable so CStreaming cache is managed normally
-                for &(wid, _) in &weapons {
-                    for &mid in get_weapon_models(wid) {
-                        hook::slide_fn::<extern "C" fn(u32)>(0x0011c210)(mid);
-                    }
-                }
+                // NOTE: CStreaming::SetModelIsDeletable (0x0011c210) is intentionally NOT
+                // called here. Weapon models in GTA III must remain resident in memory
+                // while the player has them; marking them deletable causes CStreaming to
+                // purge them and crash with EXC_BAD_ACCESS when rendered or used.
             }
         }
 
@@ -512,20 +528,19 @@ pub fn tick() {
                 }
             }
 
-            // Infinite Ammo: keep ammo and clip full across all 12 weapon slots (ped + 0x360 + slot * 0x18)
+            // Infinite Ammo: keep total ammo refilled for firearms & throwables (slots 2..=11).
+            // Skip slot 0 (unarmed) and slot 1 (baseball bat has no ammo).
+            // Clip ammo is managed natively by CWeapon::Update / Reload; do not overwrite clip
+            // directly as that breaks non-clip weapons (RPG, Bat, Grenades, Molotovs).
             if INFINITE_AMMO.load(Ordering::Relaxed) {
                 unsafe {
-                    for slot in 0..12 {
+                    for slot in 2..=11 {
                         let wep_ptr = ped.add(0x360 + slot * 0x18);
                         let wep_type = *(wep_ptr as *const u32);
                         if wep_type > 0 {
-                            let clip_ptr = wep_ptr.add(0x08) as *mut u32;
                             let total_ptr = wep_ptr.add(0x0c) as *mut u32;
                             if *total_ptr < 9000 {
                                 *total_ptr = 9999;
-                            }
-                            if *clip_ptr < 50 {
-                                *clip_ptr = 99;
                             }
                         }
                     }

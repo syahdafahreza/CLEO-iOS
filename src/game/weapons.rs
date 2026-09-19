@@ -217,17 +217,28 @@ impl RowData for WeaponBundleRow {
         // Automatically enable infinite ammo when taking weapons
         player::INFINITE_AMMO.store(true, Ordering::Relaxed);
 
-        let weapons: &[u32] = match self.bundle_id {
-            // Set 1 (Street / Standard)
-            1 => &[1, 2, 3, 4, 11],
-            // Set 2 (Tactical / SWAT)
-            2 => &[1, 2, 3, 4, 5, 6, 7, 10],
-            // Set 3 (Heavy / Mayhem - All Weapons)
-            _ => &[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
-        };
+        if self.bundle_id == 3 {
+            // Bundle 3: Native GTA III Weapons Cheat (gives all 11 weapons natively & safely)
+            #[cfg(target_pointer_width = "32")]
+            unsafe {
+                crate::hook::slide_fn::<extern "C" fn()>(0x000c0c70)();
+            }
+            // Top up ammo to 9999 for firearm & throwable weapons (skip Bat: wid=1)
+            for wid in 2..=11 {
+                player::queue_give_weapon(wid, 9999);
+            }
+        } else {
+            let weapons: &[u32] = match self.bundle_id {
+                // Set 1 (Street / Standard)
+                1 => &[1, 2, 3, 4, 11],
+                // Set 2 (Tactical / SWAT)
+                _ => &[1, 2, 3, 4, 5, 6, 7, 10],
+            };
 
-        for &wid in weapons {
-            player::queue_give_weapon(wid, 9999);
+            for &wid in weapons {
+                let ammo = if wid == 1 { 0 } else { 9999 };
+                player::queue_give_weapon(wid, ammo);
+            }
         }
 
         self.activated = true;
@@ -268,7 +279,8 @@ impl RowData for WeaponRow {
     fn handle_tap(&mut self) -> bool {
         // Automatically ensure infinite ammo is also active
         player::INFINITE_AMMO.store(true, Ordering::Relaxed);
-        player::queue_give_weapon(self.def.weapon_id, 9999);
+        let ammo = if self.def.weapon_id == 1 { 0 } else { 9999 };
+        player::queue_give_weapon(self.def.weapon_id, ammo);
         self.activated = true;
         true
     }

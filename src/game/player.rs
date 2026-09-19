@@ -232,14 +232,26 @@ pub fn spawn_vehicle_direct(model_id: u32) -> *mut u8 {
             if veh.is_null() {
                 return std::ptr::null_mut();
             }
-            // Construct CBoat(veh, model_id, 2)
-            hook::slide_fn::<extern "C" fn(*mut u8, u32, u8) -> *mut u8>(0x00068e1c)(veh, model_id, 2);
+            // Construct CBoat(veh, model_id, 3) - matches CCarCtrl (0x000ADC7C)
+            hook::slide_fn::<extern "C" fn(*mut u8, u32, u8) -> *mut u8>(0x00068e1c)(veh, model_id, 3);
+
+            // Crucial: Clear bIsStatic flag (bit 10, mask 0x400) on veh + 0x53 (matches CCarCtrl 0x000ADC8E).
+            // When bIsStatic is cleared, the vehicle is properly recognized as dynamic, allowing
+            // normal ped entry/exit door animations without teleportation or collision obstacles.
+            let flags_ptr = veh.add(0x53) as *mut u32;
+            *flags_ptr &= !0x400;
+
+            // Clear bit 0x10 on veh + 0x1F9 (matches CCarCtrl 0x000ADC9E)
+            *(veh.add(0x1f9) as *mut u8) &= !0x10;
 
             let spawn_z = pz + 0.2f32;
 
+            // Set spawn coordinates into the embedded CMatrix position (veh + 0x34..0x3C)
+            *(veh.add(0x34) as *mut f32) = spawn_x;
+            *(veh.add(0x38) as *mut f32) = spawn_y;
+            *(veh.add(0x3c) as *mut f32) = spawn_z;
+
             // Set boat orientation using native CMatrix::SetRotate (0x0005A9D0).
-            // Args: (matrix, angle_x = 0, angle_y = 0, angle_z = heading)
-            // Softfp ABI: passed in r0, r1, r2, r3. Keeps roll & pitch strictly 0 (100% upright).
             let heading = (-dir_x).atan2(dir_y);
             hook::slide_fn::<extern "C" fn(*mut u8, u32, u32, u32)>(0x0005a9d0)(
                 veh.add(0x04),
@@ -248,17 +260,15 @@ pub fn spawn_vehicle_direct(model_id: u32) -> *mut u8 {
                 heading.to_bits(),
             );
 
-            // Set spawn coordinates into the embedded CMatrix position (veh+0x34..0x3C)
-            *(veh.add(0x34) as *mut f32) = spawn_x;
-            *(veh.add(0x38) as *mut f32) = spawn_y;
-            *(veh.add(0x3c) as *mut f32) = spawn_z;
-
             // Zero linear & angular momentum (0x000B31F0)
             hook::slide_fn::<extern "C" fn(*mut u8)>(0x000b31f0)(veh);
 
-            // Set status to STATUS_ABANDONED (4)
-            let status_flags = veh.add(0x53) as *mut u8;
-            *status_flags = (*status_flags & !0x38) | (4 << 3);
+            // Set status to STATUS_ABANDONED (4): (flags & 0x07) | (4 << 3)
+            let status_byte = veh.add(0x53) as *mut u8;
+            *status_byte = (*status_byte & 0x07) | (4 << 3);
+
+            // Set veh + 0x228 = 1 (matches CCarCtrl / VehicleCheat 0x000C0B72)
+            *(veh.add(0x228) as *mut u32) = 1;
 
             // Add vehicle entity to CWorld
             hook::slide_fn::<extern "C" fn(*mut u8)>(0x0003b090)(veh);
@@ -271,27 +281,40 @@ pub fn spawn_vehicle_direct(model_id: u32) -> *mut u8 {
                 return std::ptr::null_mut();
             }
 
-            // Construct CAutomobile(veh, model_id, 2)
-            // Matches native GTA III CREATE_CAR opcode 00A5 and CCheat::VehicleCheat (0x000C0A04).
-            hook::slide_fn::<extern "C" fn(*mut u8, u32, u8) -> *mut u8>(0x0009c23c)(veh, model_id, 2);
+            // Construct CAutomobile(veh, model_id, 3)
+            // Matches native traffic spawning in CCarCtrl::GenerateOneRandomCar (0x000AD9D8).
+            hook::slide_fn::<extern "C" fn(*mut u8, u32, u8) -> *mut u8>(0x0009c23c)(veh, model_id, 3);
+
+            // Crucial: Clear bIsStatic flag (bit 10, mask 0x400) on veh + 0x53 (matches CCarCtrl 0x000AD9E8).
+            // When bIsStatic was left set, the engine treated the vehicle as an immovable collision barrier,
+            // which created the "invisible rectangle plane" collision box around the car, prevented Claude
+            // from walking near the doors, broke car entry/exit animations (forcing instant teleportation),
+            // and locked physics.
+            let flags_ptr = veh.add(0x53) as *mut u32;
+            *flags_ptr &= !0x400;
+
+            // Clear bit 0x10 on veh + 0x1F9 (matches CCarCtrl 0x000AD9F6)
+            *(veh.add(0x1f9) as *mut u8) &= !0x10;
 
             // Calculate height above ground using model collision bounds.
-            // GetDistanceFromCentreOfMassToBaseOfModel(veh) → half-height of vehicle model.
             let h_bits = hook::slide_fn::<extern "C" fn(*mut u8) -> u32>(0x0002c970)(veh);
             let height_from_base = f32::from_bits(h_bits);
             let valid_height = if height_from_base.is_nan() || height_from_base <= 0.0 || height_from_base > 5.0 {
-                0.75f32   // safe default for most GTA III cars (~sedan half-height)
+                0.75f32
             } else {
                 height_from_base
             };
             // Spawn the car with tyres just touching the ground (+0.15m clearance)
             let spawn_z = base_z + valid_height + 0.15f32;
 
+            // Set spawn coordinates into the embedded CMatrix translation vector (veh + 0x34..0x3C).
+            *(veh.add(0x34) as *mut f32) = spawn_x;
+            *(veh.add(0x38) as *mut f32) = spawn_y;
+            *(veh.add(0x3c) as *mut f32) = spawn_z;
+
             // Set vehicle orientation using native CMatrix::SetRotate (0x0005A9D0).
             // Args: (matrix, angle_x = 0, angle_y = 0, angle_z = heading).
-            // Passing 0 for X (pitch) and 0 for Y (roll) guarantees the vehicle is 100% upright,
-            // fixing the bug where the car was pitched/rolled 90 degrees onto its side.
-            // Preserves RenderWare matrix flags (0x10, 0x20, 0x30).
+            // Passing 0 for X (pitch) and 0 for Y (roll) guarantees the vehicle is 100% upright.
             let heading = (-dir_x).atan2(dir_y);
             hook::slide_fn::<extern "C" fn(*mut u8, u32, u32, u32)>(0x0005a9d0)(
                 veh.add(0x04),
@@ -300,41 +323,18 @@ pub fn spawn_vehicle_direct(model_id: u32) -> *mut u8 {
                 heading.to_bits(),
             );
 
-            // Write position into the embedded CMatrix translation vector (veh + 0x34..0x3C).
-            *(veh.add(0x34) as *mut f32) = spawn_x;
-            *(veh.add(0x38) as *mut f32) = spawn_y;
-            *(veh.add(0x3c) as *mut f32) = spawn_z;
-
-            // Zero linear & angular momentum (0x000B31F0 - matches native CREATE_CAR)
+            // Zero linear & angular momentum (0x000B31F0)
             hook::slide_fn::<extern "C" fn(*mut u8)>(0x000b31f0)(veh);
 
-            // Set status to STATUS_ABANDONED (4): bits 3-5 in the entity flags byte at +0x53.
-            let status_flags = veh.add(0x53) as *mut u8;
-            *status_flags = (*status_flags & !0x38) | (4 << 3);
+            // Set status to STATUS_ABANDONED (4): (flags & 0x07) | (4 << 3).
+            // Matches native CCarCtrl 0x000ADAC8: bfi r0, r1, #3, #0x1d (r1 = 4).
+            let status_byte = veh.add(0x53) as *mut u8;
+            *status_byte = (*status_byte & 0x07) | (4 << 3);
 
-            // Mark as cheated car (bIsCheatedCar flag at veh + 0x1F9, bit 3).
-            *(veh.add(0x1f9) as *mut u8) |= 8;
+            // Set veh + 0x228 = 1 (matches CCarCtrl 0x000ADAD4)
+            *(veh.add(0x228) as *mut u32) = 1;
 
-            // Native CREATE_CAR opcode 00A5 suspension & physics setup (disassembled from 0x00045696):
-            //   +0x15E: bStuckOnRound flag → 0
-            //   +0x15F: wheel-stuck bitfield → 0
-            //   +0x15D: wheel-stuck timer → 0
-            //   +0x164: max spring length (f32) → 9.0f (0x41100000)
-            //   +0x168: spring-iterations byte → 9
-            //   +0x15B, +0x15C: 0
-            //   +0x1F9: &= !0x10
-            //   +0x1FB: |= 4
-            *(veh.add(0x15e) as *mut u8) = 0;
-            *(veh.add(0x15f) as *mut u8) = 0;
-            *(veh.add(0x15d) as *mut u8) = 0;
-            *(veh.add(0x164) as *mut f32) = 9.0f32;
-            *(veh.add(0x168) as *mut u8) = 9;
-            *(veh.add(0x15b) as *mut u8) = 0;
-            *(veh.add(0x15c) as *mut u8) = 0;
-            *(veh.add(0x1f9) as *mut u8) &= !0x10;
-            *(veh.add(0x1fb) as *mut u8) |= 4;
-
-            // Add vehicle entity to CWorld
+            // Add vehicle entity to CWorld (0x0003B090)
             hook::slide_fn::<extern "C" fn(*mut u8)>(0x0003b090)(veh);
             log::info!(
                 "spawn_vehicle_direct: Automobile {} spawned at ({:.2}, {:.2}, {:.2}) heading={:.2}rad",

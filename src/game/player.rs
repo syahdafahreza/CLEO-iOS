@@ -232,21 +232,29 @@ pub fn spawn_vehicle_direct(model_id: u32) -> *mut u8 {
             if veh.is_null() {
                 return std::ptr::null_mut();
             }
-            // Construct CBoat(veh, model_id, RANDOM_VEHICLE=1)
-            hook::slide_fn::<extern "C" fn(*mut u8, u32, u8) -> *mut u8>(0x00068e1c)(veh, model_id, 1);
+            // Construct CBoat(veh, model_id, 2)
+            hook::slide_fn::<extern "C" fn(*mut u8, u32, u8) -> *mut u8>(0x00068e1c)(veh, model_id, 2);
 
             let spawn_z = pz + 0.2f32;
 
-            // Rotate boat matrix around Z using native CMatrix::SetRotateZ (0x0005A904).
-            // GTA III uses softfp ABI: floats are passed in general registers (r0/r1),
-            // so we pass heading.to_bits() as u32 which is placed in r1 — correct for softfp.
+            // Set boat orientation using native CMatrix::SetRotate (0x0005A9D0).
+            // Args: (matrix, angle_x = 0, angle_y = 0, angle_z = heading)
+            // Softfp ABI: passed in r0, r1, r2, r3. Keeps roll & pitch strictly 0 (100% upright).
             let heading = (-dir_x).atan2(dir_y);
-            hook::slide_fn::<extern "C" fn(*mut u8, u32)>(0x0005a904)(veh.add(0x04), heading.to_bits());
+            hook::slide_fn::<extern "C" fn(*mut u8, u32, u32, u32)>(0x0005a9d0)(
+                veh.add(0x04),
+                0,
+                0,
+                heading.to_bits(),
+            );
 
             // Set spawn coordinates into the embedded CMatrix position (veh+0x34..0x3C)
             *(veh.add(0x34) as *mut f32) = spawn_x;
             *(veh.add(0x38) as *mut f32) = spawn_y;
             *(veh.add(0x3c) as *mut f32) = spawn_z;
+
+            // Zero linear & angular momentum (0x000B31F0)
+            hook::slide_fn::<extern "C" fn(*mut u8)>(0x000b31f0)(veh);
 
             // Set status to STATUS_ABANDONED (4)
             let status_flags = veh.add(0x53) as *mut u8;
@@ -263,10 +271,9 @@ pub fn spawn_vehicle_direct(model_id: u32) -> *mut u8 {
                 return std::ptr::null_mut();
             }
 
-            // Construct CAutomobile(veh, model_id, RANDOM_VEHICLE=1).
-            // Use type 1 (RANDOM_VEHICLE) matching CCheat::VehicleCheat native behavior.
-            // Type 2 (MISSION_VEHICLE) can cause different physics/despawn behavior.
-            hook::slide_fn::<extern "C" fn(*mut u8, u32, u8) -> *mut u8>(0x0009c23c)(veh, model_id, 1);
+            // Construct CAutomobile(veh, model_id, 2)
+            // Matches native GTA III CREATE_CAR opcode 00A5 and CCheat::VehicleCheat (0x000C0A04).
+            hook::slide_fn::<extern "C" fn(*mut u8, u32, u8) -> *mut u8>(0x0009c23c)(veh, model_id, 2);
 
             // Calculate height above ground using model collision bounds.
             // GetDistanceFromCentreOfMassToBaseOfModel(veh) → half-height of vehicle model.
@@ -277,20 +284,29 @@ pub fn spawn_vehicle_direct(model_id: u32) -> *mut u8 {
             } else {
                 height_from_base
             };
-            // Spawn the car slightly above ground so suspension can settle naturally.
-            let spawn_z = base_z + valid_height + 0.25f32;
+            // Spawn the car with tyres just touching the ground (+0.15m clearance)
+            let spawn_z = base_z + valid_height + 0.15f32;
 
-            // Rotate vehicle matrix around Z using native CMatrix::SetRotateZ (0x0005A904).
-            // GTA III iOS uses softfp ABI: float is passed in r1, so heading.to_bits() as u32
-            // is placed in r1 — identical to what the C function expects (softfp convention).
+            // Set vehicle orientation using native CMatrix::SetRotate (0x0005A9D0).
+            // Args: (matrix, angle_x = 0, angle_y = 0, angle_z = heading).
+            // Passing 0 for X (pitch) and 0 for Y (roll) guarantees the vehicle is 100% upright,
+            // fixing the bug where the car was pitched/rolled 90 degrees onto its side.
+            // Preserves RenderWare matrix flags (0x10, 0x20, 0x30).
             let heading = (-dir_x).atan2(dir_y);
-            hook::slide_fn::<extern "C" fn(*mut u8, u32)>(0x0005a904)(veh.add(0x04), heading.to_bits());
+            hook::slide_fn::<extern "C" fn(*mut u8, u32, u32, u32)>(0x0005a9d0)(
+                veh.add(0x04),
+                0,
+                0,
+                heading.to_bits(),
+            );
 
             // Write position into the embedded CMatrix translation vector (veh + 0x34..0x3C).
-            // This is equivalent to CPlaceable::SetPosition — identical memory layout.
             *(veh.add(0x34) as *mut f32) = spawn_x;
             *(veh.add(0x38) as *mut f32) = spawn_y;
             *(veh.add(0x3c) as *mut f32) = spawn_z;
+
+            // Zero linear & angular momentum (0x000B31F0 - matches native CREATE_CAR)
+            hook::slide_fn::<extern "C" fn(*mut u8)>(0x000b31f0)(veh);
 
             // Set status to STATUS_ABANDONED (4): bits 3-5 in the entity flags byte at +0x53.
             let status_flags = veh.add(0x53) as *mut u8;
@@ -299,22 +315,26 @@ pub fn spawn_vehicle_direct(model_id: u32) -> *mut u8 {
             // Mark as cheated car (bIsCheatedCar flag at veh + 0x1F9, bit 3).
             *(veh.add(0x1f9) as *mut u8) |= 8;
 
-            // Physics / suspension correction (verified against CREATE_CAR opcode 0x00045570
-            // and native VehicleCheat 0x000C0A86 disassembly):
+            // Native CREATE_CAR opcode 00A5 suspension & physics setup (disassembled from 0x00045696):
             //   +0x15E: bStuckOnRound flag → 0
-            //   +0x15F: wheel-stuck bitfield  → 0
-            //   +0x164: max spring length (f32) → 20.0  (avoids zero-length spring collapse)
-            //   +0x168: spring-iterations byte  → 20
+            //   +0x15F: wheel-stuck bitfield → 0
+            //   +0x15D: wheel-stuck timer → 0
+            //   +0x164: max spring length (f32) → 9.0f (0x41100000)
+            //   +0x168: spring-iterations byte → 9
+            //   +0x15B, +0x15C: 0
+            //   +0x1F9: &= !0x10
+            //   +0x1FB: |= 4
             *(veh.add(0x15e) as *mut u8) = 0;
             *(veh.add(0x15f) as *mut u8) = 0;
-            *(veh.add(0x164) as *mut f32) = 20.0f32;
-            *(veh.add(0x168) as *mut u8) = 20;
+            *(veh.add(0x15d) as *mut u8) = 0;
+            *(veh.add(0x164) as *mut f32) = 9.0f32;
+            *(veh.add(0x168) as *mut u8) = 9;
+            *(veh.add(0x15b) as *mut u8) = 0;
+            *(veh.add(0x15c) as *mut u8) = 0;
+            *(veh.add(0x1f9) as *mut u8) &= !0x10;
+            *(veh.add(0x1fb) as *mut u8) |= 4;
 
-            // Add vehicle entity to CWorld (registers in spatial sectors for collision + rendering).
-            // NOTE: CWorld::AlignToGroundAndRoof (0x000C5064) is intentionally skipped.
-            // That function detects overhead geometry (bridges, overpasses) and compresses the
-            // vehicle's Z between ground and ceiling, causing: invisible rectangle shadow artifact,
-            // extreme-gravity physics, and wheel instability. Native VehicleCheat never calls it.
+            // Add vehicle entity to CWorld
             hook::slide_fn::<extern "C" fn(*mut u8)>(0x0003b090)(veh);
             log::info!(
                 "spawn_vehicle_direct: Automobile {} spawned at ({:.2}, {:.2}, {:.2}) heading={:.2}rad",

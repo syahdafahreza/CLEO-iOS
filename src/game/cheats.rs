@@ -579,6 +579,7 @@ pub fn get_cheat_category(key: MessageKey) -> CheatCategory {
         | MessageKey::CheatNooneCanStopUs
         | MessageKey::CheatRocketMayhem
         | MessageKey::CheatCrazyTown
+        | MessageKey::CheatGoodbyeCruelWorld
         | MessageKey::CheatChicksWithGuns => CheatCategory::Chaos,
 
         // Misc
@@ -886,8 +887,9 @@ fn call_gta3_cheat(index: usize) {
         27 => hook::slide_fn::<extern "C" fn()>(0x000c04e0)(), // NOBODYLIKESME (Peds attack Claude)
         28 => unsafe {
             // WEAPONSFORALL (Peds have weapons)
-            let p = hook::slide::<*mut u8>(0x312350);
-            if !p.is_null() {
+            let pp = hook::slide::<*const *mut u8>(0x001ba6e4);
+            if !pp.is_null() && !(*pp).is_null() {
+                let p = *pp;
                 *p = if *p == 0 { 1 } else { 0 };
             }
         },
@@ -901,8 +903,9 @@ fn call_gta3_cheat(index: usize) {
         34 => hook::slide_fn::<extern "C" fn()>(0x000c068c)(), // PEASOUP (Foggy weather)
         35 => unsafe {
             // MADWEATHER (Fast weather changes)
-            let p = hook::slide::<*mut u8>(0x3caf80);
-            if !p.is_null() {
+            let pp = hook::slide::<*const *mut u8>(0x001ba0d4);
+            if !pp.is_null() && !(*pp).is_null() {
+                let p = *pp;
                 *p = if *p == 0 { 1 } else { 0 };
             }
         },
@@ -910,22 +913,33 @@ fn call_gta3_cheat(index: usize) {
         // Car Physics & Toggles
         36 => unsafe {
             // ANICESETOFWHEELS (Invisible cars, wheels only)
-            let p = hook::slide::<*mut u8>(0x51c790);
-            if !p.is_null() {
+            let pp = hook::slide::<*const *mut u8>(0x001ba6fc);
+            if !pp.is_null() && !(*pp).is_null() {
+                let p = *pp;
                 *p = if *p == 0 { 1 } else { 0 };
             }
         },
         37 => unsafe {
             // CHITTYCHITTYBB (Flying cars)
-            let p = hook::slide::<*mut u8>(0x51c798);
-            if !p.is_null() {
+            let pp = hook::slide::<*const *mut u8>(0x001ba844);
+            if !pp.is_null() && !(*pp).is_null() {
+                let p = *pp;
                 *p = if *p == 0 { 1 } else { 0 };
             }
         },
         38 => unsafe {
             // CORNERSLIKEMAD (Grippy / mad handling)
-            let p = hook::slide::<*mut u8>(0x51c79c);
-            if !p.is_null() {
+            let pp = hook::slide::<*const *mut u8>(0x001ba848);
+            if !pp.is_null() && !(*pp).is_null() {
+                let p = *pp;
+                *p = if *p == 0 { 1 } else { 0 };
+            }
+        },
+        39 => unsafe {
+            // NASTYLIMBSCHEAT (Gore mode / Limbs fly off)
+            let pp = hook::slide::<*const *mut u8>(0x001ba6f4);
+            if !pp.is_null() && !(*pp).is_null() {
+                let p = *pp;
                 *p = if *p == 0 { 1 } else { 0 };
             }
         },
@@ -934,7 +948,7 @@ fn call_gta3_cheat(index: usize) {
 }
 
 #[cfg(target_pointer_width = "32")]
-static CHEATS: [Cheat; 39] = [
+static CHEATS: [Cheat; 40] = [
     Cheat::new(0, "GUNSGUNSGUNS", MessageKey::CheatThugsArmoury),
     Cheat::new(1, "IFIWEREARICHMAN", MessageKey::CheatSlotOther),
     Cheat::new(2, "GESUNDHEIT", MessageKey::CheatINeedSomeHelp),
@@ -974,6 +988,7 @@ static CHEATS: [Cheat; 39] = [
     Cheat::new(36, "ANICESETOFWHEELS", MessageKey::CheatWheelsOnlyPlease),
     Cheat::new(37, "CHITTYCHITTYBB", MessageKey::CheatChittyChittyBangBang),
     Cheat::new(38, "CORNERSLIKEMAD", MessageKey::CheatStickLikeGlue),
+    Cheat::new(39, "NASTYLIMBSCHEAT", MessageKey::CheatGoodbyeCruelWorld),
 ];
 
 

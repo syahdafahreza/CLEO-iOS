@@ -1,7 +1,7 @@
 //! Helper module for interacting with the player ped (Claude), stats, money, weapons, and vehicle spawning.
 //! GTA III v1.3.2 (armv7 / 32-bit) iOS on iPhone 5, iOS 10.x.
 
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::Mutex;
 use crate::hook;
 use lazy_static::lazy_static;
@@ -12,6 +12,7 @@ pub static INFINITE_SPRINT: AtomicBool = AtomicBool::new(false);
 pub static FAST_RELOAD: AtomicBool = AtomicBool::new(false);
 pub static NEVER_WANTED: AtomicBool = AtomicBool::new(false);
 pub static GOD_MODE_VEHICLE: AtomicBool = AtomicBool::new(false);
+static QUEUED_VEHICLE_RETRIES: AtomicU32 = AtomicU32::new(0);
 
 lazy_static! {
     static ref QUEUED_VEHICLE: Mutex<Option<u32>> = Mutex::new(None);
@@ -127,13 +128,33 @@ pub fn queue_action(action: PlayerAction) {
 ///   - CStreaming::RequestModel: 0x0011AEF0
 ///   - CStreaming::LoadAllRequestedModels: 0x0011D954
 ///   - CWorld::FindGroundZForCoord: 0x000385F0
+/// Helper to check if model has finished streaming and is ready for instantiation.
+/// In GTA III, `ms_aInfoForModel` is an array of 20-byte CStreamingInfo structs.
+/// Pointer to `ms_aInfoForModel` is stored at DATA address 0x001ba6a4.
+/// Struct offset 8 is `m_nLoadState` (1 = LOADED / READING_SUCCESS).
+pub fn is_model_loaded(model_id: u32) -> bool {
+    #[cfg(target_pointer_width = "32")]
+    unsafe {
+        let ms_a_info_pptr = hook::slide::<*const *const u8>(0x001ba6a4);
+        if ms_a_info_pptr.is_null() || (*ms_a_info_pptr).is_null() {
+            return false;
+        }
+        let info = (*ms_a_info_pptr).add(model_id as usize * 20);
+        let load_state = *info.add(8);
+        load_state == 1
+    }
+    #[cfg(target_pointer_width = "64")]
+    false
+}
+
+/// Spawns a vehicle directly in front of Claude using Rockstar's native vehicle creation logic:
+///   - CStreaming::RequestModel: 0x0011AEF0
+///   - CStreaming::LoadAllRequestedModels: 0x0011D954
 ///   - operator new: 0x001388DC
 ///   - CAutomobile::CAutomobile: 0x0009C23C (size 0x488)
 ///   - CBoat::CBoat: 0x00068E1C (size 0x5AC)
-///   - CVehicle::GetHeightAboveRoad: 0x0009C274
-///   - CMatrix::SetRotate: 0x000C5064
+///   - CWorld::AlignToGroundAndRoof: 0x000C5064 (&target_pos, veh)
 ///   - CWorld::Add: 0x0003B090
-///   - CStreaming::SetModelIsDeletable: 0x0011C210
 pub fn spawn_vehicle_direct(model_id: u32) -> *mut u8 {
     #[cfg(target_pointer_width = "32")]
     unsafe {
@@ -142,9 +163,15 @@ pub fn spawn_vehicle_direct(model_id: u32) -> *mut u8 {
             return std::ptr::null_mut();
         }
 
-        // 1. Request and load model synchronously
-        hook::slide_fn::<extern "C" fn(u32, u32)>(0x0011aef0)(model_id, 1);
-        hook::slide_fn::<extern "C" fn(u8)>(0x0011d954)(0);
+        // 1. Ensure model is loaded via CStreaming
+        if !is_model_loaded(model_id) {
+            hook::slide_fn::<extern "C" fn(u32, u32)>(0x0011aef0)(model_id, 0);
+            hook::slide_fn::<extern "C" fn(u8)>(0x0011d954)(0);
+            if !is_model_loaded(model_id) {
+                // Streaming is still pending; return null so caller retries on next frame
+                return std::ptr::null_mut();
+            }
+        }
 
         // 2. Read player position from CPlaceable at ped + 0x34..0x3C
         let px = *(ped.add(0x34) as *const f32);
@@ -162,104 +189,82 @@ pub fn spawn_vehicle_direct(model_id: u32) -> *mut u8 {
             (0.0, 1.0)
         };
 
-        let heading = (-dir_x).atan2(dir_y);
-        let veh_heading = heading + std::f32::consts::FRAC_PI_2;
-
-        // 3. Determine vehicle class (GTA III has no bikes; only boats and automobiles)
-        // Boats in GTA III iOS: 120 (predator), 142 (speeder), 143 (reefer), 150 (ghost)
+        // Determine vehicle class: Boats in GTA III iOS: 120 (predator), 142 (speeder), 143 (reefer), 150 (ghost)
         let is_boat = matches!(model_id, 120 | 142 | 143 | 150);
-
         let in_car = !find_player_vehicle().is_null();
         let dist = if in_car {
             8.5f32
         } else if is_boat {
             10.0f32
         } else {
-            5.0f32
+            6.5f32
         };
 
         let spawn_x = px + dir_x * dist;
         let spawn_y = py + dir_y * dist;
+        let spawn_z = pz + 3.0f32;
 
-        // 4. Query ground elevation via CWorld::FindGroundZForCoord
-        let ground_z_raw = hook::slide_fn::<extern "C" fn(u32, u32) -> u32>(0x000385f0)(
-            spawn_x.to_bits(),
-            spawn_y.to_bits(),
-        );
-        let ground_z = f32::from_bits(ground_z_raw);
-        let spawn_z = if ground_z > -50.0 && (ground_z - pz).abs() < 12.0 {
-            ground_z
-        } else {
-            pz
-        };
-
-        // 5. Allocate vehicle memory
-        // CBoat: 0x5AC bytes, CAutomobile: 0x488 bytes
-        let (size, veh_type) = if is_boat {
-            (0x5acusize, 0u8)
-        } else {
-            (0x488usize, 2u8)
-        };
-
-        let veh = hook::slide_fn::<extern "C" fn(usize) -> *mut u8>(0x001388dc)(size);
-        if veh.is_null() {
-            return std::ptr::null_mut();
-        }
-
-        // 6. Invoke vehicle C++ constructor
-        match veh_type {
-            0 => {
-                hook::slide_fn::<extern "C" fn(*mut u8, u32, u8) -> *mut u8>(0x00068e1c)(veh, model_id, 2);
+        if is_boat {
+            // Allocate CBoat (0x5AC bytes)
+            let veh = hook::slide_fn::<extern "C" fn(usize) -> *mut u8>(0x001388dc)(0x5ac);
+            if veh.is_null() {
+                return std::ptr::null_mut();
             }
-            _ => {
-                hook::slide_fn::<extern "C" fn(*mut u8, u32, u8) -> *mut u8>(0x0009c23c)(veh, model_id, 1);
+            hook::slide_fn::<extern "C" fn(*mut u8, u32, u8) -> *mut u8>(0x00068e1c)(veh, model_id, 1);
+
+            *(veh.add(0x34) as *mut f32) = spawn_x;
+            *(veh.add(0x38) as *mut f32) = spawn_y;
+            *(veh.add(0x3c) as *mut f32) = spawn_z;
+
+            // Set heading angle
+            let heading = (-dir_x).atan2(dir_y);
+            hook::slide_fn::<extern "C" fn(*mut u8, u32, u32, u32)>(0x0005a9d0)(
+                veh.add(0x04),
+                0,
+                0,
+                heading.to_bits(),
+            );
+
+            // Set status to STATUS_ABANDONED (4)
+            let status_flags = veh.add(0x53) as *mut u8;
+            *status_flags = (*status_flags & !0x38) | (4 << 3);
+
+            // Add vehicle entity to CWorld
+            hook::slide_fn::<extern "C" fn(*mut u8)>(0x0003b090)(veh);
+            veh
+        } else {
+            // Allocate CAutomobile (0x488 bytes)
+            let veh = hook::slide_fn::<extern "C" fn(usize) -> *mut u8>(0x001388dc)(0x488);
+            if veh.is_null() {
+                return std::ptr::null_mut();
             }
+
+            // Construct CAutomobile(veh, model_id, 2)
+            hook::slide_fn::<extern "C" fn(*mut u8, u32, u8) -> *mut u8>(0x0009c23c)(veh, model_id, 2);
+
+            // Set initial spawn coordinates
+            *(veh.add(0x34) as *mut f32) = spawn_x;
+            *(veh.add(0x38) as *mut f32) = spawn_y;
+            *(veh.add(0x3c) as *mut f32) = spawn_z;
+
+            // Align with ground and roof collision using Rockstar's native function: 0x000c5064(&target_pos, veh)
+            // Exactly matching native cheat CCheat::VehicleCheat (0x000C085C)
+            let target_pos = [spawn_x, spawn_y, spawn_z];
+            hook::slide_fn::<extern "C" fn(*const [f32; 3], *mut u8)>(0x000c5064)(target_pos.as_ptr(), veh);
+
+            // Set status to STATUS_ABANDONED (4)
+            let status_flags = veh.add(0x53) as *mut u8;
+            *status_flags = (*status_flags & !0x38) | (4 << 3);
+
+            // Set bIsCheatedCar = 1 (veh + 0x1f9 |= 8)
+            *(veh.add(0x1f9) as *mut u8) |= 8;
+
+            // Add vehicle entity to CWorld
+            hook::slide_fn::<extern "C" fn(*mut u8)>(0x0003b090)(veh);
+
+            // Note: Do NOT call SetModelIsDeletable here; the spawned vehicle instance maintains its model reference
+            veh
         }
-
-        // 7. Get suspension height and set position & orientation
-        let height_raw = hook::slide_fn::<extern "C" fn(*mut u8) -> u32>(0x0009c274)(veh);
-        let height = f32::from_bits(height_raw);
-        let final_z = spawn_z + if height > 0.05 && height < 5.0 { height } else { 0.4 };
-
-        // Set vehicle orientation & position directly in CMatrix (embedded at veh + 0x04)
-        // CMatrix layout (RenderWare RwMatrix):
-        //   +0x04: Right vector   (cos(h), sin(h), 0.0)
-        //   +0x14: Forward vector (-sin(h), cos(h), 0.0)
-        //   +0x24: Up vector      (0.0, 0.0, 1.0)
-        //   +0x34: Position       (spawn_x, spawn_y, final_z)
-        let (sin_h, cos_h) = veh_heading.sin_cos();
-
-        // Right vector
-        *(veh.add(0x04) as *mut f32) = cos_h;
-        *(veh.add(0x08) as *mut f32) = sin_h;
-        *(veh.add(0x0c) as *mut f32) = 0.0;
-
-        // Forward vector
-        *(veh.add(0x14) as *mut f32) = -sin_h;
-        *(veh.add(0x18) as *mut f32) = cos_h;
-        *(veh.add(0x1c) as *mut f32) = 0.0;
-
-        // Up vector
-        *(veh.add(0x24) as *mut f32) = 0.0;
-        *(veh.add(0x28) as *mut f32) = 0.0;
-        *(veh.add(0x2c) as *mut f32) = 1.0;
-
-        // Coordinates at placeable position (+0x34, +0x38, +0x3C)
-        *(veh.add(0x34) as *mut f32) = spawn_x;
-        *(veh.add(0x38) as *mut f32) = spawn_y;
-        *(veh.add(0x3c) as *mut f32) = final_z;
-
-        // 8. Configure status (active driver/vehicle status at CEntity + 0x53)
-        let status_flags = veh.add(0x53) as *mut u8;
-        *status_flags = (*status_flags & !0x38) | (4 << 3);
-
-        // 9. Add vehicle entity to CWorld
-        hook::slide_fn::<extern "C" fn(*mut u8)>(0x0003b090)(veh);
-
-        // 10. Mark model as deletable so CStreaming cache can unload when appropriate
-        hook::slide_fn::<extern "C" fn(u32)>(0x0011c210)(model_id);
-
-        veh
     }
     #[cfg(target_pointer_width = "64")]
     {
@@ -381,8 +386,20 @@ pub fn tick() {
 
         // 2. Process queued vehicle spawn (spawns directly in front of Claude)
         if let Ok(mut q) = QUEUED_VEHICLE.lock() {
-            if let Some(model_id) = q.take() {
-                spawn_vehicle_direct(model_id);
+            if let Some(model_id) = *q {
+                let veh = spawn_vehicle_direct(model_id);
+                if !veh.is_null() {
+                    *q = None;
+                    QUEUED_VEHICLE_RETRIES.store(0, Ordering::Relaxed);
+                } else {
+                    let retries = QUEUED_VEHICLE_RETRIES.fetch_add(1, Ordering::Relaxed);
+                    if retries >= 60 {
+                        // Timeout after ~1-2 seconds of waiting for streaming
+                        *q = None;
+                        QUEUED_VEHICLE_RETRIES.store(0, Ordering::Relaxed);
+                        log::warn!("Vehicle spawn timed out for model ID {}", model_id);
+                    }
+                }
             }
         }
 

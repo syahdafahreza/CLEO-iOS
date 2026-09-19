@@ -55,15 +55,15 @@
 | `find_player_vehicle()` | Kendaraan aktif Claude | `0x000F4C14` | Returns `CVehicle*` atau null |
 | `CWorld::Players` | Array `CPlayerInfo` | `0x003175F0` | Pointer di `0x001BA284` |
 | `PlayerInFocus` | Index pemain aktif | `0x003796E4` | Pointer di `0x001BA280` |
-| `CWorld::FindGroundZForCoord`| Ketinggian tanah Z | `0x000385F0` | `extern "C" fn(x: f32, y: f32) -> f32` |
+| `ms_aInfoForModel` | Pointer tabel CStreamingInfo | `0x001BA6A4` | Struct 20 byte, offset 8 adalah `m_nLoadState` (1 = Loaded) |
 | `operator new` | Alokasi memori C++ | `0x001388DC` | `extern "C" fn(size: usize) -> *mut u8` |
 | `CAutomobile::CAutomobile` | Konstruktor mobil | `0x0009C23C` | Ukuran objek: `0x488` (1160 bytes) |
 | `CBoat::CBoat` | Konstruktor kapal | `0x00068E1C` | Ukuran objek: `0x5AC` (1452 bytes) |
-| `CMatrix::SetRotate` | Rotasi matriks entitas | `0x000C5064` | `(matrix, rx, ry, rz)` |
+| `CWorld::AlignToGroundAndRoof` | Perata tanah & atap mobil | `0x000C5064` | `(&target_pos, veh)` — dipanggil di native vehicle cheat |
+| `CMatrix::SetRotate` | Rotasi matriks entitas | `0x0005A9D0` | `(matrix, rx, ry, rz)` — rotasi Euler RenderWare |
 | `CWorld::Add` | Registrasi ke dunia | `0x0003B090` | `CWorld::Add(CEntity*)` |
 | `CStreaming::RequestModel` | Request load model | `0x0011AEF0` | `(model_id, flags)` |
 | `CStreaming::LoadAllRequestedModels`| Load model synch | `0x0011D954` | `(priority: bool)` |
-| `CStreaming::SetModelIsDeletable` | Mark deletable | `0x0011C210` | `(model_id)` |
 | `CPed::GiveWeapon` | Beri senjata & amunisi | `0x000DE170` | `(ped, weapon_type, ammo, bool)` |
 | `CWanted::SetWantedLevel` | Set bintang polisi | `0x0002F2D0` | `(wanted_ptr, level)` |
 | `CPed::SetWantedLevel` | Helper wanted di ped | `0x0001DE64` | `(ped, level)` |
@@ -133,7 +133,7 @@
 
 - **Sport & Super**: Infernus (101), Cheetah (105), Banshee (119), Stinger (92), BF Injection (114)
 - **Geng LCPD**: Mafia Sentinel (134), Yakuza Stinger (136), Yardie Lobo (135), Diablo Stallion (137), Cartel Cruiser (138), Hoods Rumpo XL (139)
-- **Darurat & Militer**: Rhino Tank (122), Barracks OL (123), Police Car (116), Enforcer SWAT (117), FBI Kuruma (107), Ambulance (106), Firetruck (97), Securicar (118), Taxi (110), Cabbie (128), Borgnine Cabbie (147)
+- **Darurat & Militer**: Rhino Tank (122), Barracks OL (123), Police Car (116), Enforcer SWAT (117), FBI Kuruma (107), Ambulance (106), Firetruck (97), Securicar (118), Taxi (110), Cabbie (128), Borgnine Cabbie (148)
 - **Sedan & Muscle**: Stretch Limousine (99), Sentinel (95), Kuruma (111), Stallion (129), Esperanto (109), Idaho (91), Manana (100), Perennial (94), Blista (102)
-- **Van & Truk**: Landstalker (90), Patriot (96), Bobcat (112), Moonbeam (108), Rumpo (130), Pony (103), Mule (104), Yankee (146), Flatbed (145), Linerunner (93), Trashmaster (98), Bus (121), Coach (127), Mr. Whoopee (113), RC Bandit (131), Toyz (148), Belly Up (132), Mr. Wong's (133), Panlantic (144)
+- **Van & Truk**: Landstalker (90), Patriot (96), Bobcat (112), Moonbeam (108), Rumpo (130), Pony (103), Mule (104), Yankee (146), Flatbed (145), Linerunner (93), Trashmaster (98), Bus (121), Coach (127), Mr. Whoopee (113), RC Bandit (131), Toyz (149), Belly Up (132), Mr. Wong's (133), Panlantic (144)
 - **Kapal & Pesawat**: Dodo (126), Predator Police Boat (120), Speeder (142), Reefer (143), Ghost Boat (150)

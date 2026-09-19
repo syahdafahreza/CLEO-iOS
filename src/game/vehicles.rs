@@ -1,6 +1,5 @@
 //! Native Vehicle Spawner tab for GTA III.
-//! Vehicle model IDs are for GTA III iOS (armv7 / 32-bit).
-//! TODO: Verify all model IDs after binary IPA analysis.
+//! Vehicle model IDs are from GTA III iOS (armv7 / 32-bit) default.ide.
 
 use std::sync::Mutex;
 use crate::{
@@ -17,12 +16,11 @@ use lazy_static::lazy_static;
 pub enum VehicleCategory {
     All,
     Sports,
-    Bikes,
-    HelisPlanes,
-    MilitaryEmergency,
+    Gang,
+    EmergencyMilitary,
     SedansMuscle,
-    OffroadVans,
-    Boats,
+    VansTrucks,
+    BoatsAir,
 }
 
 impl VehicleCategory {
@@ -30,25 +28,23 @@ impl VehicleCategory {
         match self {
             VehicleCategory::All => "SEMUA KENDARAAN",
             VehicleCategory::Sports => "SPORT & SUPER",
-            VehicleCategory::Bikes => "MOTOR & SKUTER",
-            VehicleCategory::HelisPlanes => "PESAWAT & HELI",
-            VehicleCategory::MilitaryEmergency => "MILITER & DARURAT",
+            VehicleCategory::Gang => "MOBIL GENG",
+            VehicleCategory::EmergencyMilitary => "DARURAT & MILITER",
             VehicleCategory::SedansMuscle => "SEDAN & MUSCLE",
-            VehicleCategory::OffroadVans => "OFFROAD & VAN",
-            VehicleCategory::Boats => "KAPAL & PERAHU",
+            VehicleCategory::VansTrucks => "VAN & TRUK",
+            VehicleCategory::BoatsAir => "KAPAL & PESAWAT",
         }
     }
 
     pub fn next(&self) -> VehicleCategory {
         match self {
             VehicleCategory::All => VehicleCategory::Sports,
-            VehicleCategory::Sports => VehicleCategory::Bikes,
-            VehicleCategory::Bikes => VehicleCategory::HelisPlanes,
-            VehicleCategory::HelisPlanes => VehicleCategory::MilitaryEmergency,
-            VehicleCategory::MilitaryEmergency => VehicleCategory::SedansMuscle,
-            VehicleCategory::SedansMuscle => VehicleCategory::OffroadVans,
-            VehicleCategory::OffroadVans => VehicleCategory::Boats,
-            VehicleCategory::Boats => VehicleCategory::All,
+            VehicleCategory::Sports => VehicleCategory::Gang,
+            VehicleCategory::Gang => VehicleCategory::EmergencyMilitary,
+            VehicleCategory::EmergencyMilitary => VehicleCategory::SedansMuscle,
+            VehicleCategory::SedansMuscle => VehicleCategory::VansTrucks,
+            VehicleCategory::VansTrucks => VehicleCategory::BoatsAir,
+            VehicleCategory::BoatsAir => VehicleCategory::All,
         }
     }
 }
@@ -67,73 +63,76 @@ pub struct VehicleDef {
 
 pub static VEHICLES: &[VehicleDef] = &[
     // =========================================================================
-    // GTA III Vehicle List (model IDs from GTA III iOS)
-    // TODO: Verify model IDs after binary IPA analysis
+    // GTA III iOS Vehicle List (Verified from default.ide in v1.3.2 IPA)
+    // Model IDs 90 to 150
     // =========================================================================
 
-    // --- Sports & Super ---
-    VehicleDef { model_id: 130, name: "Infernus", category: VehicleCategory::Sports, description: "Mobil sport tercepat di Liberty City" },
-    VehicleDef { model_id: 131, name: "Cheetah", category: VehicleCategory::Sports, description: "Mobil sport eksotis mewah" },
-    VehicleDef { model_id: 132, name: "Stinger", category: VehicleCategory::Sports, description: "Mobil convertible sporty" },
-    VehicleDef { model_id: 133, name: "Banshee", category: VehicleCategory::Sports, description: "Mobil sport bertenaga tinggi" },
-    VehicleDef { model_id: 134, name: "Idaho", category: VehicleCategory::Sports, description: "Coupe klasik elegan" },
+    // --- Sport & Super ---
+    VehicleDef { model_id: 101, name: "Infernus", category: VehicleCategory::Sports, description: "Mobil super tercepat di Liberty City" },
+    VehicleDef { model_id: 105, name: "Cheetah", category: VehicleCategory::Sports, description: "Mobil sport eksotis mewah bertenaga besar" },
+    VehicleDef { model_id: 119, name: "Banshee", category: VehicleCategory::Sports, description: "Mobil sport legendaris convertible" },
+    VehicleDef { model_id: 92,  name: "Stinger", category: VehicleCategory::Sports, description: "Mobil sport elegan atap terbuka" },
+    VehicleDef { model_id: 114, name: "BF Injection", category: VehicleCategory::Sports, description: "Buggy pantai lincah dan gesit" },
 
-    // --- Motor ---
-    VehicleDef { model_id: 135, name: "Freeway", category: VehicleCategory::Bikes, description: "Motor chopper penjelajah jalanan" },
-    VehicleDef { model_id: 136, name: "Angel", category: VehicleCategory::Bikes, description: "Motor geng biker bergaya Amerika" },
-    VehicleDef { model_id: 137, name: "PCJ-600", category: VehicleCategory::Bikes, description: "Motor sport paling lincah dan cepat" },
+    // --- Mobil Geng Liberty City ---
+    VehicleDef { model_id: 134, name: "Mafia Sentinel", category: VehicleCategory::Gang, description: "Sedan mewah berpelindung keluarga Leone" },
+    VehicleDef { model_id: 136, name: "Yakuza Stinger", category: VehicleCategory::Gang, description: "Sport convertible geng Yakuza" },
+    VehicleDef { model_id: 135, name: "Yardie Lobo", category: VehicleCategory::Gang, description: "Lowrider bermesin hidrolik geng Yardie" },
+    VehicleDef { model_id: 137, name: "Diablo Stallion", category: VehicleCategory::Gang, description: "Muscle car garang geng Diablos" },
+    VehicleDef { model_id: 138, name: "Cartel Cruiser", category: VehicleCategory::Gang, description: "SUV mewah kartel Kolombia berbadan tinggi" },
+    VehicleDef { model_id: 139, name: "Hoods Rumpo XL", category: VehicleCategory::Gang, description: "Van bertenaga besar geng Southside Hoods" },
 
-    // --- Helikopter & Pesawat ---
-    VehicleDef { model_id: 138, name: "Dodo", category: VehicleCategory::HelisPlanes, description: "Pesawat kecil sayap terpotong ikonik GTA 3" },
-    VehicleDef { model_id: 139, name: "Maverick", category: VehicleCategory::HelisPlanes, description: "Helikopter sipil penumpang" },
-    VehicleDef { model_id: 140, name: "Police Maverick", category: VehicleCategory::HelisPlanes, description: "Helikopter patroli kepolisian LCPD" },
-    VehicleDef { model_id: 141, name: "Heli", category: VehicleCategory::HelisPlanes, description: "Helikopter ringan serbaguna" },
-
-    // --- Militer & Darurat ---
-    VehicleDef { model_id: 142, name: "Rhino (Tank)", category: VehicleCategory::MilitaryEmergency, description: "Tank tempur lapis baja Rhino" },
-    VehicleDef { model_id: 143, name: "Barracks OL", category: VehicleCategory::MilitaryEmergency, description: "Truk angkut tentara militer besar" },
-    VehicleDef { model_id: 144, name: "Police Car", category: VehicleCategory::MilitaryEmergency, description: "Mobil patroli polisi LCPD" },
-    VehicleDef { model_id: 145, name: "Enforcer", category: VehicleCategory::MilitaryEmergency, description: "Truk taktis pasukan SWAT" },
-    VehicleDef { model_id: 146, name: "FBI Car", category: VehicleCategory::MilitaryEmergency, description: "Mobil agen khusus FBI" },
-    VehicleDef { model_id: 147, name: "Ambulance", category: VehicleCategory::MilitaryEmergency, description: "Mobil medis darurat" },
-    VehicleDef { model_id: 148, name: "Firetruck", category: VehicleCategory::MilitaryEmergency, description: "Truk pemadam kebakaran" },
-    VehicleDef { model_id: 149, name: "Taxi", category: VehicleCategory::MilitaryEmergency, description: "Taksi Liberty City" },
-    VehicleDef { model_id: 150, name: "Cabbie", category: VehicleCategory::MilitaryEmergency, description: "Taksi bergaya klasik retro" },
+    // --- Darurat & Militer ---
+    VehicleDef { model_id: 122, name: "Rhino (Tank)", category: VehicleCategory::EmergencyMilitary, description: "Tank lapis baja senjata meriam mematikan" },
+    VehicleDef { model_id: 123, name: "Barracks OL", category: VehicleCategory::EmergencyMilitary, description: "Truk angkut militer berukuran besar" },
+    VehicleDef { model_id: 116, name: "Police Car", category: VehicleCategory::EmergencyMilitary, description: "Mobil patroli kepolisian LCPD" },
+    VehicleDef { model_id: 117, name: "Enforcer", category: VehicleCategory::EmergencyMilitary, description: "Truk taktis pasukan khusus SWAT" },
+    VehicleDef { model_id: 107, name: "FBI Kuruma", category: VehicleCategory::EmergencyMilitary, description: "Sedan hitam taktis agen khusus FBI" },
+    VehicleDef { model_id: 106, name: "Ambulance", category: VehicleCategory::EmergencyMilitary, description: "Mobil medis darurat LCPD" },
+    VehicleDef { model_id: 97,  name: "Firetruck", category: VehicleCategory::EmergencyMilitary, description: "Truk pemadam kebakaran dengan meriam air" },
+    VehicleDef { model_id: 118, name: "Securicar", category: VehicleCategory::EmergencyMilitary, description: "Mobil lapis baja pengangkut uang bank" },
+    VehicleDef { model_id: 110, name: "Taxi", category: VehicleCategory::EmergencyMilitary, description: "Taksi kuning khas Liberty City" },
+    VehicleDef { model_id: 128, name: "Cabbie", category: VehicleCategory::EmergencyMilitary, description: "Taksi klasik retro Liberty City" },
+    VehicleDef { model_id: 147, name: "Borgnine Cabbie", category: VehicleCategory::EmergencyMilitary, description: "Taksi spesial bertanduk bertenaga turbo" },
 
     // --- Sedan & Muscle ---
-    VehicleDef { model_id: 151, name: "Stretch", category: VehicleCategory::SedansMuscle, description: "Limusin mewah eksekutif" },
-    VehicleDef { model_id: 152, name: "Manana", category: VehicleCategory::SedansMuscle, description: "Sedan kompak mungil" },
-    VehicleDef { model_id: 153, name: "Peren", category: VehicleCategory::SedansMuscle, description: "Station wagon keluarga" },
-    VehicleDef { model_id: 154, name: "Sentinel", category: VehicleCategory::SedansMuscle, description: "Sedan keluarga eksekutif" },
-    VehicleDef { model_id: 155, name: "Sentinel XS", category: VehicleCategory::SedansMuscle, description: "Sedan sport berperforma tinggi" },
-    VehicleDef { model_id: 156, name: "Flatbed", category: VehicleCategory::SedansMuscle, description: "Truk flatbed bak terbuka" },
-    VehicleDef { model_id: 157, name: "Yankee", category: VehicleCategory::SedansMuscle, description: "Truk kontainer berukuran besar" },
-    VehicleDef { model_id: 158, name: "Bobcat", category: VehicleCategory::SedansMuscle, description: "Pickup truck serbaguna" },
-    VehicleDef { model_id: 159, name: "Stallion", category: VehicleCategory::SedansMuscle, description: "Muscle car ikonik convertible" },
-    VehicleDef { model_id: 160, name: "Esperanto", category: VehicleCategory::SedansMuscle, description: "Coupe panjang retro Amerika" },
-    VehicleDef { model_id: 161, name: "Patriot", category: VehicleCategory::SedansMuscle, description: "SUV lapis baja militer" },
-    VehicleDef { model_id: 162, name: "Mr. Whoopee", category: VehicleCategory::SedansMuscle, description: "Mobil penjual es krim" },
-    VehicleDef { model_id: 163, name: "BF Injection", category: VehicleCategory::SedansMuscle, description: "Buggy pantai berkecepatan tinggi" },
-    VehicleDef { model_id: 164, name: "Hoods Rumpo XL", category: VehicleCategory::SedansMuscle, description: "Van geng Southside Hoods" },
-    VehicleDef { model_id: 165, name: "Pony", category: VehicleCategory::SedansMuscle, description: "Van ekspedisi serbaguna" },
-    VehicleDef { model_id: 166, name: "Moonbeam", category: VehicleCategory::SedansMuscle, description: "Minivan keluarga" },
-    VehicleDef { model_id: 167, name: "Speeder", category: VehicleCategory::Boats, description: "Speedboat bertenaga jet" },
-    VehicleDef { model_id: 168, name: "Reefer", category: VehicleCategory::Boats, description: "Kapal nelayan kayu kecil" },
-    VehicleDef { model_id: 169, name: "Predator", category: VehicleCategory::Boats, description: "Perahu patroli polisi" },
-    VehicleDef { model_id: 170, name: "Dinghy", category: VehicleCategory::Boats, description: "Perahu karet motor tempel" },
-    VehicleDef { model_id: 171, name: "Ghost", category: VehicleCategory::Boats, description: "Perahu kayu misterius" },
+    VehicleDef { model_id: 99,  name: "Stretch", category: VehicleCategory::SedansMuscle, description: "Limusin mewah kelas atas" },
+    VehicleDef { model_id: 95,  name: "Sentinel", category: VehicleCategory::SedansMuscle, description: "Sedan bisnis eksekutif 4 pintu" },
+    VehicleDef { model_id: 111, name: "Kuruma", category: VehicleCategory::SedansMuscle, description: "Sedan 4 pintu andalan Liberty City" },
+    VehicleDef { model_id: 129, name: "Stallion", category: VehicleCategory::SedansMuscle, description: "Muscle car bertenaga besar" },
+    VehicleDef { model_id: 109, name: "Esperanto", category: VehicleCategory::SedansMuscle, description: "Coupe Amerika klasik berbodi panjang" },
+    VehicleDef { model_id: 91,  name: "Idaho", category: VehicleCategory::SedansMuscle, description: "Coupe 2 pintu bergaya retro" },
+    VehicleDef { model_id: 100, name: "Manana", category: VehicleCategory::SedansMuscle, description: "Sedan kompak mungil 2 pintu" },
+    VehicleDef { model_id: 94,  name: "Perennial", category: VehicleCategory::SedansMuscle, description: "Station wagon keluarga" },
+    VehicleDef { model_id: 102, name: "Blista", category: VehicleCategory::SedansMuscle, description: "Minivan kompak serbaguna" },
 
-    // --- Offroad & Vans ---
-    VehicleDef { model_id: 172, name: "Bus", category: VehicleCategory::OffroadVans, description: "Bus transit penumpang kota" },
-    VehicleDef { model_id: 173, name: "Coach", category: VehicleCategory::OffroadVans, description: "Bus pariwisata antar-kota" },
-    VehicleDef { model_id: 174, name: "Rumpo", category: VehicleCategory::OffroadVans, description: "Van komersial lincah" },
-    VehicleDef { model_id: 175, name: "RC Bandit", category: VehicleCategory::OffroadVans, description: "Buggy mini remote control" },
-    VehicleDef { model_id: 176, name: "Trashmaster", category: VehicleCategory::OffroadVans, description: "Truk pengangkut sampah" },
-    VehicleDef { model_id: 177, name: "Stretch", category: VehicleCategory::OffroadVans, description: "Limusin mafia Panlantic" },
-    VehicleDef { model_id: 178, name: "Mule", category: VehicleCategory::OffroadVans, description: "Truk kargo pengangkut barang" },
-    VehicleDef { model_id: 179, name: "Linerunner", category: VehicleCategory::OffroadVans, description: "Truk semi-trailer penarik" },
-    VehicleDef { model_id: 180, name: "Securicar", category: VehicleCategory::OffroadVans, description: "Mobil lapis baja pengangkut uang" },
-    VehicleDef { model_id: 181, name: "Landstalker", category: VehicleCategory::OffroadVans, description: "SUV mewah berpenggerak 4 roda" },
+    // --- Van, Pickup & Truk ---
+    VehicleDef { model_id: 90,  name: "Landstalker", category: VehicleCategory::VansTrucks, description: "SUV mewah 4x4 penjelajah segala medan" },
+    VehicleDef { model_id: 96,  name: "Patriot", category: VehicleCategory::VansTrucks, description: "SUV militer tangguh dan kuat" },
+    VehicleDef { model_id: 112, name: "Bobcat", category: VehicleCategory::VansTrucks, description: "Truk pickup bak terbuka serbaguna" },
+    VehicleDef { model_id: 108, name: "Moonbeam", category: VehicleCategory::VansTrucks, description: "Minivan keluarga berbodi luas" },
+    VehicleDef { model_id: 130, name: "Rumpo", category: VehicleCategory::VansTrucks, description: "Van kargo komersial" },
+    VehicleDef { model_id: 103, name: "Pony", category: VehicleCategory::VansTrucks, description: "Van ekspedisi antar barang" },
+    VehicleDef { model_id: 104, name: "Mule", category: VehicleCategory::VansTrucks, description: "Truk box ekspedisi sedang" },
+    VehicleDef { model_id: 146, name: "Yankee", category: VehicleCategory::VansTrucks, description: "Truk kontainer besar" },
+    VehicleDef { model_id: 145, name: "Flatbed", category: VehicleCategory::VansTrucks, description: "Truk flatbed pengangkut muatan berat" },
+    VehicleDef { model_id: 93,  name: "Linerunner", category: VehicleCategory::VansTrucks, description: "Truk kepala semi-trailer bertenaga tinggi" },
+    VehicleDef { model_id: 98,  name: "Trashmaster", category: VehicleCategory::VansTrucks, description: "Truk pengangkut sampah lapis tebal" },
+    VehicleDef { model_id: 121, name: "Bus", category: VehicleCategory::VansTrucks, description: "Bus transit penumpang kota LCPD" },
+    VehicleDef { model_id: 127, name: "Coach", category: VehicleCategory::VansTrucks, description: "Bus pariwisata antar kota" },
+    VehicleDef { model_id: 113, name: "Mr. Whoopee", category: VehicleCategory::VansTrucks, description: "Mobil penjual es krim berlagu khas" },
+    VehicleDef { model_id: 131, name: "RC Bandit", category: VehicleCategory::VansTrucks, description: "Mobil mini remote control peledak" },
+    VehicleDef { model_id: 148, name: "Toyz", category: VehicleCategory::VansTrucks, description: "Van kendali misi rahasia RC Bandit" },
+    VehicleDef { model_id: 132, name: "Belly Up", category: VehicleCategory::VansTrucks, description: "Truk box pedagang ikan Triad" },
+    VehicleDef { model_id: 133, name: "Mr. Wong's", category: VehicleCategory::VansTrucks, description: "Van pengantar binatu Mr. Wong" },
+    VehicleDef { model_id: 144, name: "Panlantic", category: VehicleCategory::VansTrucks, description: "Van perusahaan konstruksi Panlantic" },
+
+    // --- Kapal & Pesawat ---
+    VehicleDef { model_id: 126, name: "Dodo", category: VehicleCategory::BoatsAir, description: "Pesawat kecil ikonik GTA 3 bersayap potong" },
+    VehicleDef { model_id: 120, name: "Predator", category: VehicleCategory::BoatsAir, description: "Perahu patroli bersenjata polisi perairan" },
+    VehicleDef { model_id: 142, name: "Speeder", category: VehicleCategory::BoatsAir, description: "Speedboat cepat bertenaga tinggi" },
+    VehicleDef { model_id: 143, name: "Reefer", category: VehicleCategory::BoatsAir, description: "Kapal nelayan perairan Liberty City" },
+    VehicleDef { model_id: 150, name: "Ghost", category: VehicleCategory::BoatsAir, description: "Perahu kayu misterius" },
 ];
 
 struct CategoryFilterRow;

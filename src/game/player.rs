@@ -85,11 +85,11 @@ pub fn get_player_info_ptr() -> *mut u8 {
 }
 
 /// Gets Claude's current money.
-/// GTA III v1.3.2 ARMv7: m_nMoney is at CPlayerInfo + 0xB0.
+/// GTA III v1.3.2 ARMv7: m_nMoney is at CPlayerInfo + 0xAC.
 pub fn get_money() -> i32 {
     let info = get_player_info_ptr();
     if !info.is_null() {
-        unsafe { *(info.add(0xb0) as *const i32) }
+        unsafe { *(info.add(0xac) as *const i32) }
     } else {
         0
     }
@@ -97,14 +97,14 @@ pub fn get_money() -> i32 {
 
 /// Modifies Claude's money (both internal bank and display HUD).
 /// GTA III v1.3.2 ARMv7:
-///   m_nMoney is at +0xB0
-///   m_nDisplayMoney is at +0xB4
+///   m_nMoney is at +0xAC
+///   m_nDisplayMoney is at +0xB0
 pub fn apply_money(amount: i32, is_delta: bool) {
     let info = get_player_info_ptr();
     if !info.is_null() {
         unsafe {
-            let money_ptr = info.add(0xb0) as *mut i32;
-            let display_money_ptr = info.add(0xb4) as *mut i32;
+            let money_ptr = info.add(0xac) as *mut i32;
+            let display_money_ptr = info.add(0xb0) as *mut i32;
             if is_delta {
                 *money_ptr = (*money_ptr).saturating_add(amount);
             } else {
@@ -221,21 +221,36 @@ pub fn spawn_vehicle_direct(model_id: u32) -> *mut u8 {
         let height = f32::from_bits(height_raw);
         let final_z = spawn_z + if height > 0.05 && height < 5.0 { height } else { 0.4 };
 
-        // Set vehicle rotation via CMatrix::SetRotate
-        hook::slide_fn::<extern "C" fn(*mut u8, u32, u32, u32)>(0x000c5064)(
-            veh.add(4),
-            0.0f32.to_bits(),
-            0.0f32.to_bits(),
-            veh_heading.to_bits(),
-        );
+        // Set vehicle orientation & position directly in CMatrix (embedded at veh + 0x04)
+        // CMatrix layout (RenderWare RwMatrix):
+        //   +0x04: Right vector   (cos(h), sin(h), 0.0)
+        //   +0x14: Forward vector (-sin(h), cos(h), 0.0)
+        //   +0x24: Up vector      (0.0, 0.0, 1.0)
+        //   +0x34: Position       (spawn_x, spawn_y, final_z)
+        let (sin_h, cos_h) = veh_heading.sin_cos();
 
-        // Set coordinates at placeable position (+0x34, +0x38, +0x3C)
+        // Right vector
+        *(veh.add(0x04) as *mut f32) = cos_h;
+        *(veh.add(0x08) as *mut f32) = sin_h;
+        *(veh.add(0x0c) as *mut f32) = 0.0;
+
+        // Forward vector
+        *(veh.add(0x14) as *mut f32) = -sin_h;
+        *(veh.add(0x18) as *mut f32) = cos_h;
+        *(veh.add(0x1c) as *mut f32) = 0.0;
+
+        // Up vector
+        *(veh.add(0x24) as *mut f32) = 0.0;
+        *(veh.add(0x28) as *mut f32) = 0.0;
+        *(veh.add(0x2c) as *mut f32) = 1.0;
+
+        // Coordinates at placeable position (+0x34, +0x38, +0x3C)
         *(veh.add(0x34) as *mut f32) = spawn_x;
         *(veh.add(0x38) as *mut f32) = spawn_y;
         *(veh.add(0x3c) as *mut f32) = final_z;
 
-        // 8. Configure status (active driver/vehicle status)
-        let status_flags = veh.add(0x52) as *mut u8;
+        // 8. Configure status (active driver/vehicle status at CEntity + 0x53)
+        let status_flags = veh.add(0x53) as *mut u8;
         *status_flags = (*status_flags & !0x38) | (4 << 3);
 
         // 9. Add vehicle entity to CWorld
@@ -311,7 +326,8 @@ pub fn tick() {
                         let ped = find_player_ped();
                         if !ped.is_null() {
                             unsafe {
-                                *(ped.add(0x2c8) as *mut f32) = 100.0;
+                                // GTA III: Health is at ped + 0x2C4
+                                *(ped.add(0x2c4) as *mut f32) = 100.0;
                             }
                         }
                         let veh = find_player_vehicle();
@@ -326,7 +342,8 @@ pub fn tick() {
                         let ped = find_player_ped();
                         if !ped.is_null() {
                             unsafe {
-                                *(ped.add(0x2c4) as *mut f32) = 100.0;
+                                // GTA III: Armor is at ped + 0x2C8
+                                *(ped.add(0x2c8) as *mut f32) = 100.0;
                             }
                         }
                     }
@@ -407,8 +424,8 @@ pub fn tick() {
             // Infinite Health / God Mode (locks Claude to 250 HP and 250 Armor)
             if INFINITE_HEALTH.load(Ordering::Relaxed) {
                 unsafe {
-                    *(ped.add(0x2c8) as *mut f32) = 250.0;
-                    *(ped.add(0x2c4) as *mut f32) = 250.0;
+                    *(ped.add(0x2c4) as *mut f32) = 250.0; // Health
+                    *(ped.add(0x2c8) as *mut f32) = 250.0; // Armor
                 }
 
                 // If inside a vehicle, keep vehicle fully repaired
@@ -426,7 +443,7 @@ pub fn tick() {
                 if GOD_MODE_VEHICLE.load(Ordering::Relaxed) {
                     unsafe {
                         *(current_veh.add(0x204) as *mut f32) = 1000.0;
-                        *(current_veh.add(0x52) as *mut u32) |= 0x002f0000;
+                        *(current_veh.add(0x53) as *mut u32) |= 0x002f0000;
                         hook::slide_fn::<extern "C" fn(*mut u8, u32)>(0x000cc560)(current_veh.add(0x28c), 0);
                     }
                 }

@@ -71,8 +71,8 @@ impl Cheat {
 
         #[cfg(target_pointer_width = "32")]
         unsafe {
-            static mut VC_CHEAT_ACTIVE: [bool; 42] = [false; 42];
-            &mut VC_CHEAT_ACTIVE[self.index]
+            static mut GTA3_CHEAT_ACTIVE: [bool; 39] = [false; 39];
+            &mut GTA3_CHEAT_ACTIVE[self.index]
         }
     }
 
@@ -83,7 +83,7 @@ impl Cheat {
     pub fn is_toggle(&self) -> bool {
         #[cfg(target_pointer_width = "32")]
         {
-            matches!(self.index, 24..=34 | 37..=41)
+            matches!(self.index, 28 | 35..=38)
         }
         #[cfg(target_pointer_width = "64")]
         {
@@ -109,8 +109,8 @@ impl Cheat {
     fn run(&self) {
         #[cfg(target_pointer_width = "32")]
         {
-            log::info!("Activating VC cheat index {} ({})", self.index, self.code);
-            call_vc_cheat(self.index);
+            log::info!("Activating GTA III cheat index {} ({})", self.index, self.code);
+            call_gta3_cheat(self.index);
             let active = self.get_active_mut();
             *active = !*active;
             return;
@@ -665,13 +665,13 @@ pub fn tab_data() -> TabData {
         rows.push(Box::new(PlayerQuickActionRow {
             action: crate::game::player::PlayerAction::AddMoney(250_000),
             title: "TAMBAH UANG (+$250,000)",
-            detail: "Menambahkan $250.000 ke saldo Tommy",
+            detail: "Menambahkan $250.000 ke saldo Claude",
             triggered: false,
         }));
         rows.push(Box::new(PlayerQuickActionRow {
             action: crate::game::player::PlayerAction::SetMoney(99_999_999),
             title: "UANG MAKSIMAL ($99,999,999)",
-            detail: "Mengisi rekening Tommy hingga batas maksimal",
+            detail: "Mengisi rekening Claude hingga batas maksimal",
             triggered: false,
         }));
         rows.push(Box::new(PlayerQuickActionRow {
@@ -689,7 +689,7 @@ pub fn tab_data() -> TabData {
         rows.push(Box::new(PlayerToggleRow {
             atomic: &crate::game::player::INFINITE_HEALTH,
             title: "DARAH TAK TERBATAS (GOD MODE)",
-            detail: "Tommy & kendaraan kebal dari tembakan, ledakan, dan jatuh",
+            detail: "Claude & kendaraan kebal dari tembakan, ledakan, dan jatuh",
         }));
         rows.push(Box::new(PlayerToggleRow {
             atomic: &crate::game::player::INFINITE_AMMO,
@@ -699,7 +699,7 @@ pub fn tab_data() -> TabData {
         rows.push(Box::new(PlayerToggleRow {
             atomic: &crate::game::player::INFINITE_SPRINT,
             title: "LARI TANPA BATAS (INFINITE SPRINT)",
-            detail: "Tommy bisa berlari tanpa batas tanpa kelelahan",
+            detail: "Claude bisa berlari tanpa batas tanpa kelelahan",
         }));
         rows.push(Box::new(PlayerToggleRow {
             atomic: &crate::game::player::FAST_RELOAD,
@@ -715,7 +715,7 @@ pub fn tab_data() -> TabData {
         rows.push(Box::new(PlayerToggleRow {
             atomic: &crate::game::player::NEVER_WANTED,
             title: "BEBAS POLISI PERMANEN (NEVER WANTED)",
-            detail: "Polisi tidak akan pernah mengejar Tommy (bintang beku di 0)",
+            detail: "Polisi tidak akan pernah mengejar Claude (bintang beku di 0)",
         }));
         rows.push(Box::new(PlayerQuickActionRow {
             action: crate::game::player::PlayerAction::RaiseWanted,
@@ -732,7 +732,7 @@ pub fn tab_data() -> TabData {
         rows.push(Box::new(PlayerToggleRow {
             atomic: &crate::game::player::GOD_MODE_VEHICLE,
             title: "MOBIL KEBAL (VEHICLE GOD MODE)",
-            detail: "Kendaraan yang dinaiki Tommy kebal peluru, api, ledakan, tabrakan, dan ban anti bocor",
+            detail: "Kendaraan yang dinaiki Claude kebal peluru, api, ledakan, tabrakan, dan ban anti bocor",
         }));
     } else if current_cat == CheatCategory::Vehicles {
         rows.push(Box::new(VehicleRepairRow {
@@ -744,7 +744,7 @@ pub fn tab_data() -> TabData {
         rows.push(Box::new(PlayerToggleRow {
             atomic: &crate::game::player::GOD_MODE_VEHICLE,
             title: "MOBIL KEBAL (VEHICLE GOD MODE)",
-            detail: "Kendaraan yang dinaiki Tommy kebal peluru, api, ledakan, tabrakan, dan ban anti bocor",
+            detail: "Kendaraan yang dinaiki Claude kebal peluru, api, ledakan, tabrakan, dan ban anti bocor",
         }));
     }
 
@@ -824,116 +824,107 @@ pub fn init() {
 //  was really useful for writing cheat descriptions.
 
 #[cfg(target_pointer_width = "32")]
-fn call_vc_cheat(index: usize) {
+fn call_gta3_cheat(index: usize) {
     match index {
         // Weapons
         0 => {
+            // GUNSGUNSGUNS (All Weapons)
             crate::game::player::INFINITE_AMMO.store(true, std::sync::atomic::Ordering::Relaxed);
-            hook::slide_fn::<extern "C" fn()>(0x000795b8)(); // THUGSTOOLS
-        }
-        1 => {
-            crate::game::player::INFINITE_AMMO.store(true, std::sync::atomic::Ordering::Relaxed);
-            hook::slide_fn::<extern "C" fn()>(0x0007946c)(); // PROFESSIONALTOOLS
-        }
-        2 => {
-            crate::game::player::INFINITE_AMMO.store(true, std::sync::atomic::Ordering::Relaxed);
-            hook::slide_fn::<extern "C" fn()>(0x00079314)(); // NUTTERTOOLS
+            hook::slide_fn::<extern "C" fn()>(0x000c0c70)();
         }
 
-        // Health, Armor & Wanted
-        3 => hook::slide_fn::<extern "C" fn()>(0x00077e34)(), // PRECIOUSPROTECTION (Armor 100%)
-        4 => hook::slide_fn::<extern "C" fn(u32)>(0x00079254)(1), // ASPIRINE (Health 100% + Repair Car)
-        5 => hook::slide_fn::<extern "C" fn()>(0x00077edc)(), // YOUWONTTAKEMEALIVE (Wanted +2)
-        6 => hook::slide_fn::<extern "C" fn()>(0x00077e84)(), // LEAVEMEALONE (Clear Wanted)
+        // Money
+        1 => {
+            // IFIWEREARICHMAN (+$250,000)
+            crate::game::player::apply_money(250_000, true);
+        }
+
+        // Health & Armor
+        2 => {
+            // GESUNDHEIT (100% Health & Repair Vehicle)
+            hook::slide_fn::<extern "C" fn()>(0x000c0c0c)();
+        }
+        3 => {
+            // TORTOISE (100% Armor)
+            hook::slide_fn::<extern "C" fn()>(0x000c05d8)();
+        }
+
+        // Wanted
+        4 => {
+            // MOREPOLICEPLEASE (+2 Wanted Stars)
+            hook::slide_fn::<extern "C" fn()>(0x000c063c)();
+        }
+        5 => {
+            // NOPOLICEPLEASE (Clear Wanted Level to 0)
+            hook::slide_fn::<extern "C" fn()>(0x000c060c)();
+        }
+
+        // Vehicles Spawner (verified GTA III iOS model IDs)
+        6 => crate::game::player::queue_spawn_vehicle(122), // GIVEUSATANK (Rhino Tank - Model 122)
+        7 => crate::game::player::queue_spawn_vehicle(101), // INFERNUS (Supercar - Model 101)
+        8 => crate::game::player::queue_spawn_vehicle(105), // CHEETAH (Supercar - Model 105)
+        9 => crate::game::player::queue_spawn_vehicle(119), // BANSHEE (Sports - Model 119)
+        10 => crate::game::player::queue_spawn_vehicle(92),  // STINGER (Sports - Model 92)
+        11 => crate::game::player::queue_spawn_vehicle(136), // YAKUZA STINGER (Model 136)
+        12 => crate::game::player::queue_spawn_vehicle(137), // DIABLO STALLION (Model 137)
+        13 => crate::game::player::queue_spawn_vehicle(134), // MAFIA SENTINEL (Model 134)
+        14 => crate::game::player::queue_spawn_vehicle(96),  // PATRIOT (Humvee - Model 96)
+        15 => crate::game::player::queue_spawn_vehicle(148), // BORGNINE (Cabbie - Model 148)
+        16 => crate::game::player::queue_spawn_vehicle(116), // POLICE (Police Car - Model 116)
+        17 => crate::game::player::queue_spawn_vehicle(117), // ENFORCER (SWAT Van - Model 117)
+        18 => crate::game::player::queue_spawn_vehicle(123), // BARRACKS OL (Military Truck - Model 123)
+        19 => crate::game::player::queue_spawn_vehicle(97),  // FIRETRUCK (Fire Truck - Model 97)
+        20 => crate::game::player::queue_spawn_vehicle(106), // AMBULANCE (Ambulance - Model 106)
+        21 => crate::game::player::queue_spawn_vehicle(126), // DODO (Airplane - Model 126)
+        22 => crate::game::player::queue_spawn_vehicle(120), // PREDATOR (Police Boat - Model 120)
+        23 => crate::game::player::queue_spawn_vehicle(142), // SPEEDER (Speed Boat - Model 142)
+
+        // World, Traffic & Gameplay
+        24 => hook::slide_fn::<extern "C" fn()>(0x000c0570)(), // BANGBANGBANG (Blow up all cars)
+        25 => hook::slide_fn::<extern "C" fn()>(0x000c073c)(), // ILIKEDRESSINGUP (Change skin/clothes)
+        26 => hook::slide_fn::<extern "C" fn()>(0x000c0528)(), // ITSALLGOINGMAAAD (Peds riot/crazy)
+        27 => hook::slide_fn::<extern "C" fn()>(0x000c04e0)(), // NOBODYLIKESME (Peds attack Claude)
+        28 => unsafe {
+            // WEAPONSFORALL (Peds have weapons)
+            let p = hook::slide::<*mut u8>(0x312350);
+            if !p.is_null() {
+                *p = if *p == 0 { 1 } else { 0 };
+            }
+        },
+        29 => hook::slide_fn::<extern "C" fn()>(0x000c0490)(), // TIMEFLIESWHENYOU (Fast gameplay, 4x)
+        30 => hook::slide_fn::<extern "C" fn()>(0x000c043c)(), // BOOOOORING (Slow motion, 0.25x)
 
         // Weather
-        7 => hook::slide_fn::<extern "C" fn()>(0x0007874c)(), // APLEASANTDAY
-        8 => hook::slide_fn::<extern "C" fn()>(0x0007871c)(), // ALOVELYDAY
-        9 => hook::slide_fn::<extern "C" fn()>(0x000786ec)(), // ABITDRIEG
-        10 => hook::slide_fn::<extern "C" fn()>(0x000786bc)(), // CATSANDDOGS
-        11 => hook::slide_fn::<extern "C" fn()>(0x0007868c)(), // CANTSEEATHING
-
-        // Vehicles Spawner (using native vehicle spawner directly in front of Tommy)
-        12 => crate::game::player::queue_spawn_vehicle(162), // PANZER (Rhino Tank - Model 162)
-        13 => crate::game::player::queue_spawn_vehicle(155), // HUNTER (Hunter Helicopter - Model 155)
-        14 => crate::game::player::queue_spawn_vehicle(234), // TRAVELINSTYLE (Bloodring Banger A - Model 234)
-        15 => crate::game::player::queue_spawn_vehicle(235), // GETTHEREQUICKLY (Bloodring Banger B - Model 235)
-        16 => crate::game::player::queue_spawn_vehicle(232), // GETTHEREVERYFASTINDEED (Hotring Racer A - Model 232)
-        17 => crate::game::player::queue_spawn_vehicle(233), // GETTHEREAMAZINGLYFAST (Hotring Racer B - Model 233)
-        18 => crate::game::player::queue_spawn_vehicle(206), // GETTHEREFAST (Sabre Turbo - Model 206)
-        19 => crate::game::player::queue_spawn_vehicle(172), // THELASTRIDE (Romero's Hearse - Model 172)
-        20 => crate::game::player::queue_spawn_vehicle(201), // ROCKANDROLLCAR (Love Fist Limousine - Model 201)
-        21 => crate::game::player::queue_spawn_vehicle(138), // RUBBISHCAR (Trashmaster - Model 138)
-        22 => crate::game::player::queue_spawn_vehicle(187), // BETTERTHANWALKING (Caddy Golf Cart - Model 187)
-
-        // Traffic, Handling & Physics
-        23 => hook::slide_fn::<extern "C" fn()>(0x00077dc4)(), // BIGBANG (Blow up all cars)
-        24 => hook::slide_fn::<extern "C" fn()>(0x00077b6c)(), // WHEELSAREALLINEED (Invisible cars, wheels only)
-        25 => hook::slide_fn::<extern "C" fn()>(0x00077b08)(), // COMEFLYWITHME (Flying cars)
-        26 => hook::slide_fn::<extern "C" fn()>(0x00077aa4)(), // GRIPISEVERYTHING (Sticky handling)
-        27 => unsafe {
-            // SEAWAYS (Cars drive on water)
-            let p1 = hook::slide::<*mut u8>(0x5aaea0);
-            if !p1.is_null() {
-                *p1 = if *p1 == 0 { 1 } else { 0 };
-            }
-            let p2 = hook::slide::<*mut u8>(0x434644);
-            if !p2.is_null() {
-                *p2 = if *p2 == 0 { 1 } else { 0 };
-            }
-        },
-        28 => unsafe {
-            // GREENLIGHT (Traffic lights always green)
-            let p = hook::slide::<*mut u8>(0x423b80);
+        31 => hook::slide_fn::<extern "C" fn()>(0x000c0710)(), // SKINCANCERFORME (Sunny weather)
+        32 => hook::slide_fn::<extern "C" fn()>(0x000c06e4)(), // ILIKESCOTLAND (Cloudy weather)
+        33 => hook::slide_fn::<extern "C" fn()>(0x000c06b8)(), // ILOVESCOTLAND (Rainy weather)
+        34 => hook::slide_fn::<extern "C" fn()>(0x000c068c)(), // PEASOUP (Foggy weather)
+        35 => unsafe {
+            // MADWEATHER (Fast weather changes)
+            let p = hook::slide::<*mut u8>(0x3caf80);
             if !p.is_null() {
                 *p = if *p == 0 { 1 } else { 0 };
             }
         },
-        29 => unsafe {
-            // MIAMITRAFFIC (Aggressive traffic)
-            let p = hook::slide::<*mut u8>(0x5ad7a0);
-            if !p.is_null() {
-                *p = if *p == 0 { 1 } else { 0 };
-            }
-        },
-        30 => unsafe {
-            // AHAIRDRESSERSCAR (Pink traffic)
-            let p_pink = hook::slide::<*mut u8>(0x473398);
-            let p_black = hook::slide::<*mut u8>(0x473394);
-            if !p_pink.is_null() && !p_black.is_null() {
-                *p_pink = 1;
-                *p_black = 0;
-            }
-        },
-        31 => unsafe {
-            // IWANTITPAINTEDBLACK (Black traffic)
-            let p_pink = hook::slide::<*mut u8>(0x473398);
-            let p_black = hook::slide::<*mut u8>(0x473394);
-            if !p_pink.is_null() && !p_black.is_null() {
-                *p_pink = 0;
-                *p_black = 1;
-            }
-        },
 
-        // Gameplay, Player & World
-        32 => unsafe {
-            // LIFEISPASSINGMEBY (Speed up clock)
-            let p = hook::slide::<*mut u8>(0x3dd1b0);
+        // Car Physics & Toggles
+        36 => unsafe {
+            // ANICESETOFWHEELS (Invisible cars, wheels only)
+            let p = hook::slide::<*mut u8>(0x51c790);
             if !p.is_null() {
                 *p = if *p == 0 { 1 } else { 0 };
             }
         },
-        33 => hook::slide_fn::<extern "C" fn()>(0x00077c2c)(), // ONSPEED (Fast gameplay)
-        34 => hook::slide_fn::<extern "C" fn()>(0x00077bd0)(), // BOOOOOORING (Slow-mo gameplay)
-        35 => hook::slide_fn::<extern "C" fn()>(0x0007877c)(), // STILLLIKEDRESSINGUP (Change skin/clothes)
-        36 => hook::slide_fn::<extern "C" fn()>(0x000785b4)(), // ICANTTAKEITANYMORE (Suicide)
-        37 => hook::slide_fn::<extern "C" fn()>(0x00077d54)(), // FIGHTFIGHTFIGHT (Ped riot)
-        38 => hook::slide_fn::<extern "C" fn()>(0x00077ce8)(), // NOBODYLIKESME (Peds attack)
-        39 => hook::slide_fn::<extern "C" fn()>(0x00077c84)(), // OURGODGIVENRIGHTTOBEARARMS (Peds have weapons)
-        40 => hook::slide_fn::<extern "C" fn()>(0x000785fc)(), // CHICKSWITHGUNS (Bikini/female peds armed)
-        41 => unsafe {
-            // CHASESTAT (Show media level)
-            let p = hook::slide::<*mut u32>(0x5ce4ec);
+        37 => unsafe {
+            // CHITTYCHITTYBB (Flying cars)
+            let p = hook::slide::<*mut u8>(0x51c798);
+            if !p.is_null() {
+                *p = if *p == 0 { 1 } else { 0 };
+            }
+        },
+        38 => unsafe {
+            // CORNERSLIKEMAD (Grippy / mad handling)
+            let p = hook::slide::<*mut u8>(0x51c79c);
             if !p.is_null() {
                 *p = if *p == 0 { 1 } else { 0 };
             }
@@ -943,49 +934,46 @@ fn call_vc_cheat(index: usize) {
 }
 
 #[cfg(target_pointer_width = "32")]
-static CHEATS: [Cheat; 42] = [
-    Cheat::new(0, "THUGSTOOLS", MessageKey::CheatThugsArmoury),
-    Cheat::new(1, "PROFESSIONALTOOLS", MessageKey::CheatProfessionalsKit),
-    Cheat::new(2, "NUTTERTOOLS", MessageKey::CheatNuttersToys),
-    Cheat::new(3, "PRECIOUSPROTECTION", MessageKey::CheatFullInvincibility),
-    Cheat::new(4, "ASPIRINE", MessageKey::CheatINeedSomeHelp),
-    Cheat::new(5, "YOUWONTTAKEMEALIVE", MessageKey::CheatTurnUpTheHeat),
-    Cheat::new(6, "LEAVEMEALONE", MessageKey::CheatTurnDownTheHeat),
-    Cheat::new(7, "APLEASANTDAY", MessageKey::CheatTooDamnHot),
-    Cheat::new(8, "ALOVELYDAY", MessageKey::CheatPleasantlyWarm),
-    Cheat::new(9, "ABITDRIEG", MessageKey::CheatDullDullDay),
-    Cheat::new(10, "CATSANDDOGS", MessageKey::CheatStayInAndWatchTv),
-    Cheat::new(11, "CANTSEEATHING", MessageKey::CheatCantSeeWhereImGoing),
-    Cheat::new(12, "PANZER", MessageKey::CheatTimeToKickAss),
-    Cheat::new(13, "HUNTER", MessageKey::CheatOhDude),
-    Cheat::new(14, "TRAVELINSTYLE", MessageKey::CheatOldSpeedDemon),
-    Cheat::new(15, "GETTHEREQUICKLY", MessageKey::CheatFourWheelFun),
-    Cheat::new(16, "GETTHEREVERYFASTINDEED", MessageKey::CheatNotForPublicRoads),
-    Cheat::new(17, "GETTHEREAMAZINGLYFAST", MessageKey::CheatJustTryAndStopMe),
-    Cheat::new(18, "GETTHEREFAST", MessageKey::CheatSabreTurbo),
-    Cheat::new(19, "THELASTRIDE", MessageKey::CheatWheresTheFuneral),
-    Cheat::new(20, "ROCKANDROLLCAR", MessageKey::CheatCelebrityStatus),
-    Cheat::new(21, "RUBBISHCAR", MessageKey::CheatTrueGrime),
-    Cheat::new(22, "BETTERTHANWALKING", MessageKey::Cheat18Holes),
-    Cheat::new(23, "BIGBANG", MessageKey::CheatAllCarsGoBoom),
-    Cheat::new(24, "WHEELSAREALLINEED", MessageKey::CheatWheelsOnlyPlease),
-    Cheat::new(25, "COMEFLYWITHME", MessageKey::CheatChittyChittyBangBang),
-    Cheat::new(26, "GRIPISEVERYTHING", MessageKey::CheatStickLikeGlue),
-    Cheat::new(27, "SEAWAYS", MessageKey::CheatSeaways),
-    Cheat::new(28, "GREENLIGHT", MessageKey::CheatDontTryAndStopMe),
-    Cheat::new(29, "MIAMITRAFFIC", MessageKey::CheatAllDriversAreCriminals),
-    Cheat::new(30, "AHAIRDRESSERSCAR", MessageKey::CheatPinkIsTheNewCool),
-    Cheat::new(31, "IWANTITPAINTEDBLACK", MessageKey::CheatSoLongAsItsBlack),
-    Cheat::new(32, "LIFEISPASSINGMEBY", MessageKey::CheatTimeJustFliesBy),
-    Cheat::new(33, "ONSPEED", MessageKey::CheatSpeedItUp),
-    Cheat::new(34, "BOOOOOORING", MessageKey::CheatSlowItDown),
-    Cheat::new(35, "STILLLIKEDRESSINGUP", MessageKey::CheatChangeClothes),
-    Cheat::new(36, "ICANTTAKEITANYMORE", MessageKey::CheatGoodbyeCruelWorld),
-    Cheat::new(37, "FIGHTFIGHTFIGHT", MessageKey::CheatStateOfEmergency),
-    Cheat::new(38, "NOBODYLIKESME", MessageKey::CheatStopPickingOnMe),
-    Cheat::new(39, "OURGODGIVENRIGHTTOBEARARMS", MessageKey::CheatSurroundedByNutters),
-    Cheat::new(40, "CHICKSWITHGUNS", MessageKey::CheatChicksWithGuns),
-    Cheat::new(41, "CHASESTAT", MessageKey::CheatDebugMappings),
+static CHEATS: [Cheat; 39] = [
+    Cheat::new(0, "GUNSGUNSGUNS", MessageKey::CheatThugsArmoury),
+    Cheat::new(1, "IFIWEREARICHMAN", MessageKey::CheatSlotOther),
+    Cheat::new(2, "GESUNDHEIT", MessageKey::CheatINeedSomeHelp),
+    Cheat::new(3, "TORTOISE", MessageKey::CheatFullInvincibility),
+    Cheat::new(4, "MOREPOLICEPLEASE", MessageKey::CheatTurnUpTheHeat),
+    Cheat::new(5, "NOPOLICEPLEASE", MessageKey::CheatTurnDownTheHeat),
+    Cheat::new(6, "GIVEUSATANK", MessageKey::CheatTimeToKickAss),
+    Cheat::new(7, "INFERNUS", MessageKey::CheatOldSpeedDemon),
+    Cheat::new(8, "CHEETAH", MessageKey::CheatNotForPublicRoads),
+    Cheat::new(9, "BANSHEE", MessageKey::CheatJustTryAndStopMe),
+    Cheat::new(10, "STINGER", MessageKey::CheatCelebrityStatus),
+    Cheat::new(11, "YAKUZASTINGER", MessageKey::CheatSabreTurbo),
+    Cheat::new(12, "DIABLOSTALLION", MessageKey::CheatFourWheelFun),
+    Cheat::new(13, "MAFIASENTINEL", MessageKey::CheatTrueGrime),
+    Cheat::new(14, "PATRIOT", MessageKey::CheatTintedRancher),
+    Cheat::new(15, "BORGNINETAXI", MessageKey::CheatCoolTaxis),
+    Cheat::new(16, "POLICE", MessageKey::CheatAllDriversAreCriminals),
+    Cheat::new(17, "ENFORCER", MessageKey::CheatMonsterMash),
+    Cheat::new(18, "BARRACKSOL", MessageKey::CheatHitTheRoadJack),
+    Cheat::new(19, "FIRETRUCK", MessageKey::CheatWheresTheFuneral),
+    Cheat::new(20, "AMBULANCE", MessageKey::Cheat18Holes),
+    Cheat::new(21, "DODO", MessageKey::CheatFlyingToStunt),
+    Cheat::new(22, "PREDATOR", MessageKey::CheatPredator),
+    Cheat::new(23, "SPEEDER", MessageKey::CheatFlyingFish),
+    Cheat::new(24, "BANGBANGBANG", MessageKey::CheatAllCarsGoBoom),
+    Cheat::new(25, "ILIKEDRESSINGUP", MessageKey::CheatChangeClothes),
+    Cheat::new(26, "ITSALLGOINGMAAAD", MessageKey::CheatStateOfEmergency),
+    Cheat::new(27, "NOBODYLIKESME", MessageKey::CheatStopPickingOnMe),
+    Cheat::new(28, "WEAPONSFORALL", MessageKey::CheatSurroundedByNutters),
+    Cheat::new(29, "TIMEFLIESWHENYOU", MessageKey::CheatSpeedItUp),
+    Cheat::new(30, "BOOOOORING", MessageKey::CheatSlowItDown),
+    Cheat::new(31, "SKINCANCERFORME", MessageKey::CheatTooDamnHot),
+    Cheat::new(32, "ILIKESCOTLAND", MessageKey::CheatPleasantlyWarm),
+    Cheat::new(33, "ILOVESCOTLAND", MessageKey::CheatStayInAndWatchTv),
+    Cheat::new(34, "PEASOUP", MessageKey::CheatCantSeeWhereImGoing),
+    Cheat::new(35, "MADWEATHER", MessageKey::CheatTimeJustFliesBy),
+    Cheat::new(36, "ANICESETOFWHEELS", MessageKey::CheatWheelsOnlyPlease),
+    Cheat::new(37, "CHITTYCHITTYBB", MessageKey::CheatChittyChittyBangBang),
+    Cheat::new(38, "CORNERSLIKEMAD", MessageKey::CheatStickLikeGlue),
 ];
 
 

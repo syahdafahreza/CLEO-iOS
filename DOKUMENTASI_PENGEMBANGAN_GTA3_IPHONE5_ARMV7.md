@@ -77,8 +77,8 @@
 
 | Struct | Field | Offset GTA III | Keterangan |
 |--------|-------|----------------|------------|
-| `CPed` | Armor (`m_fArmour`) | `0x2C4` | Single float (100.0f) |
-| `CPed` | Health (`m_fHealth`) | `0x2C8` | Single float (100.0f) |
+| `CPed` | Health (`m_fHealth`) | `0x2C4` | Single float (100.0f) — dibuktikan dari `GESUNDHEIT` (`0x000c0c0c`) |
+| `CPed` | Armor (`m_fArmour`) | `0x2C8` | Single float (100.0f) — dibuktikan dari `TORTOISE` (`0x000c05d8`) |
 | `CPed` | Kendaraan (`m_pMyVehicle`) | `0x314` | Pointer ke `CVehicle` |
 | `CPed` | Status dalam mobil | `0x318` | `bool m_bInVehicle` |
 | `CPed` | Basis slot senjata | `0x360` | 12 slot senjata |
@@ -87,17 +87,20 @@
 | `CWeapon` | Total ammo | `+0x0C` | Total sisa peluru |
 | `CPed` | Wanted info (`CWanted*`) | `0x544` | Pointer ke objek `CWanted` |
 | `CPed` | Struct total size | `0x5AC` | 1452 bytes |
+| `CPlaceable` | CMatrix embed base | `+0x04` | RenderWare RwMatrix (44 bytes) |
+| `CPlaceable` | Right vector | `+0x04`, `+0x08`, `+0x0C` | `cos(heading), sin(heading), 0.0` |
+| `CPlaceable` | Forward vector | `+0x14`, `+0x18`, `+0x1C` | `-sin(heading), cos(heading), 0.0` |
+| `CPlaceable` | Up vector | `+0x24`, `+0x28`, `+0x2C` | `0.0, 0.0, 1.0` |
 | `CPlaceable` | Posisi X, Y, Z | `0x34`, `0x38`, `0x3C` | Koordinat 3D |
-| `CPlaceable` | Forward X, Y | `0x14`, `0x18` | Vektor arah hadap 2D |
 | `CVehicle` | Health (`m_fHealth`) | `0x204` | Single float (1000.0f) |
-| `CVehicle` | Status flags | `0x52` | Immunities & status |
+| `CVehicle` | Status flags | `0x53` | Status aktif driver & immunities |
 | `CVehicle` | Model ID | `0x5E` / `0x5C` | ID model kendaraan |
 | `CVehicle` | Damage Manager | `0x28C` | `CDamageManager` struct |
 | `CPlayerInfo` | Struct total size | `0x13C` | 316 bytes |
 | `CPlayerInfo` | Claude ped pointer | `+0x00` | `CPlayerPed*` |
 | `CPlayerInfo` | Remote vehicle | `+0x04` | `CVehicle*` |
-| `CPlayerInfo` | Uang (`m_nMoney`) | `+0xB0` | Integer saldo uang |
-| `CPlayerInfo` | Tampilan uang HUD | `+0xB4` | Integer HUD display |
+| `CPlayerInfo` | Uang (`m_nMoney`) | `+0xAC` | Integer saldo uang — dibuktikan dari `IFIWEREARICHMAN` (`0x000c0d90`) |
+| `CPlayerInfo` | Tampilan uang HUD | `+0xB0` | Integer HUD display |
 | `CPlayerInfo` | Infinite sprint | `+0x114` | `bool` flag lari tanpa lelah |
 | `CPlayerInfo` | Fast reload | `+0x115` | `bool` flag reload cepat |
 | `CPlayerInfo` | Bebas penjara | `+0x116` | `bool m_bGetOutOfJailFree` |

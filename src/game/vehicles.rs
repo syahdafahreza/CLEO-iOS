@@ -93,7 +93,7 @@ pub static VEHICLES: &[VehicleDef] = &[
     VehicleDef { model_id: 118, name: "Securicar", category: VehicleCategory::EmergencyMilitary, description: "Mobil lapis baja pengangkut uang bank" },
     VehicleDef { model_id: 110, name: "Taxi", category: VehicleCategory::EmergencyMilitary, description: "Taksi kuning khas Liberty City" },
     VehicleDef { model_id: 128, name: "Cabbie", category: VehicleCategory::EmergencyMilitary, description: "Taksi klasik retro Liberty City" },
-    VehicleDef { model_id: 147, name: "Borgnine Cabbie", category: VehicleCategory::EmergencyMilitary, description: "Taksi spesial bertanduk bertenaga turbo" },
+    VehicleDef { model_id: 148, name: "Borgnine Cabbie", category: VehicleCategory::EmergencyMilitary, description: "Taksi spesial bertanduk bertenaga turbo" },
 
     // --- Sedan & Muscle ---
     VehicleDef { model_id: 99,  name: "Stretch", category: VehicleCategory::SedansMuscle, description: "Limusin mewah kelas atas" },
@@ -122,7 +122,7 @@ pub static VEHICLES: &[VehicleDef] = &[
     VehicleDef { model_id: 127, name: "Coach", category: VehicleCategory::VansTrucks, description: "Bus pariwisata antar kota" },
     VehicleDef { model_id: 113, name: "Mr. Whoopee", category: VehicleCategory::VansTrucks, description: "Mobil penjual es krim berlagu khas" },
     VehicleDef { model_id: 131, name: "RC Bandit", category: VehicleCategory::VansTrucks, description: "Mobil mini remote control peledak" },
-    VehicleDef { model_id: 148, name: "Toyz", category: VehicleCategory::VansTrucks, description: "Van kendali misi rahasia RC Bandit" },
+    VehicleDef { model_id: 149, name: "Toyz", category: VehicleCategory::VansTrucks, description: "Van kendali misi rahasia RC Bandit" },
     VehicleDef { model_id: 132, name: "Belly Up", category: VehicleCategory::VansTrucks, description: "Truk box pedagang ikan Triad" },
     VehicleDef { model_id: 133, name: "Mr. Wong's", category: VehicleCategory::VansTrucks, description: "Van pengantar binatu Mr. Wong" },
     VehicleDef { model_id: 144, name: "Panlantic", category: VehicleCategory::VansTrucks, description: "Van perusahaan konstruksi Panlantic" },

@@ -1,9 +1,9 @@
 [package]
 name = "cleo"
-version = "2.6.1"
+version = "1.0.0"
 authors = ["squ1dd13 <squ1dd13dev@gmail.com>"]
 edition = "2021"
-description = "CLEO VC for iOS"
+description = "CLEO GTA III for iOS"
 publish = false
 
 [lib]

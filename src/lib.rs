@@ -16,114 +16,85 @@ mod targets {
     #![allow(clippy::unreadable_literal)]
 
     // -------------------------------------------------------------------------
-    // Addresses are for GTA Vice City v1.3 (armv7 / 32-bit) on iPhone 5, iOS 10.3.4.
-    // TEXT segment base: 0x00001000  DATA segment base: 0x0023A000
+    // Addresses are for GTA III v1.x (armv7 / 32-bit) on iPhone 5, iOS 10.x.
+    // TEXT segment base: 0x00001000  (to be confirmed after IPA analysis)
+    // All addresses below are PLACEHOLDERS — fill in after binary analysis!
+    // Use: otool -l GTA3.app/GTA3 | grep -A3 "__TEXT"
     // -------------------------------------------------------------------------
 
     use super::{c_char, create_hard_target, create_soft_target, Object, Sel};
 
-    #[cfg(target_pointer_width = "64")]
-    create_soft_target!(script_tick, 0x1001d0f40, fn());
+    // Main script update loop — called every frame by CGame::Process
+    // TODO: fill in GTA 3 address (look for CTheScripts::Process or similar)
     #[cfg(target_pointer_width = "32")]
-    create_soft_target!(script_tick, 0x00138b80, fn());
+    create_soft_target!(script_tick, 0x00000000, fn());
 
-    #[cfg(target_pointer_width = "64")]
-    create_soft_target!(process_touch, 0x1004e831c, fn(f32, f32, f64, f32, u64));
+    // Touch/input handling — called when screen is touched
+    // TODO: fill in GTA 3 address
     #[cfg(target_pointer_width = "32")]
-    create_soft_target!(process_touch, 0x0020e100, extern "C" fn(u32, u32, u32, u32, u32));
+    create_soft_target!(process_touch, 0x00000000, extern "C" fn(u32, u32, u32, u32, u32));
 
-    #[cfg(target_pointer_width = "64")]
-    create_soft_target!(
-        get_gxt_string,
-        0x10044142c,
-        fn(usize, *const c_char) -> *const u16
-    );
+    // GXT string lookup — used for text display
+    // TODO: fill in GTA 3 address (CText::Get or similar)
     #[cfg(target_pointer_width = "32")]
     create_soft_target!(
         get_gxt_string,
-        0x001af6b8,
+        0x00000000,
         fn(usize, *const c_char) -> *const u16
     );
 
-    create_soft_target!(legal_splash, 0x000b3e6c, fn(*mut Object, sel: Sel));
-    create_soft_target!(legal_splash_german, 0x000a5d20, fn(*mut Object, sel: Sel));
+    // Legal splash screen hook — used to init CLEO early
+    // TODO: fill in GTA 3 address
+    create_soft_target!(legal_splash, 0x00000000, fn(*mut Object, sel: Sel));
+    create_soft_target!(legal_splash_german, 0x00000000, fn(*mut Object, sel: Sel));
 
+    // Store crash fix — prevents crash on app store check
+    // TODO: fill in GTA 3 address
     create_soft_target!(
         store_crash_fix,
-        0x00007ad0,
+        0x00000000,
         fn(*mut Object, Sel) -> *const Object
     );
 
-    #[cfg(target_pointer_width = "64")]
-    create_soft_target!(
-        button_hack,
-        0x1004ea8c4,
-        fn(*const Object, Sel, *mut Object) -> *mut Object
-    );
+    // License plate generator — used in vehicle spawning
+    // TODO: fill in GTA 3 address (CPlate::GeneratePlate or similar)
+    create_soft_target!(gen_plate, 0x00000000, fn(*mut u8, i32) -> bool);
 
-    create_soft_target!(gen_plate, 0x002d3498, fn(*mut u8, i32) -> bool);
+    // Game state machine — controls loading/in-game state transitions
+    // TODO: fill in GTA 3 address (CGame::Process or CFrontEnd::Process)
+    create_soft_target!(do_game_state, 0x00000000, fn());
 
-    #[cfg(target_pointer_width = "64")]
-    create_soft_target!(idle, 0x100242c20, fn(u64, u64));
-
-    #[cfg(target_pointer_width = "64")]
-    create_soft_target!(cycles_per_millisecond, 0x10026e790, fn() -> u32);
-
-    create_soft_target!(do_game_state, 0x003c9d10, fn());
-
-    #[cfg(target_pointer_width = "64")]
-    create_hard_target!(do_cheats, 0x1001a7f28, fn());
-
-    #[cfg(target_pointer_width = "64")]
-    create_soft_target!(reset_before_start, 0x00253f6c, fn());
-
-    #[cfg(target_pointer_width = "64")]
-    create_soft_target!(
-        find_absolute_path,
-        0x003f0ea4,
-        fn(i32, *const u8, i32) -> *const u8
-    );
-
-    create_soft_target!(init_for_title, 0x002a8114, fn(*mut u8));
-
-    create_soft_target!(load_settings, 0x002542ec, fn(u64));
-
-    #[cfg(target_pointer_width = "64")]
-    create_hard_target!(display_fps, 0x100241cd8, fn());
-
-    #[cfg(target_pointer_width = "64")]
-    create_soft_target!(update_pads, 0x001e2b48, fn());
-
-    #[cfg(target_pointer_width = "64")]
-    create_soft_target!(
-        load_cd_directory,
-        0x00265550,
-        fn(*const i8, archive_id: u32)
-    );
-
+    // End dragging (UI gesture handler)
+    // TODO: fill in GTA 3 address
     create_soft_target!(
         end_dragging,
-        0x000ad2e0,
+        0x00000000,
         fn(*const Object, Sel, *mut Object, bool)
     );
 
+    // Loading screen messages — hook to show CLEO loading info
+    // TODO: fill in GTA 3 address
     create_hard_target!(
         loading_messages,
-        0x002381cc,
+        0x00000000,
         fn(*const c_char, *const c_char)
     );
 
-    #[cfg(target_pointer_width = "64")]
-    create_soft_target!(reset_cheats, 0x1001a82f0, fn());
-
+    // Height-above-ceiling check — used in vehicle spawn ground detection
+    // TODO: fill in GTA 3 address
     create_soft_target!(
         height_above_ceiling,
-        0x003b2a74,
+        0x00000000,
         fn(usize, f32, usize) -> f32
     );
 
-    #[cfg(target_pointer_width = "64")]
-    create_soft_target!(init_stage_three, 0x1002f9b20, fn(usize));
+    // Game init for title/main menu
+    // TODO: fill in GTA 3 address
+    create_soft_target!(init_for_title, 0x00000000, fn(*mut u8));
+
+    // Load player/game settings
+    // TODO: fill in GTA 3 address
+    create_soft_target!(load_settings, 0x00000000, fn(u64));
 }
 
 #[ctor]

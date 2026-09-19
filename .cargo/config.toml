@@ -1,5 +1,5 @@
-# Cargo configuration for iPhone 5 (ARMv7s, iOS 10.3.4) build.
-# This branch targets GTA SA v1.09 (32-bit armv7s), rootful jailbreak.
+# Cargo configuration for iPhone 5 (ARMv7, iOS 10.x) build.
+# This branch targets GTA III v1.x (32-bit armv7), rootful jailbreak.
 # NOTE: Rust uses 'armv7s-apple-ios' (not 'armv7-apple-ios' which doesn't exist).
 
 [target.armv7s-apple-ios]

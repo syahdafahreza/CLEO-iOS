@@ -1,21 +1,22 @@
-Package: com.squ1dd13.cleovc
-Name: CLEO VC
+Package: com.squ1dd13.cleogta3
+Name: CLEO GTA III
 Depends: mobilesubstrate (>= 0.9.6000)
-Provides: com.squ1dd13.cleovc
-Conflicts: com.squ1dd13.cleovc
-Replaces: com.squ1dd13.cleovc
+Provides: com.squ1dd13.cleogta3
+Conflicts: com.squ1dd13.cleogta3
+Replaces: com.squ1dd13.cleogta3
 Version: 1.0.0-iphone5
 Architecture: iphoneos-arm
-Description: CLEO for GTA:VC iOS (iPhone 5 / ARMv7, iOS 10.3.4, GTA VC 32-bit rootful).
+Description: CLEO for GTA III iOS (iPhone 5 / ARMv7, iOS 10.x, GTA III 32-bit rootful).
  .
  Features:
   - File support: CSA scripts, CSI scripts, FXT language extensions
   - Mod loading: Archive (.img) file modding, Automatic file replacement
   - Cheat menu
-  - 60 FPS
+  - Vehicle spawner
+  - Weapon giver
  .
  Changelog (1.0.0-iphone5):
-  - Initial port of CLEO for GTA Vice City on iPhone 5 (ARMv7 32-bit, iOS 10.3.4).
+  - Initial port of CLEO for GTA III on iPhone 5 (ARMv7 32-bit, iOS 10.x).
   - Rootful jailbreak only (socket-based jailbreaks).
   - Installs to /Library/MobileSubstrate/DynamicLibraries/ (classic rootful path).
   - Compatible with Cydia Substrate 0.9.6301 by saurik.

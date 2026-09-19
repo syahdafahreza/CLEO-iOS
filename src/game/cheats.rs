@@ -3,8 +3,10 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 
+#[allow(unused_imports)]
+use crate::call_original;
 use crate::{
-    call_original, hook,
+    hook,
     meta::{
         gui,
         language::{self, Message, MessageKey},
@@ -579,7 +581,6 @@ pub fn get_cheat_category(key: MessageKey) -> CheatCategory {
         | MessageKey::CheatNooneCanStopUs
         | MessageKey::CheatRocketMayhem
         | MessageKey::CheatCrazyTown
-        | MessageKey::CheatGoodbyeCruelWorld
         | MessageKey::CheatChicksWithGuns => CheatCategory::Chaos,
 
         // Misc

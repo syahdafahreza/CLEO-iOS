@@ -250,7 +250,7 @@ pub fn spawn_vehicle_direct(model_id: u32) -> *mut u8 {
             // Align with ground and roof collision using Rockstar's native function: 0x000c5064(&target_pos, veh)
             // Exactly matching native cheat CCheat::VehicleCheat (0x000C085C)
             let target_pos = [spawn_x, spawn_y, spawn_z];
-            hook::slide_fn::<extern "C" fn(*const [f32; 3], *mut u8)>(0x000c5064)(target_pos.as_ptr(), veh);
+            hook::slide_fn::<extern "C" fn(*const f32, *mut u8)>(0x000c5064)(target_pos.as_ptr(), veh);
 
             // Set status to STATUS_ABANDONED (4)
             let status_flags = veh.add(0x53) as *mut u8;

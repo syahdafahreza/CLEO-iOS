@@ -213,10 +213,11 @@ pub fn spawn_vehicle_direct(model_id: u32) -> *mut u8 {
             spawn_y.to_bits(),
         );
         let ground_z = f32::from_bits(gz_bits);
-        let base_z = if ground_z < -50.0 || ground_z.is_nan() {
-            pz
-        } else {
+        // If ground_z is within 3 meters of player, use it; otherwise reject bogus raycast results (like 20.0f default)
+        let base_z = if (ground_z - pz).abs() < 3.0 && !ground_z.is_nan() {
             ground_z
+        } else {
+            pz - 0.5f32
         };
 
         if is_boat {
@@ -227,24 +228,17 @@ pub fn spawn_vehicle_direct(model_id: u32) -> *mut u8 {
             }
             hook::slide_fn::<extern "C" fn(*mut u8, u32, u8) -> *mut u8>(0x00068e1c)(veh, model_id, 1);
 
-            let spawn_z = pz + 0.5f32;
+            let spawn_z = pz + 0.2f32;
 
-            // Set full orthonormal matrix orientation directly matching Claude's direction
-            *(veh.add(0x04) as *mut f32) = dir_y;   // right.x
-            *(veh.add(0x08) as *mut f32) = -dir_x;  // right.y
-            *(veh.add(0x0c) as *mut f32) = 0.0;     // right.z
-            *(veh.add(0x10) as *mut f32) = 0.0;
-            *(veh.add(0x14) as *mut f32) = dir_x;   // forward.x
-            *(veh.add(0x18) as *mut f32) = dir_y;   // forward.y
-            *(veh.add(0x1c) as *mut f32) = 0.0;     // forward.z
-            *(veh.add(0x20) as *mut f32) = 0.0;
-            *(veh.add(0x24) as *mut f32) = 0.0;     // up.x
-            *(veh.add(0x28) as *mut f32) = 0.0;     // up.y
-            *(veh.add(0x2c) as *mut f32) = 1.0;     // up.z
-            *(veh.add(0x30) as *mut f32) = 0.0;
-            *(veh.add(0x34) as *mut f32) = spawn_x; // pos.x
-            *(veh.add(0x38) as *mut f32) = spawn_y; // pos.y
-            *(veh.add(0x3c) as *mut f32) = spawn_z; // pos.z
+            // Rotate boat matrix around Z using native CMatrix::RotateZ (0x0005A904)
+            // Preserves all RenderWare matrix flags and pointers
+            let heading = (-dir_x).atan2(dir_y);
+            hook::slide_fn::<extern "C" fn(*mut u8, u32)>(0x0005a904)(veh.add(0x04), heading.to_bits());
+
+            // Set spawn coordinates
+            *(veh.add(0x34) as *mut f32) = spawn_x;
+            *(veh.add(0x38) as *mut f32) = spawn_y;
+            *(veh.add(0x3c) as *mut f32) = spawn_z;
 
             // Clear colliding entities in area
             let target_pos = [spawn_x, spawn_y, spawn_z];
@@ -268,7 +262,7 @@ pub fn spawn_vehicle_direct(model_id: u32) -> *mut u8 {
             // Construct CAutomobile(veh, model_id, 2)
             hook::slide_fn::<extern "C" fn(*mut u8, u32, u8) -> *mut u8>(0x0009c23c)(veh, model_id, 2);
 
-            // Calculate precise height above ground using model collision bounds (matches CREATE_CAR 0x00045516)
+            // Calculate height above ground using model collision bounds
             let h_bits = hook::slide_fn::<extern "C" fn(*mut u8) -> u32>(0x0002c970)(veh);
             let height_from_base = f32::from_bits(h_bits);
             let valid_height = if height_from_base.is_nan() || height_from_base <= 0.0 || height_from_base > 5.0 {
@@ -276,24 +270,17 @@ pub fn spawn_vehicle_direct(model_id: u32) -> *mut u8 {
             } else {
                 height_from_base
             };
-            let spawn_z = base_z + valid_height + 0.15f32;
+            let spawn_z = base_z + valid_height + 0.1f32;
 
-            // Set full orthonormal matrix orientation directly matching Claude's direction
-            *(veh.add(0x04) as *mut f32) = dir_y;   // right.x
-            *(veh.add(0x08) as *mut f32) = -dir_x;  // right.y
-            *(veh.add(0x0c) as *mut f32) = 0.0;     // right.z
-            *(veh.add(0x10) as *mut f32) = 0.0;
-            *(veh.add(0x14) as *mut f32) = dir_x;   // forward.x
-            *(veh.add(0x18) as *mut f32) = dir_y;   // forward.y
-            *(veh.add(0x1c) as *mut f32) = 0.0;     // forward.z
-            *(veh.add(0x20) as *mut f32) = 0.0;
-            *(veh.add(0x24) as *mut f32) = 0.0;     // up.x
-            *(veh.add(0x28) as *mut f32) = 0.0;     // up.y
-            *(veh.add(0x2c) as *mut f32) = 1.0;     // up.z
-            *(veh.add(0x30) as *mut f32) = 0.0;
-            *(veh.add(0x34) as *mut f32) = spawn_x; // pos.x
-            *(veh.add(0x38) as *mut f32) = spawn_y; // pos.y
-            *(veh.add(0x3c) as *mut f32) = spawn_z; // pos.z
+            // Rotate vehicle matrix around Z using native CMatrix::RotateZ (0x0005A904)
+            // This preserves all RenderWare matrix flags (preventing component slicing / invisible plane bug)
+            let heading = (-dir_x).atan2(dir_y);
+            hook::slide_fn::<extern "C" fn(*mut u8, u32)>(0x0005a904)(veh.add(0x04), heading.to_bits());
+
+            // Set spawn coordinates directly in vehicle matrix
+            *(veh.add(0x34) as *mut f32) = spawn_x;
+            *(veh.add(0x38) as *mut f32) = spawn_y;
+            *(veh.add(0x3c) as *mut f32) = spawn_z;
 
             // Clear overlapping cars from the spawn area (matches CREATE_CAR & CCheat::VehicleCheat 0x000C5064)
             let target_pos = [spawn_x, spawn_y, spawn_z];
@@ -307,7 +294,6 @@ pub fn spawn_vehicle_direct(model_id: u32) -> *mut u8 {
             *(veh.add(0x1f9) as *mut u8) |= 8;
 
             // Crucial Automobile physics/suspension setup (matches CREATE_CAR & CCheat::VehicleCheat):
-            // Prevents suspension collapse / Jupiter gravity & deformed roof!
             *(veh.add(0x15e) as *mut u8) = 0;
             *(veh.add(0x15f) as *mut u8) = 0;
             *(veh.add(0x164) as *mut f32) = 20.0f32; // max suspension length / spring limit
@@ -447,8 +433,8 @@ pub fn tick() {
                     QUEUED_VEHICLE_RETRIES.store(0, Ordering::Relaxed);
                 } else {
                     let retries = QUEUED_VEHICLE_RETRIES.fetch_add(1, Ordering::Relaxed);
-                    if retries >= 60 {
-                        // Timeout after ~1-2 seconds of waiting for streaming
+                    if retries >= 300 {
+                        // Timeout after ~5 seconds of waiting for streaming
                         *q = None;
                         QUEUED_VEHICLE_RETRIES.store(0, Ordering::Relaxed);
                         log::warn!("Vehicle spawn timed out for model ID {}", model_id);

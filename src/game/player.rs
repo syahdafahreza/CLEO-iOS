@@ -352,6 +352,10 @@ pub fn get_weapon_models(weapon_id: u32) -> &'static [u32] {
 
 /// Queues a weapon to be given to Claude with ammo.
 pub fn queue_give_weapon(weapon_id: u32, ammo: u32) {
+    if weapon_id == 0 || weapon_id > 11 {
+        log::warn!("Ignored invalid weapon ID {} for GTA III (must be 1..=11)", weapon_id);
+        return;
+    }
     if let Ok(mut q) = QUEUED_WEAPONS.lock() {
         q.push((weapon_id, ammo));
     }
@@ -461,9 +465,11 @@ pub fn tick() {
 
                 // 3c. Give weapons to Claude via CPed::GiveWeapon
                 for &(wid, ammo) in &weapons {
-                    hook::slide_fn::<extern "C" fn(*mut u8, u32, u32, u32) -> u32>(0x000de170)(
-                        ped, wid, ammo, 1,
-                    );
+                    if wid >= 1 && wid <= 11 {
+                        hook::slide_fn::<extern "C" fn(*mut u8, u32, u32, u32) -> u32>(0x000de170)(
+                            ped, wid, ammo, 1,
+                        );
+                    }
                 }
 
                 // 3d. Mark models as deletable so CStreaming cache is managed normally

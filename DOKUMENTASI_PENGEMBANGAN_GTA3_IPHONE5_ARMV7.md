@@ -167,3 +167,29 @@
    - Sebelumnya `CStreaming::RequestModel(model_id, 0)` dipanggil dengan flag `0`, sehingga model non-prioritas seperti Cheetah (105) tidak langsung di-load saat `LoadAllRequestedModels` dijalankan dan berujung timeout (mobil tidak muncul, sehingga mobil sebelumnya tampak tidak terganti).
    - Diperbaiki dengan flag `1` (`STREAMING_GAME_REQUIRED`) agar engine GTA III memuat model seketika sebelum instansiasi.
 
+---
+
+### G. Perbaikan Crash Weapon Selector (GTA III Weapon Arsenal)
+
+1. **Penyebab Crash (Misal: Paket 3 / Nutter Tools)**:
+   - File `src/game/weapons.rs` sebelumnya masih mewarisi definisi senjata dari branch GTA Vice City dengan ID senjata hingga 36 (seperti Minigun ID 33, Chainsaw ID 11 VC, SPAS-12 ID 20 VC, MP5 ID 25 VC, Laser Sniper ID 29 VC).
+   - Di GTA III, engine hanya mendukung 12 tipe senjata (ID 0 s/d 11).
+   - Ketika `CPed::GiveWeapon` (`0x000de170`) dipanggil dengan weapon ID > 11, engine mengakses array internal `CWeaponInfo` secara *out-of-bounds*, menghasilkan SIGBUS / SIGSEGV (crash seketika).
+
+2. **Perbaikan yang Diterapkan**:
+   - **Restrukturisasi Senjata GTA III**: Menulis ulang `WEAPONS` di `src/game/weapons.rs` hanya dengan 11 senjata resmi GTA III:
+     - *Melee*: Baseball Bat (ID 1)
+     - *Pistols*: Colt .45 (ID 2)
+     - *SMG*: Micro Uzi (ID 3)
+     - *Shotguns*: Shotgun (ID 4)
+     - *Assault*: AK-47 (ID 5), M16 (ID 6)
+     - *Snipers*: Sniper Rifle (ID 7)
+     - *Heavy*: Rocket Launcher (ID 8), FlameThrower (ID 9)
+     - *Thrown*: Molotov Cocktail (ID 10), Grenade (ID 11)
+   - **Restrukturisasi Paket Lengkap (Bundles)**:
+     - **Paket 1 (Standard / Street)**: Bat (1), Colt .45 (2), Micro Uzi (3), Shotgun (4), Grenade (11)
+     - **Paket 2 (Tactical / SWAT)**: Bat (1), Colt .45 (2), Micro Uzi (3), Shotgun (4), AK-47 (5), M16 (6), Sniper (7), Molotov (10)
+     - **Paket 3 (Heavy / Mayhem)**: Semua 11 senjata lengkap (1 s/d 11) termasuk RPG & Flamethrower.
+   - **Hardened Range Guard**: Menambahkan validasi `weapon_id >= 1 && weapon_id <= 11` di `player::queue_give_weapon` dan sebelum eksekusi `CPed::GiveWeapon` di `src/game/player.rs` untuk mencegah pemanggilan senjata tidak valid.
+
+

@@ -217,14 +217,22 @@
 9. **Cheat Anti Polisi / Bebas Polisi Permanen (Never Wanted)**:
    - **Mekanisme Native Game**:
      - Variabel global batas maksimal level bintang buronan di Vice City ARMv7 terletak di `0x0026a6d8` (`CWanted::MaximumWantedLevel: i32`, default: `6`).
-     - Fungsi internal reset dan pembubaran kejaran polisi di Vice City terletak di `0x001f51d8(info: *mut u8, level: u32)`.
+     - Variabel global batas skor kejahatan (chaos points) terletak di `0x0026a6dc` (`CWanted::MaximumChaosLevel: i32`, default: `7200` / `0x1c20`).
+     - Engine game di `CWanted::UpdateWantedLevel` (`0x001f4e94`) meng-clamp akumulasi poin kejahatan Tommy (`m_nChaosLevel`) terhadap `MaximumChaosLevel` (`0x0026a6dc`). Oleh karena itu, agar bintang tidak pernah naik, **kedua variabel tersebut harus dikunci ke 0**.
+     - Pointer struct `CWanted` milik Tommy tersimpan di dalam `CPlayerPed` pada offset `ped + 0x5f0` (`m_pWanted: *mut u8`).
+       - `wanted + 0x00`: `m_nChaosLevel` (`u32`)
+       - `wanted + 0x20`: `m_nWantedLevel` (`u32`)
+     - Fungsi internal game untuk mengatur level kejaran polisi terletak di `0x001f51d8(wanted: *mut u8, level: u32)` (`CWanted::CheatWantedLevel`).
    - **Implementasi**:
      - Dibuat toggle `pub static NEVER_WANTED: AtomicBool = AtomicBool::new(false);`.
      - Ketika aktif (`true`):
-       1. Mengunci `CWanted::MaximumWantedLevel` (`0x0026a6d8`) ke `0`. Semua laporan kejahatan (`RegisterCrime`) otomatis di-clamp ke `0` sehingga bintang buronan tidak pernah bisa naik.
-       2. Jika player memiliki bintang buronan saat cheat diaktifkan, level buronan langsung dibersihkan ke `0` (`info + 0x20 = 0`) dan memanggil `0x001f51d8(info, 0)` untuk membubarkan polisi, helikopter, dan sirene yang sedang mengejar.
+       1. Mengunci `CWanted::MaximumWantedLevel` (`0x0026a6d8`) ke `0` dan `CWanted::MaximumChaosLevel` (`0x0026a6dc`) ke `0`.
+       2. Menjaga poin kekacauan Tommy `*(wanted.add(0x00)) = 0`.
+       3. Jika terdapat bintang buronan aktif (`wanted + 0x20 > 0`), memanggil `0x001f51d8(wanted, 0)` untuk menghapus bintang dan membubarkan polisi, helikopter, dan sirene yang sedang mengejar.
      - Ketika dinonaktifkan (`false`):
-       - Mengembalikan `CWanted::MaximumWantedLevel` ke nilai normal `6`.
+       - Mengembalikan `CWanted::MaximumWantedLevel` ke `6` dan `CWanted::MaximumChaosLevel` ke `7200` (`0x1c20`).
+   - **Penyempurnaan Quick Action Bebas Polisi**:
+     - Menu quick action `BEBAS POLISI (0 BINTANG)` kini langsung memanggil `0x001f51d8(wanted, 0)` sehingga seketika menghapus seluruh bintang buronan (tidak hanya memotong 2 bintang seperti cheat native `0x00077e84` jika bintang >= 3).
 
 10. **Cheat Servis Kendaraan Instan (Instant Vehicle Repair) & Kendaraan Kebal (Vehicle God Mode)**:
     - **Servis Mobil Instan (`SERVIS MOBIL AKTIF (INSTAN)`)**:

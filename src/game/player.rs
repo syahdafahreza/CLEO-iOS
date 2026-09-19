@@ -329,10 +329,31 @@ pub fn tick() {
                         hook::slide_fn::<extern "C" fn()>(0x00077e34)();
                     }
                     PlayerAction::ClearWanted => {
+                        let ped = find_player_ped();
+                        if !ped.is_null() {
+                            unsafe {
+                                let wanted = *(ped.add(0x5f0) as *const *mut u8);
+                                if !wanted.is_null() {
+                                    hook::slide_fn::<extern "C" fn(*mut u8, u32)>(0x001f51d8)(wanted, 0);
+                                }
+                            }
+                        }
                         hook::slide_fn::<extern "C" fn()>(0x00077e84)();
                     }
                     PlayerAction::RaiseWanted => {
-                        hook::slide_fn::<extern "C" fn()>(0x00077edc)();
+                        let ped = find_player_ped();
+                        if !ped.is_null() {
+                            unsafe {
+                                let wanted = *(ped.add(0x5f0) as *const *mut u8);
+                                if !wanted.is_null() {
+                                    let current = *(wanted.add(0x20) as *const u32);
+                                    let new_lvl = (current + 2).min(6);
+                                    hook::slide_fn::<extern "C" fn(*mut u8, u32)>(0x001f51d8)(wanted, new_lvl);
+                                }
+                            }
+                        } else {
+                            hook::slide_fn::<extern "C" fn()>(0x00077edc)();
+                        }
                     }
                     PlayerAction::RepairCurrentVehicle => {
                         let veh = find_player_vehicle();
@@ -463,12 +484,30 @@ pub fn tick() {
             }
         }
 
-        // Never Wanted / Anti Polisi: lock MaximumWantedLevel (0x0026a6d8) to 0
+        // Never Wanted / Anti Polisi:
+        // Tommy's CWanted is at ped + 0x5f0 (CWanted*).
+        // CWanted::m_nChaosLevel is at offset 0x00, and CWanted::m_nWantedLevel is at offset 0x20.
+        // CWanted::MaximumWantedLevel is at 0x0026a6d8, CWanted::MaximumChaosLevel is at 0x0026a6dc.
         let max_wanted_ptr = hook::slide::<*mut i32>(0x0026a6d8);
+        let max_chaos_ptr = hook::slide::<*mut i32>(0x0026a6dc);
         if NEVER_WANTED.load(Ordering::Relaxed) {
             unsafe {
                 if !max_wanted_ptr.is_null() {
                     *max_wanted_ptr = 0;
+                }
+                if !max_chaos_ptr.is_null() {
+                    *max_chaos_ptr = 0;
+                }
+
+                if !ped.is_null() {
+                    let wanted = *(ped.add(0x5f0) as *const *mut u8);
+                    if !wanted.is_null() {
+                        *(wanted.add(0x00) as *mut u32) = 0;
+                        let stars = *(wanted.add(0x20) as *const u32);
+                        if stars > 0 {
+                            hook::slide_fn::<extern "C" fn(*mut u8, u32)>(0x001f51d8)(wanted, 0);
+                        }
+                    }
                 }
             }
         } else {
@@ -476,21 +515,14 @@ pub fn tick() {
                 if !max_wanted_ptr.is_null() && *max_wanted_ptr == 0 {
                     *max_wanted_ptr = 6;
                 }
+                if !max_chaos_ptr.is_null() && *max_chaos_ptr == 0 {
+                    *max_chaos_ptr = 7200; // 0x1c20
+                }
             }
         }
 
         let info = get_player_info_ptr();
         if !info.is_null() {
-            // If Never Wanted is active, clear any active wanted stars immediately
-            if NEVER_WANTED.load(Ordering::Relaxed) {
-                unsafe {
-                    let wanted_lvl = *(info.add(0x20) as *const i32);
-                    if wanted_lvl > 0 {
-                        *(info.add(0x20) as *mut i32) = 0;
-                        hook::slide_fn::<extern "C" fn(*mut u8, u32)>(0x001f51d8)(info, 0);
-                    }
-                }
-            }
 
             if INFINITE_SPRINT.load(Ordering::Relaxed) {
                 unsafe {

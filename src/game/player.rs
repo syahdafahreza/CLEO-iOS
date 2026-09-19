@@ -348,7 +348,6 @@ pub fn spawn_vehicle_direct(model_id: u32) -> *mut u8 {
             );
             veh
         }
-        }
     }
     #[cfg(target_pointer_width = "64")]
     {

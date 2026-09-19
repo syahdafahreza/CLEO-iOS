@@ -9,6 +9,9 @@ dump_and_logs/
 dump_and_logs_vc/*
 !dump_and_logs_vc/README.md
 !dump_and_logs_vc/analyze_vc.py
+dump_and_logs_gta3/*
+!dump_and_logs_gta3/README.md
+!dump_and_logs_gta3/analyze_gta3.py
 *.ipa
 *.log
 *.ips

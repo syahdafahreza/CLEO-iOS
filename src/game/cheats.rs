@@ -73,7 +73,7 @@ impl Cheat {
 
         #[cfg(target_pointer_width = "32")]
         unsafe {
-            static mut GTA3_CHEAT_ACTIVE: [bool; 39] = [false; 39];
+            static mut GTA3_CHEAT_ACTIVE: [bool; 40] = [false; 40];
             &mut GTA3_CHEAT_ACTIVE[self.index]
         }
     }
@@ -85,7 +85,7 @@ impl Cheat {
     pub fn is_toggle(&self) -> bool {
         #[cfg(target_pointer_width = "32")]
         {
-            matches!(self.index, 28 | 35..=38)
+            matches!(self.index, 28 | 35..=39)
         }
         #[cfg(target_pointer_width = "64")]
         {
@@ -234,6 +234,34 @@ impl RowData for CheatData {
     }
 
     fn detail(&self) -> menu::RowDetail {
+        #[cfg(target_pointer_width = "32")]
+        {
+            let desc = match self.cheat.index {
+                6 => "Memunculkan Tank Rhino lapis baja",
+                7 => "Memunculkan Mobil Super Infernus",
+                8 => "Memunculkan Mobil Sport Cheetah",
+                9 => "Memunculkan Mobil Sport Banshee",
+                10 => "Memunculkan Mobil Sport Stinger",
+                11 => "Memunculkan Mobil Yakuza Stinger",
+                12 => "Memunculkan Mobil Geng Diablo Stallion",
+                13 => "Memunculkan Sedan Mafia Sentinel",
+                14 => "Memunculkan SUV Militer Patriot",
+                15 => "Memunculkan Taksi Khusus Borgnine",
+                16 => "Memunculkan Mobil Polisi LCPD",
+                17 => "Memunculkan Truk Taktis SWAT Enforcer",
+                18 => "Memunculkan Truk Militer Barracks OL",
+                19 => "Memunculkan Mobil Pemadam Kebakaran",
+                20 => "Memunculkan Mobil Medis Ambulans",
+                21 => "Memunculkan Pesawat Sayap Pendek Dodo",
+                22 => "Memunculkan Kapal Patroli Polisi Predator",
+                23 => "Memunculkan Speedboat Cepat Speeder",
+                39 => "Mode sadis (anggota tubuh putus saat tertembak)",
+                _ => return menu::RowDetail::Info(self.cheat.description.to_message()),
+            };
+            return menu::RowDetail::Info(Message::custom(desc));
+        }
+
+        #[allow(unreachable_code)]
         menu::RowDetail::Info(self.cheat.description.to_message())
     }
 

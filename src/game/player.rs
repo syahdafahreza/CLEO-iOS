@@ -148,12 +148,14 @@ pub fn is_model_loaded(model_id: u32) -> bool {
 }
 
 /// Spawns a vehicle directly in front of Claude using Rockstar's native vehicle creation logic:
-///   - CStreaming::RequestModel: 0x0011AEF0
+///   - CStreaming::RequestModel: 0x0011AEF0 (flags: 1 = GAME_REQUIRED)
 ///   - CStreaming::LoadAllRequestedModels: 0x0011D954
+///   - CWorld::FindGroundZForCoord: 0x00038B48
+///   - GetDistanceFromCentreOfMassToBaseOfModel: 0x0002C970
 ///   - operator new: 0x001388DC
 ///   - CAutomobile::CAutomobile: 0x0009C23C (size 0x488)
 ///   - CBoat::CBoat: 0x00068E1C (size 0x5AC)
-///   - CWorld::AlignToGroundAndRoof: 0x000C5064 (&target_pos, veh)
+///   - ClearAreaOfCars: 0x000C5064 (&target_pos, veh)
 ///   - CWorld::Add: 0x0003B090
 pub fn spawn_vehicle_direct(model_id: u32) -> *mut u8 {
     #[cfg(target_pointer_width = "32")]
@@ -163,12 +165,14 @@ pub fn spawn_vehicle_direct(model_id: u32) -> *mut u8 {
             return std::ptr::null_mut();
         }
 
-        // 1. Ensure model is loaded via CStreaming
+        // 1. Ensure model is loaded via CStreaming (use flag 1 = GAME_REQUIRED to force immediate load)
         if !is_model_loaded(model_id) {
-            hook::slide_fn::<extern "C" fn(u32, u32)>(0x0011aef0)(model_id, 0);
+            log::info!("spawn_vehicle_direct: Model {} not loaded, requesting with GAME_REQUIRED (1)", model_id);
+            hook::slide_fn::<extern "C" fn(u32, u32)>(0x0011aef0)(model_id, 1);
             hook::slide_fn::<extern "C" fn(u8)>(0x0011d954)(0);
             if !is_model_loaded(model_id) {
                 // Streaming is still pending; return null so caller retries on next frame
+                log::info!("spawn_vehicle_direct: Model {} still loading...", model_id);
                 return std::ptr::null_mut();
             }
         }
@@ -202,7 +206,18 @@ pub fn spawn_vehicle_direct(model_id: u32) -> *mut u8 {
 
         let spawn_x = px + dir_x * dist;
         let spawn_y = py + dir_y * dist;
-        let spawn_z = pz + 3.0f32;
+
+        // Query ground Z using CWorld::FindGroundZForCoord (0x00038B48)
+        let gz_bits = hook::slide_fn::<extern "C" fn(u32, u32) -> u32>(0x00038b48)(
+            spawn_x.to_bits(),
+            spawn_y.to_bits(),
+        );
+        let ground_z = f32::from_bits(gz_bits);
+        let base_z = if ground_z < -50.0 || ground_z.is_nan() {
+            pz
+        } else {
+            ground_z
+        };
 
         if is_boat {
             // Allocate CBoat (0x5AC bytes)
@@ -212,18 +227,28 @@ pub fn spawn_vehicle_direct(model_id: u32) -> *mut u8 {
             }
             hook::slide_fn::<extern "C" fn(*mut u8, u32, u8) -> *mut u8>(0x00068e1c)(veh, model_id, 1);
 
-            *(veh.add(0x34) as *mut f32) = spawn_x;
-            *(veh.add(0x38) as *mut f32) = spawn_y;
-            *(veh.add(0x3c) as *mut f32) = spawn_z;
+            let spawn_z = pz + 0.5f32;
 
-            // Set heading angle
-            let heading = (-dir_x).atan2(dir_y);
-            hook::slide_fn::<extern "C" fn(*mut u8, u32, u32, u32)>(0x0005a9d0)(
-                veh.add(0x04),
-                0,
-                0,
-                heading.to_bits(),
-            );
+            // Set full orthonormal matrix orientation directly matching Claude's direction
+            *(veh.add(0x04) as *mut f32) = dir_y;   // right.x
+            *(veh.add(0x08) as *mut f32) = -dir_x;  // right.y
+            *(veh.add(0x0c) as *mut f32) = 0.0;     // right.z
+            *(veh.add(0x10) as *mut f32) = 0.0;
+            *(veh.add(0x14) as *mut f32) = dir_x;   // forward.x
+            *(veh.add(0x18) as *mut f32) = dir_y;   // forward.y
+            *(veh.add(0x1c) as *mut f32) = 0.0;     // forward.z
+            *(veh.add(0x20) as *mut f32) = 0.0;
+            *(veh.add(0x24) as *mut f32) = 0.0;     // up.x
+            *(veh.add(0x28) as *mut f32) = 0.0;     // up.y
+            *(veh.add(0x2c) as *mut f32) = 1.0;     // up.z
+            *(veh.add(0x30) as *mut f32) = 0.0;
+            *(veh.add(0x34) as *mut f32) = spawn_x; // pos.x
+            *(veh.add(0x38) as *mut f32) = spawn_y; // pos.y
+            *(veh.add(0x3c) as *mut f32) = spawn_z; // pos.z
+
+            // Clear colliding entities in area
+            let target_pos = [spawn_x, spawn_y, spawn_z];
+            hook::slide_fn::<extern "C" fn(*const f32, *mut u8)>(0x000c5064)(target_pos.as_ptr(), veh);
 
             // Set status to STATUS_ABANDONED (4)
             let status_flags = veh.add(0x53) as *mut u8;
@@ -231,6 +256,7 @@ pub fn spawn_vehicle_direct(model_id: u32) -> *mut u8 {
 
             // Add vehicle entity to CWorld
             hook::slide_fn::<extern "C" fn(*mut u8)>(0x0003b090)(veh);
+            log::info!("spawn_vehicle_direct: Boat {} spawned successfully at ({:.2}, {:.2}, {:.2})", model_id, spawn_x, spawn_y, spawn_z);
             veh
         } else {
             // Allocate CAutomobile (0x488 bytes)
@@ -242,13 +268,34 @@ pub fn spawn_vehicle_direct(model_id: u32) -> *mut u8 {
             // Construct CAutomobile(veh, model_id, 2)
             hook::slide_fn::<extern "C" fn(*mut u8, u32, u8) -> *mut u8>(0x0009c23c)(veh, model_id, 2);
 
-            // Set initial spawn coordinates
-            *(veh.add(0x34) as *mut f32) = spawn_x;
-            *(veh.add(0x38) as *mut f32) = spawn_y;
-            *(veh.add(0x3c) as *mut f32) = spawn_z;
+            // Calculate precise height above ground using model collision bounds (matches CREATE_CAR 0x00045516)
+            let h_bits = hook::slide_fn::<extern "C" fn(*mut u8) -> u32>(0x0002c970)(veh);
+            let height_from_base = f32::from_bits(h_bits);
+            let valid_height = if height_from_base.is_nan() || height_from_base <= 0.0 || height_from_base > 5.0 {
+                0.7f32
+            } else {
+                height_from_base
+            };
+            let spawn_z = base_z + valid_height + 0.15f32;
 
-            // Align with ground and roof collision using Rockstar's native function: 0x000c5064(&target_pos, veh)
-            // Exactly matching native cheat CCheat::VehicleCheat (0x000C085C)
+            // Set full orthonormal matrix orientation directly matching Claude's direction
+            *(veh.add(0x04) as *mut f32) = dir_y;   // right.x
+            *(veh.add(0x08) as *mut f32) = -dir_x;  // right.y
+            *(veh.add(0x0c) as *mut f32) = 0.0;     // right.z
+            *(veh.add(0x10) as *mut f32) = 0.0;
+            *(veh.add(0x14) as *mut f32) = dir_x;   // forward.x
+            *(veh.add(0x18) as *mut f32) = dir_y;   // forward.y
+            *(veh.add(0x1c) as *mut f32) = 0.0;     // forward.z
+            *(veh.add(0x20) as *mut f32) = 0.0;
+            *(veh.add(0x24) as *mut f32) = 0.0;     // up.x
+            *(veh.add(0x28) as *mut f32) = 0.0;     // up.y
+            *(veh.add(0x2c) as *mut f32) = 1.0;     // up.z
+            *(veh.add(0x30) as *mut f32) = 0.0;
+            *(veh.add(0x34) as *mut f32) = spawn_x; // pos.x
+            *(veh.add(0x38) as *mut f32) = spawn_y; // pos.y
+            *(veh.add(0x3c) as *mut f32) = spawn_z; // pos.z
+
+            // Clear overlapping cars from the spawn area (matches CREATE_CAR & CCheat::VehicleCheat 0x000C5064)
             let target_pos = [spawn_x, spawn_y, spawn_z];
             hook::slide_fn::<extern "C" fn(*const f32, *mut u8)>(0x000c5064)(target_pos.as_ptr(), veh);
 
@@ -259,10 +306,16 @@ pub fn spawn_vehicle_direct(model_id: u32) -> *mut u8 {
             // Set bIsCheatedCar = 1 (veh + 0x1f9 |= 8)
             *(veh.add(0x1f9) as *mut u8) |= 8;
 
+            // Crucial Automobile physics/suspension setup (matches CREATE_CAR & CCheat::VehicleCheat):
+            // Prevents suspension collapse / Jupiter gravity & deformed roof!
+            *(veh.add(0x15e) as *mut u8) = 0;
+            *(veh.add(0x15f) as *mut u8) = 0;
+            *(veh.add(0x164) as *mut f32) = 20.0f32; // max suspension length / spring limit
+            *(veh.add(0x168) as *mut u8) = 20;
+
             // Add vehicle entity to CWorld
             hook::slide_fn::<extern "C" fn(*mut u8)>(0x0003b090)(veh);
-
-            // Note: Do NOT call SetModelIsDeletable here; the spawned vehicle instance maintains its model reference
+            log::info!("spawn_vehicle_direct: Automobile {} spawned successfully at ({:.2}, {:.2}, {:.2})", model_id, spawn_x, spawn_y, spawn_z);
             veh
         }
     }
@@ -274,6 +327,7 @@ pub fn spawn_vehicle_direct(model_id: u32) -> *mut u8 {
 
 /// Queues a vehicle to be spawned right in front of Claude.
 pub fn queue_spawn_vehicle(model_id: u32) {
+    log::info!("queue_spawn_vehicle: Queuing model ID {}", model_id);
     if let Ok(mut q) = QUEUED_VEHICLE.lock() {
         *q = Some(model_id);
     }

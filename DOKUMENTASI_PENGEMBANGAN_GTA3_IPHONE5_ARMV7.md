@@ -137,3 +137,33 @@
 - **Sedan & Muscle**: Stretch Limousine (99), Sentinel (95), Kuruma (111), Stallion (129), Esperanto (109), Idaho (91), Manana (100), Perennial (94), Blista (102)
 - **Van & Truk**: Landstalker (90), Patriot (96), Bobcat (112), Moonbeam (108), Rumpo (130), Pony (103), Mule (104), Yankee (146), Flatbed (145), Linerunner (93), Trashmaster (98), Bus (121), Coach (127), Mr. Whoopee (113), RC Bandit (131), Toyz (149), Belly Up (132), Mr. Wong's (133), Panlantic (144)
 - **Kapal & Pesawat**: Dodo (126), Predator Police Boat (120), Speeder (142), Reefer (143), Ghost Boat (150)
+
+---
+
+### F. Perbaikan Fisika Spawner & Suspensi Kendaraan ("Jupiter Gravity / Squashed Roof")
+
+1. **Penyebab Masalah Suspensi Terjepit / Ter-clamp**:
+   - Rockstar `CAutomobile` membutuhkan 4 field suspensi & batas pergerakan pegas yang harus diinisialisasi setelah pembuatan objek (sama persis dengan script `CREATE_CAR` di `0x00045570` dan `CCheat::VehicleCheat` di `0x000C0A86`):
+     ```rust
+     *(veh.add(0x15e) as *mut u8) = 0;
+     *(veh.add(0x15f) as *mut u8) = 0;
+     *(veh.add(0x164) as *mut f32) = 20.0f32; // Batas panjang per suspensi (spring limit)
+     *(veh.add(0x168) as *mut u8) = 20;
+     ```
+   - Tanpa `0x164` diisi `20.0f`, suspensi mobil bernilai 0 / garbage, menyebabkan seluruh bodi mobil jatuh menempel ke aspal seolah-olah ditarik gravitasi luar biasa berat ("planet jupiter") dan atapnya tampak terpotong/tergencet (*squashed*).
+
+2. **Ketinggian Spawn Akurat Sesuai Kontur Tanah (Ground Z)**:
+   - Sebelumnya mobil dijatuhkan dari `pz + 3.0f` di udara.
+   - Diperbaiki menggunakan fungsi native Rockstar:
+     - `CWorld::FindGroundZForCoord(spawn_x, spawn_y)` di `0x00038B48`.
+     - `GetDistanceFromCentreOfMassToBaseOfModel(veh)` di `0x0002C970`.
+     - `spawn_z = ground_z + height_from_base + 0.15f;` sehingga roda mobil langsung berdiri di atas permukaan tanah tanpa terjatuh membanting bodi.
+
+3. **Orientasi Rotasi Mobil (Basis Orthonormal)**:
+   - Menghindari pemanggilan fungsi yang mereset translasi koordinat ke (0,0,0).
+   - Vektor `right`, `forward`, dan `up` langsung ditulis ke matriks `veh + 0x04` sesuai arah hadap Claude.
+
+4. **Streaming Priority Kendaraan (Cheetah & Mobil Lainnya)**:
+   - Sebelumnya `CStreaming::RequestModel(model_id, 0)` dipanggil dengan flag `0`, sehingga model non-prioritas seperti Cheetah (105) tidak langsung di-load saat `LoadAllRequestedModels` dijalankan dan berujung timeout (mobil tidak muncul, sehingga mobil sebelumnya tampak tidak terganti).
+   - Diperbaiki dengan flag `1` (`STREAMING_GAME_REQUIRED`) agar engine GTA III memuat model seketika sebelum instansiasi.
+

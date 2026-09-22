@@ -432,6 +432,66 @@ impl RowData for PlayerToggleRow {
     }
 }
 
+struct AdvanceTimeRow {
+    hours: u8,
+    title: &'static str,
+    detail: &'static str,
+    triggered: bool,
+}
+
+impl RowData for AdvanceTimeRow {
+    fn title(&self) -> Message {
+        Message::custom(self.title)
+    }
+
+    fn detail(&self) -> menu::RowDetail {
+        menu::RowDetail::Info(Message::custom(self.detail))
+    }
+
+    fn value(&self) -> Message {
+        #[cfg(target_pointer_width = "32")]
+        {
+            let (h, m) = unsafe {
+                let hp = hook::slide::<*const u8>(0x002483b8);
+                let mp = hook::slide::<*const u8>(0x002483bc);
+                if !hp.is_null() && !mp.is_null() {
+                    (*hp, *mp)
+                } else {
+                    (0, 0)
+                }
+            };
+            if self.triggered {
+                Message::custom(format!("{:02}:{:02} (+{} JAM OK)", h, m, self.hours))
+            } else {
+                Message::custom(format!("{:02}:{:02} ▸ +{} JAM", h, m, self.hours))
+            }
+        }
+
+        #[cfg(target_pointer_width = "64")]
+        {
+            if self.triggered {
+                MessageKey::CheatActionOk.to_message()
+            } else {
+                Message::custom(format!("+{} JAM", self.hours))
+            }
+        }
+    }
+
+    fn tint(&self) -> Option<(u8, u8, u8)> {
+        if self.triggered {
+            Some(gui::colours::GREEN)
+        } else {
+            Some(gui::colours::BLUE)
+        }
+    }
+
+    fn handle_tap(&mut self) -> bool {
+        crate::game::player::queue_action(crate::game::player::PlayerAction::AdvanceTimeHours(self.hours));
+        self.triggered = true;
+        true
+    }
+}
+
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum CheatCategory {
     All,
@@ -786,6 +846,15 @@ pub fn tab_data() -> TabData {
             action: crate::game::player::PlayerAction::ClearWorldGarbage,
             title: "BERSIHKAN MAP (CLEAR SAMPAH)",
             detail: "Menghapus seluruh kendaraan dan objek sampah yang berserakan/dispawn sebelumnya di map (kecuali mobil yang sedang dinaiki)",
+            triggered: false,
+        }));
+    }
+
+    if current_cat == CheatCategory::All || current_cat == CheatCategory::WeatherTime {
+        rows.push(Box::new(AdvanceTimeRow {
+            hours: 3,
+            title: "CEPETIN WAKTU (+3 JAM)",
+            detail: "Memajukan waktu dunia game sebanyak 3 jam ke depan",
             triggered: false,
         }));
     }

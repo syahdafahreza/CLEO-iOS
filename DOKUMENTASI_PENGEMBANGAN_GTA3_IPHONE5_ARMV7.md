@@ -74,6 +74,7 @@
 | `CDamageManager::Reset` | Reset seluruh kerusakan part | `0x000CC700` | `memset(veh + 0x28C, 0, 0x1C)` |
 | `CAutomobile::Fix` | Servis total bodi mobil (Pay N Spray) | `0x0005CE78` | Memulihkan mesh utuh, bodi, kap, bumper, pintu |
 | `CFire::Extinguish` | Padamkan api objek / mobil | `0x00068EF0` | Padamkan pointer CFire (`veh + 0x1E8`) |
+| `CClock::SetGameClock` | Set jam & menit permainan | `0x000103CC` | `(hours, minutes)` — reset detik ke 0 & update tick |
 
 ---
 
@@ -111,6 +112,10 @@
 | `CPlayerInfo` | Bebas RS | `+0x117` | `bool m_bFreeHealthCare` |
 | `CWanted` | Chaos Level | `+0x00` | `uint32 m_nChaosLevel` |
 | `CWanted` | Wanted Stars | `+0x18` | `uint32 m_nWantedLevel` |
+| `CClock` | `ms_nGameClockHours` | `0x002483B8` | `uint8` jam game saat ini (0..23) |
+| `CClock` | `ms_nGameClockMinutes` | `0x002483BC` | `uint8` menit game saat ini (0..59) |
+| `CClock` | `ms_nGameClockSeconds` | `0x002483C0` | `uint16` detik game saat ini |
+| `CClock` | `ms_nLastClockTick` | `0x002483B4` | `uint32` waktu tick ms terakhir |
 
 ---
 
@@ -246,3 +251,28 @@
    - **Penguncian Total Peluru (`m_nAmmoTotal`)**: Setiap tick, jika `*total_ptr < 9999`, nilainya langsung di-lock kembali ke 9999.
    - **Pemulihan Status Senjata**: Jika state senjata sempat berada di `WEAPONSTATE_OUT_OF_AMMO` (`3`), statusnya otomatis dipulihkan ke `WEAPONSTATE_READY` (`0`).
 
+---
+
+### J. Fitur Baru: Cheat Cepetin Waktu Game 3 Jam (Advance Game Time)
+
+1. **Latar Belakang & Mekanisme Game Clock GTA III iOS**:
+   - Di GTA III, siklus waktu (siang/malam, cuaca, lampu jalan, lalu lintas, dan bayangan) dikendalikan oleh class `CClock`.
+   - Melalui reverse engineering binary `gta3` (ARMv7), ditemukan struktur dan fungsi manajemen waktu engine:
+     - Fungsi native `CClock::SetGameClock(uint8 hours, uint8 minutes)` berada di `0x000103CC`.
+     - Fungsi native `CClock::GetGameClockMinutesUntil(uint8 hours, uint8 minutes)` berada di `0x00010418`.
+     - Variabel global `ms_nGameClockHours` (`uint8`) berada di `0x002483B8`.
+     - Variabel global `ms_nGameClockMinutes` (`uint8`) berada di `0x002483BC`.
+     - Variabel global `ms_nGameClockSeconds` (`uint16`) berada di `0x002483C0`.
+     - Variabel global `ms_nLastClockTick` (`uint32`) berada di `0x002483B4`.
+
+2. **Implementasi Cheat "CEPETIN WAKTU (+3 JAM)"**:
+   - Menambahkan varian aksi `PlayerAction::AdvanceTimeHours(u8)` pada `src/game/player.rs`.
+   - Ketika dieksekusi di `player::tick()`:
+     1. Membaca jam (`ms_nGameClockHours`) dan menit (`ms_nGameClockMinutes`) saat ini dari alamat memori native.
+     2. Menghitung jam baru: `(current_hours + 3) % 24`.
+     3. Memanggil fungsi native `CClock::SetGameClock(new_hours, current_mins)` (`0x000103CC`). Fungsi ini otomatis mereset detik ke 0 dan menyinkronkan `ms_nLastClockTick` dengan `CTimer::m_snTimeInMilliseconds` agar waktu terus mengalir mulus tanpa desinkronisasi engine.
+   - Di `src/game/cheats.rs`:
+     - Dibuat komponen interaktif `AdvanceTimeRow` yang membaca jam game saat ini dan menampilkannya langsung di menu cheat (contoh: `14:25 ▸ +3 JAM`).
+     - Setelah diketuk, tombol memberikan konfirmasi visual instan (contoh: `17:25 (+3 JAM OK)` dengan tint warna hijau).
+     - Tombol dapat diketuk berulang kali untuk terus memajukan waktu (tiap ketukan +3 jam: 14:00 -> 17:00 -> 20:00 -> 23:00 -> 02:00, dst).
+     - Cheat ini terdaftar di kategori **SEMUA** (`CheatCategory::All`) dan kategori **CUACA & WAKTU** (`CheatCategory::WeatherTime`).

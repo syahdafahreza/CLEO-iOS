@@ -31,6 +31,7 @@ pub enum PlayerAction {
     RaiseWanted,
     RepairCurrentVehicle,
     ClearWorldGarbage,
+    AdvanceTimeHours(u8),
 }
 
 /// Returns the pointer to Claude (`CPed*`).
@@ -637,6 +638,26 @@ pub fn tick() {
                                 "ClearWorldGarbage: Cleared {} vehicles and {} objects from map",
                                 cleared_vehicles, cleared_objects
                             );
+                        }
+                    }
+                    PlayerAction::AdvanceTimeHours(hours_to_add) => {
+                        unsafe {
+                            // GTA III ARMv7 CClock addresses:
+                            // ms_nGameClockHours (u8): 0x002483B8
+                            // ms_nGameClockMinutes (u8): 0x002483BC
+                            // CClock::SetGameClock(hours, minutes): 0x000103CC
+                            let hours_ptr = hook::slide::<*const u8>(0x002483b8);
+                            let mins_ptr = hook::slide::<*const u8>(0x002483bc);
+                            if !hours_ptr.is_null() && !mins_ptr.is_null() {
+                                let cur_h = *hours_ptr;
+                                let cur_m = *mins_ptr;
+                                let new_h = (cur_h + hours_to_add) % 24;
+                                hook::slide_fn::<extern "C" fn(u8, u8)>(0x000103cc)(new_h, cur_m);
+                                log::info!(
+                                    "AdvanceTime: Clock moved forward +{} hours (from {:02}:{:02} to {:02}:{:02})",
+                                    hours_to_add, cur_h, cur_m, new_h, cur_m
+                                );
+                            }
                         }
                     }
                 }

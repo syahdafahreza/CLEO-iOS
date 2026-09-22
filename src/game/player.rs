@@ -149,20 +149,18 @@ pub fn is_model_loaded(model_id: u32) -> bool {
 
 /// Spawns a vehicle directly in front of Claude using Rockstar's native vehicle creation logic.
 ///
-/// Sequence mirrors GTA III's native CCheat::VehicleCheat (re3 reference):
+/// Sequence mirrors GTA III's native CREATE_CAR opcode 00A5 and CCheat::VehicleCheat:
 ///   1. CStreaming::RequestModel (0x0011AEF0, flag 1 = GAME_REQUIRED)
 ///   2. CStreaming::LoadAllRequestedModels (0x0011D954)
-///   3. operator new (0x001388DC)
-///   4. CAutomobile::CAutomobile(veh, model_id, RANDOM_VEHICLE=1) (0x0009C23C, size 0x488)
-///   5. CMatrix::SetRotateZ on the vehicle matrix (0x0005A904)
-///   6. Write position directly into the embedded CMatrix
-///   7. CWorld::Add(veh) (0x0003B090)
-///
-/// IMPORTANT: CWorld::AlignToGroundAndRoof (0x000C5064) is intentionally NOT called here.
-/// When spawning near bridges/overpasses it would compress the vehicle between the
-/// ground and the bridge underside, causing "invisible rectangle" visual artifact,
-/// extreme down-force physics, and wheel instability. The native VehicleCheat does
-/// not call AlignToGroundAndRoof either.
+///   3. operator new (0x001388DC) - 0x5AC bytes for CAutomobile, 0x488 bytes for CBoat
+///   4. CAutomobile::CAutomobile (0x00068E1C) or CBoat::CBoat (0x0009C23C)
+///   5. CMatrix::RotateZ on matrix at veh + 0x04 (0x0005AAB0)
+///   6. Write translation vector directly into embedded CMatrix (veh + 0x34..0x3C)
+///   7. CMatrix::UpdateRW (0x0005ABE0) & CEntity::UpdateRwFrame (0x0002CDD4) to sync RenderWare hierarchy
+///   8. CCarCtrl::ClearAreaAroundVehicle (0x000C5064)
+///   9. Set door lock status to CARLOCK_UNLOCKED (1) at veh + 0x228 (opcode 020A)
+///  10. Set m_nCreatedBy to RANDOM_VEHICLE (1) at veh + 0x1F8 (opcode 01C8 / Car.RemoveReferences)
+///  11. CWorld::Add(veh) (0x0003B090)
 pub fn spawn_vehicle_direct(model_id: u32) -> *mut u8 {
     #[cfg(target_pointer_width = "32")]
     unsafe {
@@ -200,8 +198,10 @@ pub fn spawn_vehicle_direct(model_id: u32) -> *mut u8 {
         };
 
         // Determine vehicle class: Boats in GTA III (verified from default.ide in IPA):
-        // 120 (predator), 142 (speeder), 143 (reefer), 150 (ghost)
-        let is_boat = matches!(model_id, 120 | 142 | 143 | 150);
+        // 120 (predator), 142 (speeder), 143 (reefer), 150 (ghost).
+        // Also verified from native CModelInfo::IsBoat at 0x0009C5C0.
+        let is_boat = hook::slide_fn::<extern "C" fn(u32) -> u32>(0x0009c5c0)(model_id) != 0
+            || matches!(model_id, 120 | 142 | 143 | 150);
         let in_car = !find_player_vehicle().is_null();
         let dist = if in_car {
             8.5f32
@@ -230,16 +230,18 @@ pub fn spawn_vehicle_direct(model_id: u32) -> *mut u8 {
         let heading = (-dir_x).atan2(dir_y);
 
         if is_boat {
-            // Allocate CBoat (0x5AC bytes)
-            let veh = hook::slide_fn::<extern "C" fn(usize) -> *mut u8>(0x001388dc)(0x5ac);
+            // Allocate CBoat (0x488 bytes)
+            // Verified from native CREATE_CAR opcode 00A5 (0x000454C0)
+            let veh = hook::slide_fn::<extern "C" fn(usize) -> *mut u8>(0x001388dc)(0x488);
             if veh.is_null() {
                 return std::ptr::null_mut();
             }
-            // Construct CBoat(veh, model_id, 2) - MISSION_VEHICLE
-            hook::slide_fn::<extern "C" fn(*mut u8, u32, u8) -> *mut u8>(0x00068e1c)(veh, model_id, 2);
 
-            // Set boat orientation using native CMatrix::RotateZ (0x0005AAB0).
-            // Matches native GTA III caller at 0x0000DA62.
+            // Construct CBoat(veh, model_id, 2) - MISSION_VEHICLE
+            // Native CBoat constructor at 0x0009C23C (matches 0x000454D6)
+            hook::slide_fn::<extern "C" fn(*mut u8, u32, u8) -> *mut u8>(0x0009c23c)(veh, model_id, 2);
+
+            // Set boat orientation using native CMatrix::RotateZ (0x0005AAB0)
             hook::slide_fn::<extern "C" fn(*mut u8, u32)>(0x0005aab0)(
                 veh.add(0x04),
                 heading.to_bits(),
@@ -247,10 +249,14 @@ pub fn spawn_vehicle_direct(model_id: u32) -> *mut u8 {
 
             let spawn_z = pz + 0.5f32;
 
-            // Set spawn coordinates into the embedded CMatrix position (veh + 0x34..0x3C)
+            // Set spawn coordinates into embedded CMatrix translation vector (veh + 0x34..0x3C)
             *(veh.add(0x34) as *mut f32) = spawn_x;
             *(veh.add(0x38) as *mut f32) = spawn_y;
             *(veh.add(0x3c) as *mut f32) = spawn_z;
+
+            // Synchronize RenderWare matrix & clump objects (matches native SET_CAR_Z_ANGLE 0x000487EE..0x000487FA)
+            hook::slide_fn::<extern "C" fn(*mut u8)>(0x0005abe0)(veh.add(0x04)); // CMatrix::UpdateRW
+            hook::slide_fn::<extern "C" fn(*mut u8)>(0x0002cdd4)(veh);           // CEntity::UpdateRwFrame
 
             // Clear area around vehicle using native CCarCtrl::ClearAreaAroundVehicle (0x000C5064)
             let target_pos = [spawn_x, spawn_y, spawn_z];
@@ -263,36 +269,44 @@ pub fn spawn_vehicle_direct(model_id: u32) -> *mut u8 {
             let status_byte = veh.add(0x53) as *mut u8;
             *status_byte = (*status_byte & 0x07) | (4 << 3);
 
+            // Door lock status: CARLOCK_UNLOCKED (1) (matches opcode 020A at 0x00094496)
+            *(veh.add(0x228) as *mut u32) = 1;
+
+            // Mark as regular/traffic vehicle so CLEO/game can recycle it when player leaves
+            // Matches opcode 01C8 (MARK_CAR_AS_NO_LONGER_NEEDED) / Car.RemoveReferences:
+            *(veh.add(0x1f8) as *mut u8) = 1;
+
             // Set bIsCheatedCar = 1 (veh + 0x1F9, bit 3)
             *(veh.add(0x1f9) as *mut u8) |= 8;
 
-            // Boat physics limits (matches native CREATE_BOAT at 0x000456A2..0x000456B0)
+            // Boat physics limits (matches native CREATE_BOAT in opcode 00A5 at 0x00045696..0x000456DE)
             *(veh.add(0x15e) as *mut u8) = 0;
+            *(veh.add(0x15f) as *mut u8) = 0;
+            *(veh.add(0x15d) as *mut u8) = 0;
             *(veh.add(0x164) as *mut f32) = 9.0f32;
             *(veh.add(0x168) as *mut u8) = 9;
-
-            // Set bIsBoat flag at veh + 0x1FB, bit 2 (matches native boat opcode 0x000456DA)
-            *(veh.add(0x1fb) as *mut u8) |= 4;
+            *(veh.add(0x15b) as *mut u8) = 0;
+            *(veh.add(0x15c) as *mut u8) = 0;
+            *(veh.add(0x1f9) as *mut u8) &= 0xef;
+            *(veh.add(0x1fb) as *mut u8) |= 4; // bIsBoat flag
 
             // Add vehicle entity to CWorld
             hook::slide_fn::<extern "C" fn(*mut u8)>(0x0003b090)(veh);
             log::info!("spawn_vehicle_direct: Boat {} spawned at ({:.2}, {:.2}, {:.2})", model_id, spawn_x, spawn_y, spawn_z);
             veh
         } else {
-            // Allocate CAutomobile (0x488 bytes)
-            let veh = hook::slide_fn::<extern "C" fn(usize) -> *mut u8>(0x001388dc)(0x488);
+            // Allocate CAutomobile (0x5AC bytes)
+            // Verified from native CREATE_CAR opcode 00A5 (0x000455E4) and CCheat::VehicleCheat (0x000C0AC8)
+            let veh = hook::slide_fn::<extern "C" fn(usize) -> *mut u8>(0x001388dc)(0x5ac);
             if veh.is_null() {
                 return std::ptr::null_mut();
             }
 
-            // Construct CAutomobile(veh, model_id, 2)
-            // Matches native GTA III CREATE_CAR opcode 00A5 (0x000454D4) and CCheat::VehicleCheat (0x000C0A04).
-            // CreatedBy = 2 (MISSION_VEHICLE) guarantees CCarCtrl::Prune does NOT cull the vehicle.
-            hook::slide_fn::<extern "C" fn(*mut u8, u32, u8) -> *mut u8>(0x0009c23c)(veh, model_id, 2);
+            // Construct CAutomobile(veh, model_id, 2) - MISSION_VEHICLE
+            // Native CAutomobile constructor at 0x00068E1C (matches 0x000455FA and 0x000C0AE0)
+            hook::slide_fn::<extern "C" fn(*mut u8, u32, u8) -> *mut u8>(0x00068e1c)(veh, model_id, 2);
 
-            // Set vehicle orientation using native CMatrix::RotateZ (0x0005AAB0).
-            // Matches native GTA III callers at 0x0000DA62 and 0x0000E2FC.
-            // Rotates only around Z axis, preserving upright level matrix, RwMatrix flags, and child frames.
+            // Set vehicle orientation using native CMatrix::RotateZ (0x0005AAB0)
             hook::slide_fn::<extern "C" fn(*mut u8, u32)>(0x0005aab0)(
                 veh.add(0x04),
                 heading.to_bits(),
@@ -315,6 +329,13 @@ pub fn spawn_vehicle_direct(model_id: u32) -> *mut u8 {
             *(veh.add(0x38) as *mut f32) = spawn_y;
             *(veh.add(0x3c) as *mut f32) = spawn_z;
 
+            // Synchronize RenderWare matrix & clump objects (matches native SET_CAR_Z_ANGLE 0x000487EE..0x000487FA)
+            // This is CRITICAL: without these, RenderWare keeps the old/identity matrix,
+            // resulting in stale frustum clip bounds (invisible rectangle plane bug)
+            // and dummy frames at (0,0,0) which prevented normal car door entry animation.
+            hook::slide_fn::<extern "C" fn(*mut u8)>(0x0005abe0)(veh.add(0x04)); // CMatrix::UpdateRW
+            hook::slide_fn::<extern "C" fn(*mut u8)>(0x0002cdd4)(veh);           // CEntity::UpdateRwFrame
+
             // Clear area around vehicle using native CCarCtrl::ClearAreaAroundVehicle (0x000C5064)
             // Matches native 0x0004554C and VehicleCheat 0x000C0A60.
             let target_pos = [spawn_x, spawn_y, spawn_z];
@@ -328,6 +349,14 @@ pub fn spawn_vehicle_direct(model_id: u32) -> *mut u8 {
             let status_byte = veh.add(0x53) as *mut u8;
             *status_byte = (*status_byte & 0x07) | (4 << 3);
 
+            // Door lock status: CARLOCK_UNLOCKED (1)
+            // Matches opcode 020A (SET_CAR_DOOR_STATUS to 1, see 0x00094496) and CarSpawner.txt line 423
+            *(veh.add(0x228) as *mut u32) = 1;
+
+            // Mark as regular/traffic vehicle so CLEO/game can recycle it when player leaves
+            // Matches opcode 01C8 (MARK_CAR_AS_NO_LONGER_NEEDED) / Car.RemoveReferences:
+            *(veh.add(0x1f8) as *mut u8) = 1;
+
             // Mark as cheated car: veh + 0x1F9 |= 8 (matches native 0x00045566 & 0x000C0A7E).
             *(veh.add(0x1f9) as *mut u8) |= 8;
 
@@ -337,8 +366,6 @@ pub fn spawn_vehicle_direct(model_id: u32) -> *mut u8 {
             *(veh.add(0x15f) as *mut u8) = 0;
             *(veh.add(0x164) as *mut f32) = 20.0f32; // Native max suspension spring length: 0x41A00000
             *(veh.add(0x168) as *mut u8) = 20;       // Native spring iterations: 0x14 = 20
-            // DO NOT set 0x1fb |= 4 (bIsBoat) on automobiles!
-            // DO NOT set 0x228 = 1 or CreatedBy = 3!
 
             // Add vehicle entity to CWorld (0x0003B090)
             hook::slide_fn::<extern "C" fn(*mut u8)>(0x0003b090)(veh);

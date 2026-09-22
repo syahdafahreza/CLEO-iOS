@@ -220,9 +220,7 @@ impl RowData for WeaponBundleRow {
         if self.bundle_id == 3 {
             // Bundle 3: Native GTA III Weapons Cheat (gives all 11 weapons natively & safely)
             #[cfg(target_pointer_width = "32")]
-            unsafe {
-                crate::hook::slide_fn::<extern "C" fn()>(0x000c0c70)();
-            }
+            crate::hook::slide_fn::<extern "C" fn()>(0x000c0c70)();
             // Top up ammo to 9999 for firearm & throwable weapons (skip Bat: wid=1)
             for wid in 2..=11 {
                 player::queue_give_weapon(wid, 9999);

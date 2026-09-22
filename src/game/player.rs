@@ -29,6 +29,7 @@ pub enum PlayerAction {
     ClearWanted,
     RaiseWanted,
     RepairCurrentVehicle,
+    ClearWorldGarbage,
 }
 
 /// Returns the pointer to Claude (`CPed*`).
@@ -515,6 +516,74 @@ pub fn tick() {
                                 }
                             }
                         }
+                    }
+                    PlayerAction::ClearWorldGarbage => {
+                        let current_veh = find_player_vehicle();
+                        let ped = find_player_ped();
+                        let mut cleared_vehicles = 0;
+                        let mut cleared_objects = 0;
+
+                        // 1. Iterate ms_pVehiclePool (0x001BA5D0 -> 0x0049F4DC)
+                        //    Safely removes and destroys all stray/spawned vehicles on the entire map,
+                        //    EXCEPT the vehicle Claude is currently driving.
+                        let veh_pool_pptr = hook::slide::<*const *const u8>(0x001ba5d0);
+                        if !veh_pool_pptr.is_null() && !(*veh_pool_pptr).is_null() {
+                            let pool = *veh_pool_pptr;
+                            let m_objects = *(pool as *const *mut u8);
+                            let m_byte_map = *(pool.add(4) as *const *const i8);
+                            let m_size = *(pool.add(8) as *const i32);
+
+                            if !m_objects.is_null() && !m_byte_map.is_null() && m_size > 0 {
+                                for i in 0..m_size {
+                                    if *m_byte_map.add(i as usize) >= 0 {
+                                        let veh = m_objects.add((i as usize) * 0x5ac);
+                                        if !veh.is_null() && veh != current_veh && veh != ped {
+                                            hook::slide_fn::<extern "C" fn(*mut u8)>(0x0003a8d4)(veh);
+                                            cleared_vehicles += 1;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // 2. Iterate ms_pObjectPool (0x001BA85C -> 0x0049F4E0)
+                        //    Safely removes temporary / spawned objects (type == 2 or 0).
+                        let obj_pool_pptr = hook::slide::<*const *const u8>(0x001ba85c);
+                        if !obj_pool_pptr.is_null() && !(*obj_pool_pptr).is_null() {
+                            let pool = *obj_pool_pptr;
+                            let m_objects = *(pool as *const *mut u8);
+                            let m_byte_map = *(pool.add(4) as *const *const i8);
+                            let m_size = *(pool.add(8) as *const i32);
+
+                            if !m_objects.is_null() && !m_byte_map.is_null() && m_size > 0 {
+                                for i in 0..m_size {
+                                    if *m_byte_map.add(i as usize) >= 0 {
+                                        let obj = m_objects.add((i as usize) * 0x1b4);
+                                        if !obj.is_null() && obj != ped && obj != current_veh {
+                                            let obj_type = *obj.add(0x178);
+                                            if obj_type == 2 || obj_type == 0 {
+                                                hook::slide_fn::<extern "C" fn(*mut u8)>(0x0003a8d4)(obj);
+                                                cleared_objects += 1;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // 3. Clear dead peds, burning wrecks, and lingering debris around Claude
+                        if !ped.is_null() {
+                            let px = *(ped.add(0x34) as *const f32);
+                            let py = *(ped.add(0x38) as *const f32);
+                            let pz = *(ped.add(0x3c) as *const f32);
+                            let pos = [px, py, pz];
+                            hook::slide_fn::<extern "C" fn(*const f32, f32, u8)>(0x0003a700)(pos.as_ptr(), 500.0f32, 1);
+                        }
+
+                        log::info!(
+                            "ClearWorldGarbage: Cleared {} vehicles and {} objects from map",
+                            cleared_vehicles, cleared_objects
+                        );
                     }
                 }
             }

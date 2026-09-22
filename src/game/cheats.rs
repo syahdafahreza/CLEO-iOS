@@ -764,6 +764,12 @@ pub fn tab_data() -> TabData {
             title: "MOBIL KEBAL (VEHICLE GOD MODE)",
             detail: "Kendaraan yang dinaiki Claude kebal peluru, api, ledakan, tabrakan, dan ban anti bocor",
         }));
+        rows.push(Box::new(PlayerQuickActionRow {
+            action: crate::game::player::PlayerAction::ClearWorldGarbage,
+            title: "BERSIHKAN MAP (CLEAR SAMPAH)",
+            detail: "Menghapus seluruh kendaraan dan objek sampah yang berserakan/dispawn sebelumnya di map (kecuali mobil yang sedang dinaiki)",
+            triggered: false,
+        }));
     } else if current_cat == CheatCategory::Vehicles {
         rows.push(Box::new(VehicleRepairRow {
             title: "SERVIS MOBIL AKTIF (INSTAN)",
@@ -775,6 +781,12 @@ pub fn tab_data() -> TabData {
             atomic: &crate::game::player::GOD_MODE_VEHICLE,
             title: "MOBIL KEBAL (VEHICLE GOD MODE)",
             detail: "Kendaraan yang dinaiki Claude kebal peluru, api, ledakan, tabrakan, dan ban anti bocor",
+        }));
+        rows.push(Box::new(PlayerQuickActionRow {
+            action: crate::game::player::PlayerAction::ClearWorldGarbage,
+            title: "BERSIHKAN MAP (CLEAR SAMPAH)",
+            detail: "Menghapus seluruh kendaraan dan objek sampah yang berserakan/dispawn sebelumnya di map (kecuali mobil yang sedang dinaiki)",
+            triggered: false,
         }));
     }
 

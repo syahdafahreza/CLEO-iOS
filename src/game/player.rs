@@ -282,8 +282,9 @@ pub fn spawn_vehicle_direct(model_id: u32) -> *mut u8 {
             // Matches opcode 01C8 (MARK_CAR_AS_NO_LONGER_NEEDED) / Car.RemoveReferences:
             *(veh.add(0x1f8) as *mut u8) = 1;
 
-            // Set bIsCheatedCar = 1 (veh + 0x1F9, bit 3)
-            *(veh.add(0x1f9) as *mut u8) |= 8;
+            // Note: bIsCheatedCar (veh + 0x1F9, bit 3) is deliberately NOT set here.
+            // When set, CCarCtrl at 0x000C51DA skips vehicle recycling completely,
+            // making spawned vehicles permanent. Keeping it 0 allows natural despawn like traffic.
 
             // Boat physics limits (matches native CREATE_BOAT in opcode 00A5 at 0x00045696..0x000456DE)
             *(veh.add(0x15e) as *mut u8) = 0;
@@ -371,8 +372,10 @@ pub fn spawn_vehicle_direct(model_id: u32) -> *mut u8 {
             // Matches opcode 01C8 (MARK_CAR_AS_NO_LONGER_NEEDED) / Car.RemoveReferences:
             *(veh.add(0x1f8) as *mut u8) = 1;
 
-            // Mark as cheated car: veh + 0x1F9 |= 8 (matches native 0x00045566 & 0x000C0A7E).
-            *(veh.add(0x1f9) as *mut u8) |= 8;
+            // Note: bIsCheatedCar (veh + 0x1F9, bit 3) is deliberately NOT set here.
+            // Native CCheat::VehicleCheat (0x000C0A7E) and CREATE_CAR (0x00045566) set this bit,
+            // which causes CCarCtrl (0x000C51DA) to skip recycling, keeping the car persistent forever.
+            // Leaving it 0 allows CCarCtrl to despawn it like normal traffic when left behind.
 
             // Native CREATE_CAR suspension & physics limits (matches native 0x00045570..0x0004558C
             // and VehicleCheat 0x000C0A8A..0x000C0AAC):

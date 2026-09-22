@@ -787,19 +787,50 @@ pub fn tick() {
                 LAST_GOD_MODE_VEH.store(0, Ordering::Relaxed);
             }
 
-            // Infinite Ammo: keep total ammo refilled for firearms & throwables (slots 2..=11).
+            // Infinite Ammo: lock reserve ammo to 9999 and keep magazine clip fully loaded
+            // for firearms & throwables (slots 2..=11).
             // Skip slot 0 (unarmed) and slot 1 (baseball bat has no ammo).
-            // Clip ammo is managed natively by CWeapon::Update / Reload; do not overwrite clip
-            // directly as that breaks non-clip weapons (RPG, Bat, Grenades, Molotovs).
             if INFINITE_AMMO.load(Ordering::Relaxed) {
                 unsafe {
                     for slot in 2..=11 {
                         let wep_ptr = ped.add(0x360 + slot * 0x18);
                         let wep_type = *(wep_ptr as *const u32);
-                        if wep_type > 0 {
+                        if wep_type >= 2 && wep_type <= 11 {
+                            let clip_ptr = wep_ptr.add(0x08) as *mut u32;
                             let total_ptr = wep_ptr.add(0x0c) as *mut u32;
-                            if *total_ptr < 9000 {
+                            let state_ptr = wep_ptr.add(0x04) as *mut u32;
+
+                            // 1. Determine clip capacity from CWeaponInfo (0x0002c5bc)
+                            let winfo = hook::slide_fn::<extern "C" fn(u32) -> *mut u8>(0x0002c5bc)(wep_type);
+                            let clip_cap = if !winfo.is_null() {
+                                *(winfo.add(0x10) as *const u32)
+                            } else {
+                                match wep_type {
+                                    2 => 12,   // Colt45
+                                    3 => 25,   // Uzi
+                                    4 => 1000, // Shotgun
+                                    5 => 30,   // AK47
+                                    6 => 60,   // M16
+                                    9 => 500,  // FlameThrower
+                                    _ => 1,    // Sniper, RPG, Molotov, Grenade
+                                }
+                            };
+
+                            // 2. Lock clip ammo to maximum capacity so magazine never depletes:
+                            //    Keeping *clip_ptr locked to clip_cap means the player never runs out of
+                            //    bullets in the magazine, never has to reload, and the HUD counter never drops.
+                            if clip_cap > 0 && *clip_ptr < clip_cap {
+                                *clip_ptr = clip_cap;
+                            }
+
+                            // 3. Always keep total reserve ammo locked at 9999
+                            if *total_ptr < 9999 {
                                 *total_ptr = 9999;
+                            }
+
+                            // 4. If weapon was marked out of ammo (state 3), restore to READY (0)
+                            if *state_ptr == 3 {
+                                *state_ptr = 0;
                             }
                         }
                     }

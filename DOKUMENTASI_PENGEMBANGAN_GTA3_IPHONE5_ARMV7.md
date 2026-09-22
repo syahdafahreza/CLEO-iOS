@@ -65,6 +65,7 @@
 | `CStreaming::RequestModel` | Request load model | `0x0011AEF0` | `(model_id, flags)` |
 | `CStreaming::LoadAllRequestedModels`| Load model synch | `0x0011D954` | `(priority: bool)` |
 | `CPed::GiveWeapon` | Beri senjata & amunisi | `0x000DE170` | `(ped, weapon_type, ammo, bool)` |
+| `CWeaponInfo::GetWeaponInfo` | Ambil info spesifikasi senjata | `0x0002C5BC` | `(weapon_type) -> *mut CWeaponInfo` (clip capacity di `+0x10`) |
 | `CWanted::SetWantedLevel` | Set bintang polisi | `0x0002F2D0` | `(wanted_ptr, level)` |
 | `CPed::SetWantedLevel` | Helper wanted di ped | `0x0001DE64` | `(ped, level)` |
 | `MaximumWantedLevel` | Batas maksimum bintang | `0x001BEBC8` | Default: 6 |
@@ -224,3 +225,24 @@
      - Jika mobil berada dalam posisi terbalik (`up.z < 0.0`), vektor matriks RenderWare langsung dibalik (`up` & `right` di-negasikan dan `UpdateRW` dipanggil) sehingga mobil seketika berdiri tegak di atas rodanya kembali persis logika Pay N Spray native (`0x000F2482..0x000F2528`).
    - **Proteksi Warna Asli**:
      - Warna primer (`veh + 0x1A0`) dan sekunder (`veh + 0x1A1`) sengaja tidak diubah sehingga warna kendaraan pemain tetap terjaga 100%.
+
+---
+
+### I. Perbaikan Cheat Amunisi Tak Terbatas (Infinite Ammo)
+
+1. **Akar Masalah Amunisi Berkurang Saat Menembak**:
+   - Kode sebelumnya hanya mengecek `if *total_ptr < 9000 { *total_ptr = 9999; }` pada offset `wep + 0x0C`.
+   - Hal ini menyebabkan dua kelemahan fatal:
+     1. **Peluru Berkurang Terlihat di HUD**: Total amunisi tidak di-refill sebelum mencapai angka 9000. Setiap peluru yang ditembakkan menyebabkan angka amunisi berkurang dari 9999 menjadi 9998, 9997, dan seterusnya.
+     2. **Magazin / Clip Tetap Berkurang & Terpaksa Reload**: Pada engine GTA III, struct `CWeapon` (24 bytes) memiliki dua field penting:
+        - `+0x04`: `m_eState` (Status senjata: 0 = READY, 1 = FIRING, 2 = RELOADING, 3 = OUT_OF_AMMO)
+        - `+0x08`: `m_nAmmoInClip` (Jumlah peluru di dalam magazin aktif)
+        - `+0x0C`: `m_nAmmoTotal` (Total cadangan peluru)
+     - Logika lama sama sekali tidak menyentuh `m_nAmmoInClip`. Senjata dengan sistem magazin (Colt .45 kapasitas 12, Micro Uzi kapasitas 25, AK-47 kapasitas 30, M16 kapasitas 60) menampilkan HUD berformat `[magazin]-[cadangan]` (contoh: `12-9987`). Saat ditembakkan, angka magazin terus berkurang hingga 0 dan Claude terpaksa melakukan animasi reload (mengisi ulang peluru).
+
+2. **Perbaikan yang Diterapkan**:
+   - **Query Kapasitas Magazin Native**: Memanggil fungsi native `CWeaponInfo::GetWeaponInfo` (`0x0002C5BC(wep_type)`) untuk membaca field `nAmountofAmmonInClip` di offset `+0x10`. Jika tidak tersedia, sistem fallback ke kapasitas standar GTA III.
+   - **Penguncian Magazin Penuh (`m_nAmmoInClip`)**: Setiap tick, nilai `*clip_ptr` dikunci ke kapasitas magazin maksimum (`clip_cap`) jika `*clip_ptr < clip_cap`. Dengan demikian, peluru magazin tidak pernah habis dan pemain dapat menembak terus-menerus tanpa terpotong animasi reload.
+   - **Penguncian Total Peluru (`m_nAmmoTotal`)**: Setiap tick, jika `*total_ptr < 9999`, nilainya langsung di-lock kembali ke 9999.
+   - **Pemulihan Status Senjata**: Jika state senjata sempat berada di `WEAPONSTATE_OUT_OF_AMMO` (`3`), statusnya otomatis dipulihkan ke `WEAPONSTATE_READY` (`0`).
+

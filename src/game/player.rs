@@ -501,8 +501,18 @@ pub fn tick() {
                         let veh = find_player_vehicle();
                         if !veh.is_null() {
                             unsafe {
+                                // 1. Restore vehicle health to 1000.0f
                                 *(veh.add(0x204) as *mut f32) = 1000.0;
-                                hook::slide_fn::<extern "C" fn(*mut u8, u32)>(0x000cc560)(veh.add(0x28c), 0);
+                                // 2. Reset CDamageManager (0x000CC700) to clear damage state
+                                hook::slide_fn::<extern "C" fn(*mut u8)>(0x000cc700)(veh.add(0x28c));
+                                // 3. For automobiles (type 0), call native CAutomobile::Fix (0x0005CE78)
+                                //    which restores clump frames and reattaches broken/missing doors, bonnet, boot, bumpers.
+                                let veh_type = *(veh.add(0x1f8) as *const u8) & 0x07;
+                                if veh_type == 0 {
+                                    hook::slide_fn::<extern "C" fn(*mut u8)>(0x0005ce78)(veh);
+                                } else {
+                                    *(veh.add(0x1fb) as *mut u8) &= !2; // clear bIsDamaged
+                                }
                             }
                         }
                     }
@@ -580,14 +590,48 @@ pub fn tick() {
                 }
             }
 
-            // Vehicle God Mode / Mobil Kebal
+            // Vehicle God Mode / Mobil Kebal: makes Claude's vehicle 100% invincible
             let current_veh = find_player_vehicle();
             if !current_veh.is_null() {
                 if GOD_MODE_VEHICLE.load(Ordering::Relaxed) {
                     unsafe {
+                        // 1. Lock vehicle health to 1000.0f
                         *(current_veh.add(0x204) as *mut f32) = 1000.0;
-                        *(current_veh.add(0x53) as *mut u32) |= 0x002f0000;
-                        hook::slide_fn::<extern "C" fn(*mut u8, u32)>(0x000cc560)(current_veh.add(0x28c), 0);
+
+                        // 2. Full immunities on CEntity:
+                        //    In GTA III ARMv7, CEntity flags are at offset 0x50.
+                        //    Byte 0x52 contains:
+                        //      bit 0 (0x01): bBulletProof
+                        //      bit 1 (0x02): bFireProof
+                        //      bit 2 (0x04): bCollisionProof (prevents visual panel deformation & damage on collision)
+                        //      bit 3 (0x08): bMeleeProof
+                        //      bit 5 (0x20): bExplosionProof
+                        //    Combined mask: 0x002F0000 at +0x50 (or 0x2F at byte +0x52).
+                        *(current_veh.add(0x52) as *mut u8) |= 0x2f;
+                        *(current_veh.add(0x50) as *mut u32) |= 0x002f0000;
+
+                        // 3. Puncture-proof tyres (bTyresDontBurst is bit 1 of byte +0x1fd)
+                        *(current_veh.add(0x1fd) as *mut u8) |= 0x02;
+
+                        // 4. Reset component damage & reattach broken/missing parts:
+                        let veh_type = *(current_veh.add(0x1f8) as *const u8) & 0x07;
+                        let dmg_ptr = current_veh.add(0x28c);
+
+                        // Check if any door is damaged (status >= 1) or panels damaged (panels != 0)
+                        let door_damaged = (0..6).any(|i| *dmg_ptr.add(9 + i) != 0);
+                        let panel_damaged = *(dmg_ptr.add(0x14) as *const u32) != 0;
+
+                        if (door_damaged || panel_damaged) && veh_type == 0 {
+                            // CAutomobile::Fix (0x0005CE78) restores all clump geometries, reattaches
+                            // doors/bonnet/boot/bumpers, and calls CDamageManager::Reset internally.
+                            hook::slide_fn::<extern "C" fn(*mut u8)>(0x0005ce78)(current_veh);
+                        } else {
+                            // Reset CDamageManager directly without snapping door angle matrices
+                            hook::slide_fn::<extern "C" fn(*mut u8)>(0x000cc700)(dmg_ptr);
+                        }
+
+                        // 5. Clear bIsDamaged (bit 1 of byte +0x1fb) to prevent smoke/fire
+                        *(current_veh.add(0x1fb) as *mut u8) &= !2;
                     }
                 }
             }

@@ -808,9 +808,21 @@ pub fn tick() {
                 LAST_GOD_MODE_VEH.store(0, Ordering::Relaxed);
             }
 
-            // Infinite Ammo: lock reserve ammo to 9999 and keep magazine clip fully loaded
-            // for firearms & throwables (slots 2..=11).
-            // Skip slot 0 (unarmed) and slot 1 (baseball bat has no ammo).
+            // Infinite Ammo: lock reserve ammo and magazine clip for all weapons (slots 2..=11).
+            //
+            // KEY DISCOVERY (from binary analysis of gta3 ARMv7):
+            // At 0x16d18 (CWeapon::FireThrowable) and 0x1b006 (CWeapon::FireInstantHit), the engine
+            // checks: if (total >= 25000 / 0x61a8) → skip ammo decrement entirely.
+            // This is GTA III's native "infinite ammo" threshold.
+            //
+            // Previously we locked total to 9999, which is BELOW 25000, so:
+            //   - Colt .45 appeared to work (clip was kept full, user didn't notice total dropping)
+            //   - Shotgun, Grenade, RPG, Sniper, Molotov, Flamethrower still consumed ammo
+            //     because their total dropped 9999 → 9998 → ... on every shot.
+            //
+            // FIX: Set total = 25000 so the engine's native check always passes.
+            // Also lock clip to clip_cap to keep HUD magazine indicator full at all times.
+            // Skip slot 0 (unarmed) and slot 1 (baseball bat - no ammo).
             if INFINITE_AMMO.load(Ordering::Relaxed) {
                 unsafe {
                     for slot in 2..=11 {
@@ -822,6 +834,10 @@ pub fn tick() {
                             let state_ptr = wep_ptr.add(0x04) as *mut u32;
 
                             // 1. Determine clip capacity from CWeaponInfo (0x0002c5bc)
+                            //    CWeaponInfo struct: +0x10 = m_nAmountofAmmoInClip (from weapon.dat)
+                            //    weapon.dat verified clip capacities:
+                            //      Colt45=12, Uzi=25, Shotgun=1000, AK47=30, M16=60,
+                            //      FlameThrower=500, SniperRifle=1, RPG=1, Molotov=1, Grenade=1
                             let winfo = hook::slide_fn::<extern "C" fn(u32) -> *mut u8>(0x0002c5bc)(wep_type);
                             let clip_cap = if !winfo.is_null() {
                                 *(winfo.add(0x10) as *const u32)
@@ -833,20 +849,27 @@ pub fn tick() {
                                     5 => 30,   // AK47
                                     6 => 60,   // M16
                                     9 => 500,  // FlameThrower
-                                    _ => 1,    // Sniper, RPG, Molotov, Grenade
+                                    _ => 1,    // SniperRifle, RPG, Molotov, Grenade
                                 }
                             };
 
-                            // 2. Lock clip ammo to maximum capacity so magazine never depletes:
-                            //    Keeping *clip_ptr locked to clip_cap means the player never runs out of
-                            //    bullets in the magazine, never has to reload, and the HUD counter never drops.
+                            // 2. Lock clip ammo to maximum capacity so HUD magazine counter stays full.
+                            //    For single-shot weapons (clip_cap == 1: Sniper, RPG, Molotov, Grenade),
+                            //    this keeps clip at 1 so the weapon never shows "empty magazine".
                             if clip_cap > 0 && *clip_ptr < clip_cap {
                                 *clip_ptr = clip_cap;
                             }
 
-                            // 3. Always keep total reserve ammo locked at 9999
-                            if *total_ptr < 9999 {
-                                *total_ptr = 9999;
+                            // 3. Set total reserve ammo to 25000 (GTA III native infinite ammo threshold).
+                            //    Engine code at 0x16d18 (FireThrowable) and 0x1b006 (FireInstantHit):
+                            //      movw r1/r2, #0x61a8  ; 25000
+                            //      cmp  total, r1/r2
+                            //      bhi  skip_decrement  ; if total > 24998 → DON'T subtract
+                            //    Setting total = 25000 guarantees this branch is always taken,
+                            //    making Shotgun, Grenade, RPG, Molotov, Sniper, Flamethrower, etc.
+                            //    truly infinite without any per-frame workaround.
+                            if *total_ptr < 25000 {
+                                *total_ptr = 25000;
                             }
 
                             // 4. If weapon was marked out of ammo (state 3), restore to READY (0)

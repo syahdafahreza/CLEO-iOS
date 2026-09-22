@@ -1,7 +1,7 @@
 //! Helper module for interacting with the player ped (Claude), stats, money, weapons, and vehicle spawning.
 //! GTA III v1.3.2 (armv7 / 32-bit) iOS on iPhone 5, iOS 10.x.
 
-use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, AtomicUsize, Ordering};
 use std::sync::Mutex;
 use crate::hook;
 use lazy_static::lazy_static;
@@ -12,6 +12,7 @@ pub static INFINITE_SPRINT: AtomicBool = AtomicBool::new(false);
 pub static FAST_RELOAD: AtomicBool = AtomicBool::new(false);
 pub static NEVER_WANTED: AtomicBool = AtomicBool::new(false);
 pub static GOD_MODE_VEHICLE: AtomicBool = AtomicBool::new(false);
+static LAST_GOD_MODE_VEH: AtomicUsize = AtomicUsize::new(0);
 static QUEUED_VEHICLE_RETRIES: AtomicU32 = AtomicU32::new(0);
 
 lazy_static! {
@@ -664,45 +665,69 @@ pub fn tick() {
             if !current_veh.is_null() {
                 if GOD_MODE_VEHICLE.load(Ordering::Relaxed) {
                     unsafe {
+                        // If this is a newly entered vehicle or cheat was just turned on,
+                        // fix all clump geometries once to restore any previously damaged parts cleanly.
+                        let veh_addr = current_veh as usize;
+                        if LAST_GOD_MODE_VEH.swap(veh_addr, Ordering::Relaxed) != veh_addr {
+                            let veh_type = *(current_veh.add(0x1f8) as *const u8) & 0x07;
+                            if veh_type == 0 {
+                                hook::slide_fn::<extern "C" fn(*mut u8)>(0x0005ce78)(current_veh);
+                            }
+                        }
+
                         // 1. Lock vehicle health to 1000.0f
                         *(current_veh.add(0x204) as *mut f32) = 1000.0;
 
-                        // 2. Full immunities on CEntity:
-                        //    In GTA III ARMv7, CEntity flags are at offset 0x50.
-                        //    Byte 0x52 contains:
-                        //      bit 0 (0x01): bBulletProof
-                        //      bit 1 (0x02): bFireProof
-                        //      bit 2 (0x04): bCollisionProof (prevents visual panel deformation & damage on collision)
-                        //      bit 3 (0x08): bMeleeProof
-                        //      bit 5 (0x20): bExplosionProof
-                        //    Combined mask: 0x002F0000 at +0x50 (or 0x2F at byte +0x52).
-                        *(current_veh.add(0x52) as *mut u8) |= 0x2f;
-                        *(current_veh.add(0x50) as *mut u32) |= 0x002f0000;
+                        // 2. CRITICAL: Clear byte 0x52!
+                        //    In GTA III iOS, non-zero at 0x52 causes CEntity::UpdateRwFrame (0x0002CD20)
+                        //    to abort and skip rendering the clump, making the vehicle body completely
+                        //    invisible ("wheels only" / transparent bug).
+                        *(current_veh.add(0x52) as *mut u8) = 0;
 
-                        // 3. Puncture-proof tyres (bTyresDontBurst is bit 1 of byte +0x1fd)
+                        // 3. Flags byte 2 (+0x55):
+                        //    bit 1 (0x02): bExplosionProof (immune to explosions)
+                        //    bit 2 (0x04): bIsVisible (guarantees vehicle is visible)
+                        //    Clear bit 0 (bWasPostponed) and bit 4 (bRenderScorched)
+                        let flags_55 = current_veh.add(0x55) as *mut u8;
+                        *flags_55 = (*flags_55 | 0x02 | 0x04) & !0x01 & !0x10;
+
+                        // 4. Flags byte 3 (+0x56):
+                        //    bit 0 (0x01): bBulletProof
+                        //    bit 1 (0x02): bFireProof
+                        //    bit 2 (0x04): bCollisionProof (prevents visual deformation & crash damage)
+                        //    bit 3 (0x08): bMeleeProof
+                        let flags_56 = current_veh.add(0x56) as *mut u8;
+                        *flags_56 |= 0x0f;
+
+                        // 5. Flags byte 4 (+0x57):
+                        //    Clear bit 7 (bDoNotRender)
+                        let flags_57 = current_veh.add(0x57) as *mut u8;
+                        *flags_57 &= !0x80;
+
+                        // 6. Puncture-proof tyres (bTyresDontBurst is bit 1 of byte +0x1fd)
                         *(current_veh.add(0x1fd) as *mut u8) |= 0x02;
 
-                        // 4. Reset component damage & reattach broken/missing parts:
-                        let veh_type = *(current_veh.add(0x1f8) as *const u8) & 0x07;
-                        let dmg_ptr = current_veh.add(0x28c);
+                        // 7. Reset CDamageManager status (0x000CC700) each frame
+                        hook::slide_fn::<extern "C" fn(*mut u8)>(0x000cc700)(current_veh.add(0x28c));
 
-                        // Check if any door is damaged (status >= 1) or panels damaged (panels != 0)
-                        let door_damaged = (0..6).any(|i| *dmg_ptr.add(9 + i) != 0);
-                        let panel_damaged = *(dmg_ptr.add(0x14) as *const u32) != 0;
-
-                        if (door_damaged || panel_damaged) && veh_type == 0 {
-                            // CAutomobile::Fix (0x0005CE78) restores all clump geometries, reattaches
-                            // doors/bonnet/boot/bumpers, and calls CDamageManager::Reset internally.
-                            hook::slide_fn::<extern "C" fn(*mut u8)>(0x0005ce78)(current_veh);
-                        } else {
-                            // Reset CDamageManager directly without snapping door angle matrices
-                            hook::slide_fn::<extern "C" fn(*mut u8)>(0x000cc700)(dmg_ptr);
-                        }
-
-                        // 5. Clear bIsDamaged (bit 1 of byte +0x1fb) to prevent smoke/fire
+                        // 8. Clear bIsDamaged (bit 1 of byte +0x1fb) to prevent smoke/fire
                         *(current_veh.add(0x1fb) as *mut u8) &= !2;
                     }
+                } else {
+                    let prev = LAST_GOD_MODE_VEH.swap(0, Ordering::Relaxed);
+                    if prev != 0 && prev == current_veh as usize {
+                        unsafe {
+                            // Restore normal vehicle destructibility when cheat is disabled
+                            let flags_55 = current_veh.add(0x55) as *mut u8;
+                            *flags_55 &= !0x02; // clear bExplosionProof
+                            let flags_56 = current_veh.add(0x56) as *mut u8;
+                            *flags_56 &= !0x0f; // clear bullet, fire, collision, melee proofs
+                            *(current_veh.add(0x1fd) as *mut u8) &= !0x02; // allow tyre bursting
+                        }
+                    }
                 }
+            } else {
+                LAST_GOD_MODE_VEH.store(0, Ordering::Relaxed);
             }
 
             // Infinite Ammo: keep total ammo refilled for firearms & throwables (slots 2..=11).

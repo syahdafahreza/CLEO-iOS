@@ -158,7 +158,8 @@ impl RowData for CategoryFilterRow {
     fn handle_tap(&mut self) -> bool {
         let mut cat = CURRENT_CATEGORY.lock().unwrap();
         *cat = cat.next();
-        true // Rebuild rows!
+        menu::MenuMessage::RebuildTab(0).send();
+        false
     }
 }
 
@@ -173,7 +174,7 @@ impl RowData for VehicleRow {
     }
 
     fn detail(&self) -> RowDetail {
-        RowDetail::Info(Message::custom(format!("Model ID {} • {}", self.def.model_id, self.def.description)))
+        RowDetail::Info(Message::custom(format!("Model ID {} - {}", self.def.model_id, self.def.description)))
     }
 
     fn value(&self) -> Message {

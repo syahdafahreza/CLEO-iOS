@@ -173,6 +173,7 @@ pub fn spawn_vehicle_direct(model_id: u32) -> *mut u8 {
         if !is_model_loaded(model_id) {
             log::info!("spawn_vehicle_direct: Model {} not loaded, requesting with GAME_REQUIRED (1)", model_id);
             hook::slide_fn::<extern "C" fn(u32, u32)>(0x0011aef0)(model_id, 1);
+            hook::slide_fn::<extern "C" fn(u32)>(0x0011c064)(0);
             hook::slide_fn::<extern "C" fn(u8)>(0x0011d954)(0);
             if !is_model_loaded(model_id) {
                 // Streaming is still pending; return null so caller retries on next frame
@@ -199,16 +200,14 @@ pub fn spawn_vehicle_direct(model_id: u32) -> *mut u8 {
 
         // Determine vehicle class: Boats in GTA III (verified from default.ide in IPA):
         // 120 (predator), 142 (speeder), 143 (reefer), 150 (ghost).
-        // Also verified from native CModelInfo::IsBoat at 0x0009C5C0.
-        let is_boat = hook::slide_fn::<extern "C" fn(u32) -> u32>(0x0009c5c0)(model_id) != 0
-            || matches!(model_id, 120 | 142 | 143 | 150);
+        let is_boat = matches!(model_id, 120 | 142 | 143 | 150);
         let in_car = !find_player_vehicle().is_null();
         let dist = if in_car {
             8.5f32
         } else if is_boat {
-            12.0f32
+            10.0f32
         } else {
-            6.5f32
+            5.0f32
         };
 
         let spawn_x = px + dir_x * dist;
@@ -227,7 +226,11 @@ pub fn spawn_vehicle_direct(model_id: u32) -> *mut u8 {
             pz
         };
 
+        // Heading angle in radians: in GTA coordinate system (forward.x = -sin(heading), forward.y = cos(heading))
         let heading = (-dir_x).atan2(dir_y);
+        // Rotate vehicle 90 degrees sideways so Claude stands directly in front of the driver seat (left door)
+        // Matches Vice City implementation
+        let veh_heading = heading + std::f32::consts::FRAC_PI_2;
 
         if is_boat {
             // Allocate CBoat (0x488 bytes)
@@ -244,7 +247,7 @@ pub fn spawn_vehicle_direct(model_id: u32) -> *mut u8 {
             // Set boat orientation using native CMatrix::RotateZ (0x0005AAB0)
             hook::slide_fn::<extern "C" fn(*mut u8, u32)>(0x0005aab0)(
                 veh.add(0x04),
-                heading.to_bits(),
+                veh_heading.to_bits(),
             );
 
             let spawn_z = pz + 0.5f32;
@@ -306,20 +309,28 @@ pub fn spawn_vehicle_direct(model_id: u32) -> *mut u8 {
             // Native CAutomobile constructor at 0x00068E1C (matches 0x000455FA and 0x000C0AE0)
             hook::slide_fn::<extern "C" fn(*mut u8, u32, u8) -> *mut u8>(0x00068e1c)(veh, model_id, 2);
 
-            // Set vehicle orientation using native CMatrix::RotateZ (0x0005AAB0)
+            // Set vehicle orientation sideways so Claude stands directly in front of the driver seat
             hook::slide_fn::<extern "C" fn(*mut u8, u32)>(0x0005aab0)(
                 veh.add(0x04),
-                heading.to_bits(),
+                veh_heading.to_bits(),
             );
 
-            // Calculate height above ground using model collision bounds (0x0002C970).
-            let h_bits = hook::slide_fn::<extern "C" fn(*mut u8) -> u32>(0x0002c970)(veh);
-            let height_from_base = f32::from_bits(h_bits);
-            let valid_height = if height_from_base.is_nan() || height_from_base <= 0.0 || height_from_base > 5.0 {
-                0.85f32
-            } else {
-                height_from_base
-            };
+            // Calculate height above ground using model collision bounds (0x0002C970) safely
+            let p_model_info_ptr = hook::slide::<*const *const u8>(0x003d9c10);
+            let mut valid_height = 0.85f32;
+            if !p_model_info_ptr.is_null() && model_id < 2000 {
+                let model_info = *p_model_info_ptr.add(model_id as usize);
+                if !model_info.is_null() {
+                    let col_model = *(model_info.add(0x1c) as *const *const u8);
+                    if !col_model.is_null() {
+                        let h_bits = hook::slide_fn::<extern "C" fn(*mut u8) -> u32>(0x0002c970)(veh);
+                        let h = f32::from_bits(h_bits);
+                        if !h.is_nan() && h > 0.0 && h < 5.0 {
+                            valid_height = h;
+                        }
+                    }
+                }
+            }
             // Drop car gently (+0.6m above ground contact) so tires hit the road cleanly
             // and suspension compresses naturally without polygon intersection glitches.
             let spawn_z = base_z + valid_height + 0.6f32;

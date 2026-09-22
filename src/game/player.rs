@@ -282,9 +282,10 @@ pub fn spawn_vehicle_direct(model_id: u32) -> *mut u8 {
             // Matches opcode 01C8 (MARK_CAR_AS_NO_LONGER_NEEDED) / Car.RemoveReferences:
             *(veh.add(0x1f8) as *mut u8) = 1;
 
-            // Note: bIsCheatedCar (veh + 0x1F9, bit 3) is deliberately NOT set here.
-            // When set, CCarCtrl at 0x000C51DA skips vehicle recycling completely,
-            // making spawned vehicles permanent. Keeping it 0 allows natural despawn like traffic.
+            // Note: bIsCheatedCar (veh + 0x1F9, bit 3) is intentionally omitted.
+            // Setting bit 3 causes CCarCtrl (0x000C51DA) to skip recycling this vehicle,
+            // preventing it from ever being cleaned up when the player moves far away.
+            // Leaving bit 3 cleared lets the engine despawn it like normal traffic.
 
             // Boat physics limits (matches native CREATE_BOAT in opcode 00A5 at 0x00045696..0x000456DE)
             *(veh.add(0x15e) as *mut u8) = 0;
@@ -372,10 +373,10 @@ pub fn spawn_vehicle_direct(model_id: u32) -> *mut u8 {
             // Matches opcode 01C8 (MARK_CAR_AS_NO_LONGER_NEEDED) / Car.RemoveReferences:
             *(veh.add(0x1f8) as *mut u8) = 1;
 
-            // Note: bIsCheatedCar (veh + 0x1F9, bit 3) is deliberately NOT set here.
-            // Native CCheat::VehicleCheat (0x000C0A7E) and CREATE_CAR (0x00045566) set this bit,
-            // which causes CCarCtrl (0x000C51DA) to skip recycling, keeping the car persistent forever.
-            // Leaving it 0 allows CCarCtrl to despawn it like normal traffic when left behind.
+            // Note: bIsCheatedCar (veh + 0x1F9, bit 3) is intentionally omitted.
+            // Native CCheat::VehicleCheat (0x000C0A7E) and CREATE_CAR (0x00045566) set bit 3,
+            // which causes CCarCtrl (0x000C51DA) to skip vehicle recycling and never delete it.
+            // Leaving bit 3 cleared lets CCarCtrl despawn the vehicle like normal traffic when left behind.
 
             // Native CREATE_CAR suspension & physics limits (matches native 0x00045570..0x0004558C
             // and VehicleCheat 0x000C0A8A..0x000C0AAC):
@@ -815,15 +816,14 @@ pub fn tick() {
             //
             // KEY DISCOVERY (from binary analysis of gta3 ARMv7):
             // At 0x16d18 (CWeapon::FireThrowable) and 0x1b006 (CWeapon::FireInstantHit), the engine
-            // checks: if (total >= 25000 / 0x61a8) → skip ammo decrement entirely.
+            // checks: if (total > 25000 / 0x61a8) -> skip ammo decrement entirely (ARM 'bhi' = branch if higher).
             // This is GTA III's native "infinite ammo" threshold.
             //
-            // Previously we locked total to 9999, which is BELOW 25000, so:
-            //   - Colt .45 appeared to work (clip was kept full, user didn't notice total dropping)
-            //   - Shotgun, Grenade, RPG, Sniper, Molotov, Flamethrower still consumed ammo
-            //     because their total dropped 9999 → 9998 → ... on every shot.
+            // If total <= 25000:
+            //   - Weapons decrement total reserve on each shot.
+            //   - For single-shot weapons (Shotgun, Grenade, RPG, etc.), ammo decreases noticeably.
             //
-            // FIX: Set total = 25000 so the engine's native check always passes.
+            // FIX: Set total reserve to 30000 so the condition (total > 25000) is always satisfied.
             // Also lock clip to clip_cap to keep HUD magazine indicator full at all times.
             // Skip slot 0 (unarmed) and slot 1 (baseball bat - no ammo).
             if INFINITE_AMMO.load(Ordering::Relaxed) {
@@ -863,16 +863,15 @@ pub fn tick() {
                                 *clip_ptr = clip_cap;
                             }
 
-                            // 3. Set total reserve ammo to 25000 (GTA III native infinite ammo threshold).
+                            // 3. Set total reserve ammo to 30000 (> 25000 threshold for GTA III native infinite ammo).
                             //    Engine code at 0x16d18 (FireThrowable) and 0x1b006 (FireInstantHit):
                             //      movw r1/r2, #0x61a8  ; 25000
                             //      cmp  total, r1/r2
-                            //      bhi  skip_decrement  ; if total > 24998 → DON'T subtract
-                            //    Setting total = 25000 guarantees this branch is always taken,
-                            //    making Shotgun, Grenade, RPG, Molotov, Sniper, Flamethrower, etc.
-                            //    truly infinite without any per-frame workaround.
-                            if *total_ptr < 25000 {
-                                *total_ptr = 25000;
+                            //      bhi  skip_decrement  ; only skips subtraction if total > 25000!
+                            //    Setting total = 30000 guarantees this branch is taken on every shot,
+                            //    preventing Shotgun, Grenade, RPG, Molotov, Sniper, etc. from consuming ammo.
+                            if *total_ptr < 30000 {
+                                *total_ptr = 30000;
                             }
 
                             // 4. If weapon was marked out of ammo (state 3), restore to READY (0)

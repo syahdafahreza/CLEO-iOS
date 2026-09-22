@@ -445,6 +445,69 @@ pub fn queue_give_weapon(weapon_id: u32, ammo: u32) {
     }
 }
 
+/// Fully repairs a vehicle in GTA III ARMv7 matching native Pay N Spray behavior:
+/// - Restores health to 1000.0f (veh + 0x204)
+/// - Clears damage / fire timer (veh + 0x534)
+/// - Extinguishes any active fire on vehicle (veh + 0x1E8 points to CFire)
+/// - For automobiles (veh + 0x288 == 0):
+///   Calls native CAutomobile::Fix (0x0005CE78) which:
+///     * Resets CDamageManager at veh + 0x28C (0x000CC700) (engine status, panels, doors, lights, tyre damage)
+///     * Clears bIsDamaged smoke flag (veh + 0x1FB bit 1)
+///     * Swaps all damaged atomics (bonnet/cap, bumpers, boot, doors) to undamaged intact atomics via SetComponentAtomicFlagsCB
+///     * Resets transformation matrices of all components (nodes 7..20) back to straight/closed
+///   Flips overturned vehicle upright if up.z < 0 (matches Pay N Spray 0x000F2482..0x000F2528)
+/// - For boats or other vehicles: resets CDamageManager and clears bIsDamaged
+/// - Restores tyre flags (veh + 0x1FD &= !1)
+/// Does NOT change vehicle color (preserving original primary & secondary colors).
+pub unsafe fn repair_vehicle(veh: *mut u8) {
+    if veh.is_null() {
+        return;
+    }
+
+    // 1. Restore vehicle health to 1000.0f
+    *(veh.add(0x204) as *mut f32) = 1000.0;
+
+    // 2. Clear damage / fire timer (matches Pay N Spray at 0x000F245E)
+    *(veh.add(0x534) as *mut u32) = 0;
+
+    // 3. Extinguish any active fire on vehicle (veh + 0x1E8 points to CFire)
+    let p_fire = *(veh.add(0x1e8) as *const *mut u8);
+    if !p_fire.is_null() {
+        hook::slide_fn::<extern "C" fn(*mut u8)>(0x00068ef0)(p_fire); // CFire::Extinguish
+        *(veh.add(0x1e8) as *mut usize) = 0;
+    }
+
+    // 4. Vehicle type at offset 0x288 (0 = Automobile, 1 = Boat, etc.)
+    // Note: veh + 0x1F8 is m_nVehicleCreatedBy (1 for random, 2 for mission), NOT vehicle type!
+    let veh_type = *(veh.add(0x288) as *const i32);
+    if veh_type == 0 {
+        // Native CAutomobile::Fix (0x0005CE78) restores all damaged geometries and resets damage
+        hook::slide_fn::<extern "C" fn(*mut u8)>(0x0005ce78)(veh);
+
+        // If the car is upside-down / overturned (up.z < 0.0), flip upright
+        // exactly like native Pay N Spray does (0x000F2482..0x000F2528)
+        let up_z = *(veh.add(0x2c) as *const f32);
+        if up_z < 0.0 {
+            *(veh.add(0x24) as *mut f32) = -*(veh.add(0x24) as *const f32);
+            *(veh.add(0x28) as *mut f32) = -*(veh.add(0x28) as *const f32);
+            *(veh.add(0x2c) as *mut f32) = -*(veh.add(0x2c) as *const f32);
+            *(veh.add(0x04) as *mut f32) = -*(veh.add(0x04) as *const f32);
+            *(veh.add(0x08) as *mut f32) = -*(veh.add(0x08) as *const f32);
+            *(veh.add(0x0c) as *mut f32) = -*(veh.add(0x0c) as *const f32);
+            hook::slide_fn::<extern "C" fn(*mut u8)>(0x0005abe0)(veh.add(0x04)); // CMatrix::UpdateRW
+            hook::slide_fn::<extern "C" fn(*mut u8)>(0x0002cdd4)(veh);           // CEntity::UpdateRwFrame
+        }
+    } else {
+        // Reset CDamageManager directly
+        hook::slide_fn::<extern "C" fn(*mut u8)>(0x000cc700)(veh.add(0x28c));
+        // Clear bIsDamaged (smoke flag)
+        *(veh.add(0x1fb) as *mut u8) &= !2;
+    }
+
+    // 5. Restore tyres
+    *(veh.add(0x1fd) as *mut u8) &= !1;
+}
+
 /// Called per frame inside `script_tick` / `script_update` on the game thread.
 pub fn tick() {
     #[cfg(target_pointer_width = "32")]
@@ -466,8 +529,7 @@ pub fn tick() {
                         let veh = find_player_vehicle();
                         if !veh.is_null() {
                             unsafe {
-                                *(veh.add(0x204) as *mut f32) = 1000.0;
-                                hook::slide_fn::<extern "C" fn(*mut u8, u32)>(0x000cc560)(veh.add(0x28c), 0);
+                                repair_vehicle(veh);
                             }
                         }
                     }
@@ -503,18 +565,7 @@ pub fn tick() {
                         let veh = find_player_vehicle();
                         if !veh.is_null() {
                             unsafe {
-                                // 1. Restore vehicle health to 1000.0f
-                                *(veh.add(0x204) as *mut f32) = 1000.0;
-                                // 2. Reset CDamageManager (0x000CC700) to clear damage state
-                                hook::slide_fn::<extern "C" fn(*mut u8)>(0x000cc700)(veh.add(0x28c));
-                                // 3. For automobiles (type 0), call native CAutomobile::Fix (0x0005CE78)
-                                //    which restores clump frames and reattaches broken/missing doors, bonnet, boot, bumpers.
-                                let veh_type = *(veh.add(0x1f8) as *const u8) & 0x07;
-                                if veh_type == 0 {
-                                    hook::slide_fn::<extern "C" fn(*mut u8)>(0x0005ce78)(veh);
-                                } else {
-                                    *(veh.add(0x1fb) as *mut u8) &= !2; // clear bIsDamaged
-                                }
+                                repair_vehicle(veh);
                             }
                         }
                     }
@@ -671,10 +722,14 @@ pub fn tick() {
                         // fix all clump geometries once to restore any previously damaged parts cleanly.
                         let veh_addr = current_veh as usize;
                         if LAST_GOD_MODE_VEH.swap(veh_addr, Ordering::Relaxed) != veh_addr {
-                            let veh_type = *(current_veh.add(0x1f8) as *const u8) & 0x07;
-                            if veh_type == 0 {
-                                hook::slide_fn::<extern "C" fn(*mut u8)>(0x0005ce78)(current_veh);
-                            }
+                            repair_vehicle(current_veh);
+                        }
+
+                        // Extinguish any fire if vehicle caught on fire
+                        let p_fire = *(current_veh.add(0x1e8) as *const *mut u8);
+                        if !p_fire.is_null() {
+                            hook::slide_fn::<extern "C" fn(*mut u8)>(0x00068ef0)(p_fire);
+                            *(current_veh.add(0x1e8) as *mut usize) = 0;
                         }
 
                         // 1. Lock vehicle health to 1000.0f

@@ -70,6 +70,9 @@
 | `MaximumWantedLevel` | Batas maksimum bintang | `0x001BEBC8` | Default: 6 |
 | `MaximumChaosLevel` | Batas maksimum chaos | `0x001BEBCC` | Default: 6400 (`0x1900`) |
 | `CDamageManager::SetEngineStatus` | Fix mesin kendaraan | `0x000CC560` | Offset di `veh + 0x28C`, status 0 |
+| `CDamageManager::Reset` | Reset seluruh kerusakan part | `0x000CC700` | `memset(veh + 0x28C, 0, 0x1C)` |
+| `CAutomobile::Fix` | Servis total bodi mobil (Pay N Spray) | `0x0005CE78` | Memulihkan mesh utuh, bodi, kap, bumper, pintu |
+| `CFire::Extinguish` | Padamkan api objek / mobil | `0x00068EF0` | Padamkan pointer CFire (`veh + 0x1E8`) |
 
 ---
 
@@ -192,4 +195,32 @@
      - **Paket 3 (Heavy / Mayhem)**: Semua 11 senjata lengkap (1 s/d 11) termasuk RPG & Flamethrower.
    - **Hardened Range Guard**: Menambahkan validasi `weapon_id >= 1 && weapon_id <= 11` di `player::queue_give_weapon` dan sebelum eksekusi `CPed::GiveWeapon` di `src/game/player.rs` untuk mencegah pemanggilan senjata tidak valid.
 
+---
 
+### H. Perbaikan Servis Mobil Instan (Instant Vehicle Repair ala Pay N Spray)
+
+1. **Akar Masalah Kerusakan Tidak Diperbaiki (Bumper, Cap/Hood, Pintu, Mesin)**:
+   - Kode sebelumnya membaca tipe kendaraan dengan mengecek offset `veh + 0x1F8`:
+     ```rust
+     let veh_type = *(veh.add(0x1f8) as *const u8) & 0x07;
+     if veh_type == 0 {
+         hook::slide_fn::<extern "C" fn(*mut u8)>(0x0005ce78)(veh);
+     }
+     ```
+   - Namun di GTA III iOS ARMv7, offset `veh + 0x1F8` sebenarnya adalah field `m_nCreatedBy` (`1` untuk random traffic car, `2` untuk spawned/mission car), bukan tipe kendaraan!
+   - Akibatnya nilai `veh_type == 0` tidak pernah terpenuhi (`false`), dan pemanggilan native `CAutomobile::Fix` (`0x0005CE78`) **selalu terlewat (skip)**!
+   - Di GTA III, tipe kendaraan sebenarnya (`m_vehType`: `0` = Automobile, `1` = Boat, dll) terletak di offset `veh + 0x288` (terbukti dari analisis binary native Pay N Spray di `0x000F2436` dan `CCheat::HealthCheat` di `0x000C0C56`).
+
+2. **Mekanisme Lengkap Servis ala Garasi Pay N Spray (Tanpa Ganti Warna)**:
+   - **Pemulihan Health**: Nilai health kendaraan (`veh + 0x204`) diset ke `1000.0f`.
+   - **Reset Timer Kerusakan / Kebakaran**: Offset `veh + 0x534` diset ke `0` (persis seperti di native Pay N Spray `0x000F245E`).
+   - **Pemadaman Api Total**: Jika mobil sedang terbakar / mesin meledak, pointer api `m_pFire` di `veh + 0x1E8` dipadamkan menggunakan native `CFire::Extinguish` (`0x00068EF0`) dan pointer di-null-kan.
+   - **Pemanggilan `CAutomobile::Fix` (`0x0005CE78`)**:
+     1. Mereset seluruh damage manager di `veh + 0x28C` (`0x000CC700`), menghapus status kerusakan mesin, pintu, kap, bagasi, lampu, dan ban.
+     2. Menghapus bit flag asap / terbakar `bIsDamaged` (`veh + 0x1FB &= !2`).
+     3. Mengganti semua mesh atomik RenderWare yang rusak/penyok (`bonnet`, `bumper front/rear`, `boot`, `doors`) kembali ke mesh utuh mulus pabrik melalui callback `SetComponentAtomicFlagsCB(atomic, 2)`.
+     4. Menyelaraskan kembali matriks transformasi seluruh engsel pintu, kap mesin, bagasi, dan bumper (nodes 7 s/d 20) ke posisi tertutup rapat dan lurus sempurna.
+   - **Pembalikan Mobil Terbalik (Overturned Flip)**:
+     - Jika mobil berada dalam posisi terbalik (`up.z < 0.0`), vektor matriks RenderWare langsung dibalik (`up` & `right` di-negasikan dan `UpdateRW` dipanggil) sehingga mobil seketika berdiri tegak di atas rodanya kembali persis logika Pay N Spray native (`0x000F2482..0x000F2528`).
+   - **Proteksi Warna Asli**:
+     - Warna primer (`veh + 0x1A0`) dan sekunder (`veh + 0x1A1`) sengaja tidak diubah sehingga warna kendaraan pemain tetap terjaga 100%.

@@ -195,6 +195,7 @@ impl RowData for VehicleRow {
 
     fn handle_tap(&mut self) -> bool {
         player::queue_spawn_vehicle(self.def.model_id);
+        player::show_cheat_toast(true);
         self.spawn_count = self.spawn_count.saturating_add(1);
         true
     }

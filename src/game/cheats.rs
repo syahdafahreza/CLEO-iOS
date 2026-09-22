@@ -114,7 +114,15 @@ impl Cheat {
             log::info!("Activating GTA III cheat index {} ({})", self.index, self.code);
             call_gta3_cheat(self.index);
             let active = self.get_active_mut();
+            let was_active = *active;
             *active = !*active;
+
+            if self.is_toggle() {
+                crate::game::player::show_cheat_toast(!was_active);
+            } else if !matches!(self.index, 6..=23) {
+                // One-shot cheats (vehicle spawns 6..=23 toast when spawn completes in tick)
+                crate::game::player::show_cheat_toast(true);
+            }
             return;
         }
 
@@ -427,7 +435,9 @@ impl RowData for PlayerToggleRow {
 
     fn handle_tap(&mut self) -> bool {
         let current = self.atomic.load(std::sync::atomic::Ordering::Relaxed);
-        self.atomic.store(!current, std::sync::atomic::Ordering::Relaxed);
+        let next = !current;
+        self.atomic.store(next, std::sync::atomic::Ordering::Relaxed);
+        crate::game::player::show_cheat_toast(next);
         true
     }
 }

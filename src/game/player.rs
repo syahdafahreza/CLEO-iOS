@@ -88,6 +88,26 @@ pub fn get_player_info_ptr() -> *mut u8 {
     }
 }
 
+/// Displays a native in-game help/toast message (yellow box in top-left) via native CHud::SetHelpMessage (0x0008EEF8).
+pub fn show_help_message(text: &str) {
+    #[cfg(target_pointer_width = "32")]
+    {
+        let mut utf16: Vec<u16> = text.encode_utf16().collect();
+        utf16.push(0);
+        let set_help_fn = hook::slide_fn::<extern "C" fn(*const u16, bool)>(0x0008eef8);
+        set_help_fn(utf16.as_ptr(), true);
+    }
+}
+
+/// Convenience helper to display native cheat toast: "CHEAT ACTIVATED" or "CHEAT DEACTIVATED".
+pub fn show_cheat_toast(activated: bool) {
+    if activated {
+        show_help_message("CHEAT ACTIVATED");
+    } else {
+        show_help_message("CHEAT DEACTIVATED");
+    }
+}
+
 /// Gets Claude's current money.
 /// GTA III v1.3.2 ARMv7: m_nMoney is at CPlayerInfo + 0xAC.
 pub fn get_money() -> i32 {
@@ -665,6 +685,7 @@ pub fn tick() {
                         }
                     }
                 }
+                show_cheat_toast(true);
             }
         }
 
@@ -675,6 +696,7 @@ pub fn tick() {
                 if !veh.is_null() {
                     *q = None;
                     QUEUED_VEHICLE_RETRIES.store(0, Ordering::Relaxed);
+                    show_cheat_toast(true);
                 } else {
                     let retries = QUEUED_VEHICLE_RETRIES.fetch_add(1, Ordering::Relaxed);
                     if retries >= 300 {
@@ -711,6 +733,7 @@ pub fn tick() {
                         );
                     }
                 }
+                show_cheat_toast(true);
 
                 // NOTE: CStreaming::SetModelIsDeletable (0x0011c210) is intentionally NOT
                 // called here. Weapon models in GTA III must remain resident in memory

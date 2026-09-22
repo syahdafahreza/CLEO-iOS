@@ -240,6 +240,7 @@ impl RowData for WeaponBundleRow {
         }
 
         self.activated = true;
+        player::show_cheat_toast(true);
         true
     }
 }
@@ -279,6 +280,7 @@ impl RowData for WeaponRow {
         player::INFINITE_AMMO.store(true, Ordering::Relaxed);
         let ammo = if self.def.weapon_id == 1 { 0 } else { 9999 };
         player::queue_give_weapon(self.def.weapon_id, ammo);
+        player::show_cheat_toast(true);
         self.activated = true;
         true
     }

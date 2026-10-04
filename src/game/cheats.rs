@@ -302,6 +302,11 @@ impl RowData for CheatData {
     }
 
     fn handle_tap(&mut self) -> bool {
+        log::info!(
+            "Menu [Cheats]: User selected cheat code '{}' (index: {})",
+            self.cheat.code,
+            self.cheat.index
+        );
         self.cheat.queue();
         self.just_triggered = true;
 
@@ -346,6 +351,7 @@ impl RowData for PlayerQuickActionRow {
     }
 
     fn handle_tap(&mut self) -> bool {
+        log::info!("Menu [Cheats]: User selected quick action '{}' ({})", self.title, self.detail);
         crate::game::player::queue_action(self.action);
         self.triggered = true;
         true
@@ -391,9 +397,11 @@ impl RowData for VehicleRepairRow {
     fn handle_tap(&mut self) -> bool {
         let veh = crate::game::player::find_player_vehicle();
         if veh.is_null() {
+            log::warn!("Menu [Cheats]: Vehicle repair canceled - player is not in a vehicle");
             self.not_in_veh = true;
             self.triggered = false;
         } else {
+            log::info!("Menu [Cheats]: User selected repair current vehicle ({:p})", veh);
             self.not_in_veh = false;
             self.triggered = true;
             crate::game::player::queue_action(crate::game::player::PlayerAction::RepairCurrentVehicle);
@@ -436,6 +444,7 @@ impl RowData for PlayerToggleRow {
     fn handle_tap(&mut self) -> bool {
         let current = self.atomic.load(std::sync::atomic::Ordering::Relaxed);
         let next = !current;
+        log::info!("Menu [Cheats]: User toggled '{}': {} -> {}", self.title, current, next);
         self.atomic.store(next, std::sync::atomic::Ordering::Relaxed);
         crate::game::player::show_cheat_toast(next);
         true
@@ -496,6 +505,7 @@ impl RowData for AdvanceTimeRow {
     }
 
     fn handle_tap(&mut self) -> bool {
+        log::info!("Menu [Cheats]: User advanced game time by +{} hours", self.hours);
         crate::game::player::queue_action(crate::game::player::PlayerAction::AdvanceTimeHours(self.hours));
         self.triggered = true;
         true
@@ -534,6 +544,7 @@ impl RowData for WarpForwardRow {
     }
 
     fn handle_tap(&mut self) -> bool {
+        log::info!("Menu [Cheats]: User triggered Warp Forward");
         crate::game::player::queue_action(crate::game::player::PlayerAction::WarpForward);
         self.triggered = true;
         true
@@ -763,6 +774,7 @@ impl RowData for CategoryFilterRow {
     fn handle_tap(&mut self) -> bool {
         let mut cat = CURRENT_CATEGORY.lock().unwrap();
         *cat = cat.next();
+        log::info!("Menu [Cheats]: Filter switched to category '{}'", cat.name());
         drop(cat);
 
         crate::meta::menu::MenuMessage::RebuildTab(2).send();
@@ -994,6 +1006,51 @@ pub fn init() {
 
 #[cfg(target_pointer_width = "32")]
 fn call_gta3_cheat(index: usize) {
+    let cheat_name = match index {
+        0 => "GUNSGUNSGUNS (Semua Senjata & Peluru Tak Terbatas)",
+        1 => "IFIWEREARICHMAN (Uang Cash +$250.000)",
+        2 => "GESUNDHEIT (Darah 100% & Perbaiki Kendaraan)",
+        3 => "TORTOISE (Armor Rompi Anti-Peluru 100%)",
+        4 => "MOREPOLICEPLEASE (Tambah Bintang Buron +2)",
+        5 => "NOPOLICEPLEASE (Hapus Semua Bintang Buron)",
+        6 => "GIVEUSATANK (Spawn Tank Rhino - Model 122)",
+        7 => "INFERNUS (Spawn Supercar Infernus - Model 101)",
+        8 => "CHEETAH (Spawn Supercar Cheetah - Model 105)",
+        9 => "BANSHEE (Spawn Sportscar Banshee - Model 119)",
+        10 => "STINGER (Spawn Sportscar Stinger - Model 92)",
+        11 => "YAKUZA STINGER (Spawn Mobil Yakuza - Model 136)",
+        12 => "DIABLO STALLION (Spawn Mobil Diablo - Model 137)",
+        13 => "MAFIA SENTINEL (Spawn Sedan Mafia - Model 134)",
+        14 => "PATRIOT (Spawn SUV Militer Patriot - Model 96)",
+        15 => "BORGNINE (Spawn Taksi Khusus Borgnine - Model 148)",
+        16 => "POLICE (Spawn Mobil Polisi LCPD - Model 116)",
+        17 => "ENFORCER (Spawn Truk SWAT Enforcer - Model 117)",
+        18 => "BARRACKS OL (Spawn Truk Militer Barracks - Model 123)",
+        19 => "FIRETRUCK (Spawn Truk Pemadam - Model 97)",
+        20 => "AMBULANCE (Spawn Ambulans Medis - Model 106)",
+        21 => "DODO (Spawn Pesawat Dodo - Model 126)",
+        22 => "PREDATOR (Spawn Kapal Patroli Polisi - Model 120)",
+        23 => "SPEEDER (Spawn Speedboat Cepat - Model 142)",
+        24 => "BANGBANGBANG (Ledakkan Semua Mobil)",
+        25 => "ILIKEDRESSINGUP (Ganti Baju / Skin Acak)",
+        26 => "ITSALLGOINGMAAAD (Pejalan Kaki Rusuh & Mengamuk)",
+        27 => "NOBODYLIKESME (Pejalan Kaki Menyerang Claude)",
+        28 => "WEAPONSFORALL (Pejalan Kaki Bersenjata)",
+        29 => "TIMEFLIESWHENYOU (Game Cepat / Fast Motion 4x)",
+        30 => "BOOOOORING (Game Lambat / Slow Motion 0.25x)",
+        31 => "SKINCANCERFORME (Cuaca Cerah Benderang)",
+        32 => "ILIKESCOTLAND (Cuaca Berawan)",
+        33 => "ILOVESCOTLAND (Cuaca Hujan Lebat)",
+        34 => "PEASOUP (Cuaca Berkabut Tebal)",
+        35 => "MADWEATHER (Siklus Cuaca Berubah Cepat)",
+        36 => "ANICESETOFWHEELS (Mobil Tak Terlihat / Roda Saja)",
+        37 => "CHITTYCHITTYBB (Mobil Bisa Terbang)",
+        38 => "CORNERSLIKEMAD (Handling Mobil Sangat Lengket/Gila)",
+        39 => "NASTYLIMBSCHEAT (Mode Gore / Sadis Anggota Tubuh Putus)",
+        _ => "Cheat Tidak Dikenal",
+    };
+    log::info!("CheatEngine: Executing GTA III cheat index {} -> {}", index, cheat_name);
+
     match index {
         // Weapons
         0 => {

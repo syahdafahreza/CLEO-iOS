@@ -466,6 +466,7 @@ pub fn queue_give_weapon(weapon_id: u32, ammo: u32) {
         log::warn!("Ignored invalid weapon ID {} for GTA III (must be 1..=11)", weapon_id);
         return;
     }
+    log::info!("WeaponManager: Queuing weapon ID {} with {} ammo", weapon_id, ammo);
     if let Ok(mut q) = QUEUED_WEAPONS.lock() {
         q.push((weapon_id, ammo));
     }
@@ -756,9 +757,16 @@ pub fn tick() {
         if let Ok(mut q) = QUEUED_ACTIONS.lock() {
             for action in q.drain(..) {
                 match action {
-                    PlayerAction::AddMoney(amt) => apply_money(amt, true),
-                    PlayerAction::SetMoney(amt) => apply_money(amt, false),
+                    PlayerAction::AddMoney(amt) => {
+                        log::info!("PlayerAction: Adding ${} cash", amt);
+                        apply_money(amt, true);
+                    }
+                    PlayerAction::SetMoney(amt) => {
+                        log::info!("PlayerAction: Setting money to ${}", amt);
+                        apply_money(amt, false);
+                    }
                     PlayerAction::FullHealthAndRepair => {
+                        log::info!("PlayerAction: Restoring full health & repairing vehicle");
                         let ped = find_player_ped();
                         if !ped.is_null() {
                             unsafe {
@@ -774,6 +782,7 @@ pub fn tick() {
                         }
                     }
                     PlayerAction::FullArmor => {
+                        log::info!("PlayerAction: Restoring full 100% armor");
                         let ped = find_player_ped();
                         if !ped.is_null() {
                             unsafe {
@@ -783,12 +792,14 @@ pub fn tick() {
                         }
                     }
                     PlayerAction::ClearWanted => {
+                        log::info!("PlayerAction: Clearing wanted level");
                         let ped = find_player_ped();
                         if !ped.is_null() {
                             hook::slide_fn::<extern "C" fn(*mut u8, u32)>(0x0001de64)(ped, 0);
                         }
                     }
                     PlayerAction::RaiseWanted => {
+                        log::info!("PlayerAction: Raising wanted level (+2 stars)");
                         let ped = find_player_ped();
                         if !ped.is_null() {
                             unsafe {
@@ -802,6 +813,7 @@ pub fn tick() {
                         }
                     }
                     PlayerAction::RepairCurrentVehicle => {
+                        log::info!("PlayerAction: Repairing current vehicle");
                         let veh = find_player_vehicle();
                         if !veh.is_null() {
                             unsafe {
@@ -810,6 +822,7 @@ pub fn tick() {
                         }
                     }
                     PlayerAction::ClearWorldGarbage => {
+                        log::info!("PlayerAction: Clearing stray vehicles & dynamic objects from world");
                         unsafe {
                             let current_veh = find_player_vehicle();
                             let ped = find_player_ped();
@@ -951,6 +964,7 @@ pub fn tick() {
                         hook::slide_fn::<extern "C" fn(*mut u8, u32, u32)>(0x000de170)(
                             ped, wid, ammo,
                         );
+                        log::info!("WeaponManager: Gave weapon ID {} with {} ammo to player", wid, ammo);
                     }
                 }
                 show_cheat_toast(true);

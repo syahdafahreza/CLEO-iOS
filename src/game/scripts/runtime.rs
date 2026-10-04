@@ -745,6 +745,7 @@ impl menu::RowData for CsiMenuInfo {
     }
 
     fn handle_tap(&mut self) -> bool {
+        log::info!("Menu [Scripts]: User activated CSI script '{}'", self.name);
         self.activate();
 
         // We don't allow queueing of scripts because we don't want to make it easy to enable multiple at the same time.
@@ -835,6 +836,7 @@ impl menu::RowData for CsaMenuInfo {
             }
         };
 
+        log::info!("Menu [Scripts]: User changed CSA script '{}' state: {:?} -> {:?}", self.name, self.state, new_state);
         self.state = new_state;
 
         for script in SCRIPTS.lock().unwrap().iter_mut() {

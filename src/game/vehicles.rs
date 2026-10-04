@@ -158,6 +158,7 @@ impl RowData for CategoryFilterRow {
     fn handle_tap(&mut self) -> bool {
         let mut cat = CURRENT_CATEGORY.lock().unwrap();
         *cat = cat.next();
+        log::info!("Menu [Vehicles]: Filter switched to category '{}'", cat.name());
         menu::MenuMessage::RebuildTab(0).send();
         false
     }
@@ -194,6 +195,12 @@ impl RowData for VehicleRow {
     }
 
     fn handle_tap(&mut self) -> bool {
+        log::info!(
+            "Menu [Vehicles]: User selected spawn for '{}' (Model ID: {}, Category: {:?})",
+            self.def.name,
+            self.def.model_id,
+            self.def.category
+        );
         player::queue_spawn_vehicle(self.def.model_id);
         player::show_cheat_toast(true);
         self.spawn_count = self.spawn_count.saturating_add(1);

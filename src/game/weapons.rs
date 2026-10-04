@@ -177,6 +177,7 @@ impl RowData for CategoryFilterRow {
     fn handle_tap(&mut self) -> bool {
         let mut cat = CURRENT_CATEGORY.lock().unwrap();
         *cat = cat.next();
+        log::info!("Menu [Weapons]: Filter switched to category '{}'", cat.name());
         true
     }
 }
@@ -214,6 +215,7 @@ impl RowData for WeaponBundleRow {
     }
 
     fn handle_tap(&mut self) -> bool {
+        log::info!("Menu [Weapons]: User selected bundle [{}] '{}' ({})", self.bundle_id, self.name, self.detail);
         // Automatically enable infinite ammo when taking weapons
         player::INFINITE_AMMO.store(true, Ordering::Relaxed);
 
@@ -276,6 +278,7 @@ impl RowData for WeaponRow {
     }
 
     fn handle_tap(&mut self) -> bool {
+        log::info!("Menu [Weapons]: User selected weapon '{}' (Weapon ID: {}, Category: {:?})", self.def.name, self.def.weapon_id, self.def.category);
         // Automatically ensure infinite ammo is also active
         player::INFINITE_AMMO.store(true, Ordering::Relaxed);
         let ammo = if self.def.weapon_id == 1 { 0 } else { 9999 };

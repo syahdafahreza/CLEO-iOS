@@ -335,3 +335,10 @@
    - **Real-Time Disk Flushing**: Menambahkan `file.flush()` pada setiap pesan log di `src/logging.rs`, sehingga tidak ada baris log yang tertahan di memory buffer saat game crash.
    - **Native Signal Handler**: Menginstal handler untuk signal fatal (`SIGSEGV`, `SIGBUS`, `SIGABRT`, `SIGILL`, `SIGFPE`) yang langsung menulis diagnosis crash dan ASLR slide ke file `PANIC.txt` sebelum meneruskan crash ke crash reporter iOS.
    - **Verbose Step-by-Step Tracing**: Setiap fase warp (on foot maupun in vehicle) mencatat koordinat awal, koordinat tujuan, status elevasi, dan eksekusi virtual method secara mendetail di `cleo.log`.
+
+6. **Verbose Logging Interaksi Menu, Cheat & Spawner**:
+   - **Tab Cheats**: Setiap kali pemain menekan baris cheat, quick action, servis mobil, toggle status, atau tombol waktu di menu, log mencatat jenis cheat, kode, dan index yang dipilih. Saat cheat dieksekusi di `call_gta3_cheat`, nama lengkap cheat beserta efeknya dicatat ke `cleo.log`.
+   - **Tab Kendaraan (Vehicle Spawner)**: Setiap pemilihan mobil, motor, tank, maupun kapal mencatat nama kendaraan, model ID, kategori, serta koordinat titik spawn di depan pemain.
+   - **Tab Senjata (Weapon Arsenal)**: Setiap pemilihan paket senjata atau senjata satuan mencatat bundle ID atau weapon ID beserta jumlah amunisi yang diberikan.
+   - **Tab Skrip (Scripts)**: Setiap eksekusi skrip CSI atau pergantian status skrip CSA dicatat secara eksplisit ke dalam log.
+

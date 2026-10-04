@@ -652,26 +652,60 @@ pub unsafe fn execute_warp_forward() {
             }
         };
 
-        // 6. If in vehicle: handle overturned vehicle (auto-upright ala Pay N Spray)
+        // 6. Execute warp based on entity type:
         if is_in_veh {
-            let up_z = *(current_veh.add(0x2c) as *const f32);
-            if up_z < 0.2 {
-                // Up vector points downwards or sideways; right it upright
-                *(current_veh.add(0x24) as *mut f32) = 0.0;
-                *(current_veh.add(0x28) as *mut f32) = 0.0;
-                *(current_veh.add(0x2c) as *mut f32) = 1.0;
-                // Forward vector horizontal
-                *(current_veh.add(0x14) as *mut f32) = dir_x;
-                *(current_veh.add(0x18) as *mut f32) = dir_y;
-                *(current_veh.add(0x1c) as *mut f32) = 0.0;
-                // Right vector perpendicular: (dir_y, -dir_x, 0)
-                *(current_veh.add(0x04) as *mut f32) = dir_y;
-                *(current_veh.add(0x08) as *mut f32) = -dir_x;
-                *(current_veh.add(0x0c) as *mut f32) = 0.0;
+            log::info!(
+                "WarpForward: [Vehicle] Starting warp veh={:p}, start=({:.2},{:.2},{:.2}), target=({:.2},{:.2},{:.2}) [dist={:.1}m]",
+                current_veh, px, py, pz, target_x, target_y, target_z, dist
+            );
+
+            let heading = (-dir_x).atan2(dir_y);
+
+            // a. Clear status flag bit 10 (0x400) at current_veh + 0x53, matching native SET_CAR_COORDINATES (0x00045A92)
+            let status_flags = current_veh.add(0x53) as *mut u32;
+            *status_flags &= !0x400;
+
+            // b. Call vehicle native Teleport via vtable[12] (offset 0x30)
+            // For CAutomobile: CAutomobile::Teleport (0x00061DD8)
+            // For CBoat: CBoat::Teleport (0x00099D0C)
+            // This safely unregisters from sector (0x0003A508), sets coordinates,
+            // clears collision contacts (0x7C..0x94), resets wheel col points (0x470..0x4B8),
+            // and registers back into CWorld (0x0003B090).
+            let vtable = *(current_veh as *const *const usize);
+            if !vtable.is_null() {
+                let teleport_fn = *vtable.add(0x30 / 4) as *const ();
+                if !teleport_fn.is_null() {
+                    log::info!("WarpForward: [Vehicle] Invoking virtual Teleport at {:p}...", teleport_fn);
+                    let teleport_call = std::mem::transmute::<*const (), extern "C" fn(*mut u8, u32, u32, u32)>(teleport_fn);
+                    teleport_call(current_veh, target_x.to_bits(), target_y.to_bits(), target_z.to_bits());
+                    log::info!("WarpForward: [Vehicle] Virtual Teleport completed.");
+                }
             }
 
-            // Neutralize collision bounce / wild angular spin so car doesn't rebound into fence
-            // m_vecTurnSpeed is at current_veh + 0x54 (3 floats)
+            // c. Extra hardening: Ensure all suspension and wheel contact pointers are completely zeroed
+            // to eliminate any dangling surface references in CAutomobile::ProcessControl (0x000669D0 crash prevention).
+            for i in 0..6 {
+                *(current_veh.add(0x7c + i * 4) as *mut usize) = 0;
+            }
+            std::ptr::write_bytes(current_veh.add(0x470), 0, 16);
+            for i in 0..12 {
+                *(current_veh.add(0x490 + i * 4) as *mut usize) = 0;
+            }
+            for i in 0..4 {
+                *(current_veh.add(0x59c + i * 4) as *mut usize) = 0;
+            }
+
+            // d. Restore vehicle heading (Teleport defaults rotation to 0)
+            hook::slide_fn::<extern "C" fn(*mut u8, u32)>(0x0005aab0)(
+                current_veh.add(0x04),
+                heading.to_bits(),
+            );
+
+            // Synchronize RenderWare matrix & clump
+            hook::slide_fn::<extern "C" fn(*mut u8)>(0x0005abe0)(current_veh.add(0x04)); // CMatrix::UpdateRW
+            hook::slide_fn::<extern "C" fn(*mut u8)>(0x0002cdd4)(current_veh);           // CEntity::UpdateRwFrame
+
+            // e. Neutralize collision bounce / wild angular spin so car doesn't rebound into fence
             *(current_veh.add(0x54) as *mut f32) = 0.0;
             *(current_veh.add(0x58) as *mut f32) = 0.0;
             *(current_veh.add(0x5c) as *mut f32) = 0.0;
@@ -681,42 +715,36 @@ pub unsafe fn execute_warp_forward() {
             let vy = *(current_veh.add(0x48) as *const f32);
             let speed = (vx * vx + vy * vy).sqrt();
             if speed > 0.05 {
-                // Preserve moderate forward speed in the direction of the warp
                 let forward_speed = speed.min(0.5f32);
                 *(current_veh.add(0x44) as *mut f32) = dir_x * forward_speed;
                 *(current_veh.add(0x48) as *mut f32) = dir_y * forward_speed;
                 *(current_veh.add(0x4c) as *mut f32) = 0.0;
             }
-        }
 
-        // 7. Unregister from current spatial sector list: CEntity::PruneFromSectorList (0x0003A508)
-        hook::slide_fn::<extern "C" fn(*mut u8)>(0x0003a508)(entity);
-
-        // 8. Write new coordinates into embedded CMatrix translation vector (entity + 0x34..0x3C)
-        *(entity.add(0x34) as *mut f32) = target_x;
-        *(entity.add(0x38) as *mut f32) = target_y;
-        *(entity.add(0x3c) as *mut f32) = target_z;
-
-        // 9. Synchronize RenderWare matrix & entity frames
-        hook::slide_fn::<extern "C" fn(*mut u8)>(0x0005abe0)(entity.add(0x04)); // CMatrix::UpdateRW
-        hook::slide_fn::<extern "C" fn(*mut u8)>(0x0002cdd4)(entity);           // CEntity::UpdateRwFrame
-
-        // 10. Re-register into new spatial sector: CWorld::Add (0x0003B090)
-        hook::slide_fn::<extern "C" fn(*mut u8)>(0x0003b090)(entity);
-
-        // 11. If vehicle: clear dynamic traffic & objects around the landing zone
-        if is_in_veh {
+            // f. Clear dynamic traffic & objects around the landing zone
             let target_pos = [target_x, target_y, target_z];
             hook::slide_fn::<extern "C" fn(*const f32, *mut u8)>(0x000c5064)(target_pos.as_ptr(), current_veh);
-        }
 
-        log::info!(
-            "WarpForward: {} warped from ({:.2}, {:.2}, {:.2}) to ({:.2}, {:.2}, {:.2}) [dist={:.1}m]",
-            if is_in_veh { "Vehicle" } else { "Ped" },
-            px, py, pz,
-            target_x, target_y, target_z,
-            dist
-        );
+            log::info!("WarpForward: [Vehicle] Warp sequence finished successfully!");
+        } else {
+            log::info!(
+                "WarpForward: [Ped] Starting warp ped={:p}, start=({:.2},{:.2},{:.2}), target=({:.2},{:.2},{:.2}) [dist={:.1}m]",
+                ped, px, py, pz, target_x, target_y, target_z, dist
+            );
+
+            // On foot implementation (verified working 100% without issues)
+            hook::slide_fn::<extern "C" fn(*mut u8)>(0x0003a508)(ped);
+
+            *(ped.add(0x34) as *mut f32) = target_x;
+            *(ped.add(0x38) as *mut f32) = target_y;
+            *(ped.add(0x3c) as *mut f32) = target_z;
+
+            hook::slide_fn::<extern "C" fn(*mut u8)>(0x0005abe0)(ped.add(0x04)); // CMatrix::UpdateRW
+            hook::slide_fn::<extern "C" fn(*mut u8)>(0x0002cdd4)(ped);           // CEntity::UpdateRwFrame
+            hook::slide_fn::<extern "C" fn(*mut u8)>(0x0003b090)(ped);           // CWorld::Add
+
+            log::info!("WarpForward: [Ped] Warp sequence finished successfully!");
+        }
     }
 }
 

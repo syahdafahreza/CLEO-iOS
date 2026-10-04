@@ -141,6 +141,56 @@ Backtrace: see below
     std::process::abort();
 }
 
+extern "C" fn fatal_signal_handler(sig: libc::c_int) {
+    unsafe {
+        let path = crate::meta::resources::get_documents_path("PANIC.txt");
+        let mut path_bytes = path.into_bytes();
+        path_bytes.push(0);
+        let fd = libc::open(
+            path_bytes.as_ptr() as *const libc::c_char,
+            libc::O_WRONLY | libc::O_CREAT | libc::O_TRUNC,
+            0o666,
+        );
+        if fd >= 0 {
+            let sig_name = match sig {
+                libc::SIGSEGV => "SIGSEGV (11 - Segmentation fault / invalid memory access)",
+                libc::SIGBUS => "SIGBUS (10 - Bus error / unaligned or non-existent address)",
+                libc::SIGABRT => "SIGABRT (6 - Process abort)",
+                libc::SIGILL => "SIGILL (4 - Illegal instruction)",
+                libc::SIGFPE => "SIGFPE (8 - Floating point exception)",
+                _ => "Unknown fatal signal",
+            };
+            let time_str = chrono::Local::now().format("%Y-%m-%d %H:%M:%S%.3f").to_string();
+            let msg = format!(
+                "FATAL GAME CRASH CAUGHT BY CLEO!\n\
+                Signal: {}\n\
+                Game ASLR slide: {:#x}\n\
+                Timestamp: {}\n\n\
+                Check cleo.log and iOS .ips crash report for registers and call stack.\n",
+                sig_name,
+                crate::hook::get_game_aslr_offset(),
+                time_str,
+            );
+            libc::write(fd, msg.as_ptr() as *const libc::c_void, msg.len());
+            libc::fsync(fd);
+            libc::close(fd);
+        }
+        // Restore default handler and re-raise so iOS crash reporter generates the .ips dump
+        libc::signal(sig, libc::SIG_DFL);
+        libc::raise(sig);
+    }
+}
+
+fn install_signal_handlers() {
+    unsafe {
+        libc::signal(libc::SIGSEGV, fatal_signal_handler as usize);
+        libc::signal(libc::SIGBUS, fatal_signal_handler as usize);
+        libc::signal(libc::SIGABRT, fatal_signal_handler as usize);
+        libc::signal(libc::SIGILL, fatal_signal_handler as usize);
+        libc::signal(libc::SIGFPE, fatal_signal_handler as usize);
+    }
+}
+
 fn install_panic_hook() {
     // Install the panic hook so we can print useful stuff rather than just exiting on a panic.
     std::panic::set_hook(Box::new(panic_hook));
@@ -148,6 +198,7 @@ fn install_panic_hook() {
 
 pub fn init() {
     install_panic_hook();
+    install_signal_handlers();
 
     log::set_logger(unsafe {
         static mut DUMMY: Logger = Logger {};
@@ -175,6 +226,7 @@ pub fn init() {
     std::thread::spawn(move || loop {
         let msg = receiver.recv().unwrap();
         msg.write_to_file(&mut file);
+        let _ = file.flush();
 
         if let Some(socket) = &socket {
             if let Some(bin) = msg.pack() {

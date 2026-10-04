@@ -317,3 +317,21 @@
      - Putaran liar (`m_vecTurnSpeed`) dinolkan dan arah laju (`m_vecMoveSpeed`) diselaraskan ke depan agar mobil tidak terpental mundur kembali ke pagar.
    - **Kompensasi Claude Terpental / Terjatuh**:
      - Hierarki RenderWare diperbarui seketika sehingga Claude dapat langsung berdiri di posisi baru tanpa glitch pose.
+
+4. **Analisis & Perbaikan Crash Kendaraan (SIGSEGV di `0x000669D0`)**:
+   - **Analisis Crash Dump IPS (`gta3-2026-10-04-145142.ips`)**:
+     - Thread 9 (Game Thread) mengalami `EXC_BAD_ACCESS (SIGSEGV)` pada alamat `0x0009A9D0` (unslid: `0x000669D0`) di dalam `CAutomobile::ProcessControl()`.
+     - Register `r0` bernilai `0x18`, menyebabkan dereferensi `[r0]` membaca `0x00000018` (NULL pointer crash).
+   - **Akar Masalah**:
+     - Berbeda dengan `CPed` yang hanya berupa bodi tunggal, `CAutomobile` menyimpan array kontak tabrakan roda `m_aWheelColPoints` pada offset `+0x470` dan pointer kontak suspensi aktif pada `+0x7C..0x94`, `+0x490..0x4B8`, dan `+0x59C..0x5A8`.
+     - Ketika koordinat mobil dipindah secara langsung tanpa membersihkan state suspensi lama, fungsi `ProcessControl` pada frame berikutnya mengira roda mobil masih menempel pada permukaan tabrakan lama yang kini telah invalid, berujung pada SIGSEGV seketika.
+   - **Solusi yang Diterapkan**:
+     1. Memanggil fungsi virtual native `vtable[12]` (`Teleport`) pada `0x00061DD8` (`CAutomobile::Teleport`) atau `0x00099D0C` (`CBoat::Teleport`) persis seperti yang dilakukan oleh native script opcode `SET_CAR_COORDINATES` (`0x00045A3C`).
+     2. Menambahkan *hardening* nol-kan seluruh pointer `m_aWheelColPoints` dan kontak suspensi (`+0x7C..0x94`, `+0x470`, `+0x490..0x4B8`, `+0x59C..0x5A8`).
+     3. Memulihkan arah rotasi mobil (`heading`) melalui `CMatrix::RotateZ` (`0x0005AAB0`) dan sinkronisasi RenderWare.
+     4. Membersihkan area pendaratan mobil via `CCarCtrl::ClearAreaAroundVehicle` (`0x000C5064`).
+
+5. **Peningkatan Engine Logging Real-time & Crash Handler**:
+   - **Real-Time Disk Flushing**: Menambahkan `file.flush()` pada setiap pesan log di `src/logging.rs`, sehingga tidak ada baris log yang tertahan di memory buffer saat game crash.
+   - **Native Signal Handler**: Menginstal handler untuk signal fatal (`SIGSEGV`, `SIGBUS`, `SIGABRT`, `SIGILL`, `SIGFPE`) yang langsung menulis diagnosis crash dan ASLR slide ke file `PANIC.txt` sebelum meneruskan crash ke crash reporter iOS.
+   - **Verbose Step-by-Step Tracing**: Setiap fase warp (on foot maupun in vehicle) mencatat koordinat awal, koordinat tujuan, status elevasi, dan eksekusi virtual method secara mendetail di `cleo.log`.

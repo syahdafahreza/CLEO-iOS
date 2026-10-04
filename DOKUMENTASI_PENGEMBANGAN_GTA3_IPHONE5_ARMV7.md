@@ -276,3 +276,44 @@
      - Setelah diketuk, tombol memberikan konfirmasi visual instan (contoh: `17:25 (+3 JAM OK)` dengan tint warna hijau).
      - Tombol dapat diketuk berulang kali untuk terus memajukan waktu (tiap ketukan +3 jam: 14:00 -> 17:00 -> 20:00 -> 23:00 -> 02:00, dst).
      - Cheat ini terdaftar di kategori **SEMUA** (`CheatCategory::All`) dan kategori **CUACA & WAKTU** (`CheatCategory::WeatherTime`).
+
+---
+
+### K. Fitur Baru: Cheat Warp Forward (Tembus Rintangan & Pagar)
+
+1. **Latar Belakang & Kebutuhan Fitur**:
+   - Di GTA III, terdapat banyak area misi, markas geng, atau gerbang pulau (seperti gerbang Porter Tunnel, area bandara Francis International, dermaga Asuka, atau gerbang villa) yang terkunci oleh pembatas fisik atau pagar berduri.
+   - Cheat "WARP FORWARD (TEMBUS DEPAN)" memungkinkan pemain melakukan teleportasi instan beberapa langkah lurus ke depan menembus barrier tanpa harus memanjat atau merusak pagar.
+   - Cheat ini bekerja mulus baik saat **jalan kaki (on foot)** maupun saat **mengemudikan kendaraan (in vehicle)**.
+
+2. **Daftar Alamat & Fungsi Native yang Digunakan**:
+   - `find_player_ped()`: `0x000F4CC8` (Pointer Claude `CPed*`)
+   - `find_player_vehicle()`: `0x000F4C14` (Pointer kendaraan `CVehicle*`)
+   - `CWorld::FindGroundZForCoord(x, y)`: `0x00038B48` (Query ketinggian tanah via raycast vertikal)
+   - `GetDistanceFromCentreOfMassToBaseOfModel(veh)`: `0x0002C970` (Query jarak pusat massa bodi kendaraan ke tanah)
+   - `CEntity::PruneFromSectorList(entity)`: `0x0003A508` (Unregister entitas dari sektor spasial lama)
+   - `CMatrix::UpdateRW(matrix)`: `0x0005ABE0` (Sinkronisasi transformasi matriks RenderWare)
+   - `CEntity::UpdateRwFrame(entity)`: `0x0002CDD4` (Sinkronisasi frame hierarki model RenderWare)
+   - `CWorld::Add(entity)`: `0x0003B090` (Register entitas ke sektor spasial baru)
+   - `CCarCtrl::ClearAreaAroundVehicle(pos, veh)`: `0x000C5064` (Membersihkan objek & lalu lintas liar di titik pendaratan)
+
+3. **Logika & Penanganan Kondisi Khusus (Edge Cases)**:
+   - **Jarak Proporsional**:
+     - *On foot*: `4.5 meter` (~5–6 langkah Claude), cukup lebar untuk menembus ketebalan pagar dan *collision box* pembatas.
+     - *In vehicle*: `8.5 meter` untuk mengakomodasi panjang sasis mobil (4.5–5.5 meter) agar bumper depan dan belakang bersih melewati rintangan.
+   - **Penyesuaian Medan Miring (Anti-Amblas ke Tanah)**:
+     - Menghitung $\Delta Z = \text{ground}_{target} - \text{ground}_{current}$.
+     - Jika tanjakan, ketinggian target dinaikkan sebanding dengan sudut miring bukit.
+     - Ketinggian dikunci minimal $\text{ground}_{target} + 1.1\text{m}$ (pejalan kaki) atau $\text{ground}_{target} + \text{height}_{base} + 0.25\text{m}$ (kendaraan), sehingga kaki Claude atau roda mobil tidak amblas ke dalam tanah miring.
+   - **Proteksi Terowongan & Flyover (Multi-Level / Underground)**:
+     - Jika raycast tanah mengenai atap terowongan / jembatan di atas pemain (selisih ketinggian $> 5.0\text{m}$), raycast diabaikan dan sistem menggunakan pitch vektor arah hadap entitas ($pz + fz \times dist$).
+   - **Proteksi Kendaraan Kapal / Perahu**:
+     - Jika entitas adalah perahu (`bIsBoat` / tipe 1), koordinat $Z$ tidak diarahkan ke dasar laut melainkan tetap dikunci di permukaan air ($pz$).
+   - **Proteksi Dinding / Gedung Tinggi**:
+     - Lonjakan $\Delta Z > 3.5\text{m}$ dibatasi (clamp) agar pemain tidak terlempar ke genteng gedung bertingkat saat menatap dinding.
+   - **Auto-Upright Mobil Terguling**:
+     - Jika mobil sedang miring atau terbalik saat menabrak pagar ($up_z < 0.2$), rotasi mobil otomatis ditegakkan kembali berdiri di atas keempat roda.
+   - **Netralisasi Pantulan Tabrakan & Angular Spin**:
+     - Putaran liar (`m_vecTurnSpeed`) dinolkan dan arah laju (`m_vecMoveSpeed`) diselaraskan ke depan agar mobil tidak terpental mundur kembali ke pagar.
+   - **Kompensasi Claude Terpental / Terjatuh**:
+     - Hierarki RenderWare diperbarui seketika sehingga Claude dapat langsung berdiri di posisi baru tanpa glitch pose.

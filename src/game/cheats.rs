@@ -502,6 +502,44 @@ impl RowData for AdvanceTimeRow {
     }
 }
 
+struct WarpForwardRow {
+    title: &'static str,
+    detail: &'static str,
+    triggered: bool,
+}
+
+impl RowData for WarpForwardRow {
+    fn title(&self) -> Message {
+        Message::custom(self.title)
+    }
+
+    fn detail(&self) -> menu::RowDetail {
+        menu::RowDetail::Info(Message::custom(self.detail))
+    }
+
+    fn value(&self) -> Message {
+        if self.triggered {
+            Message::custom("WARP OK")
+        } else {
+            Message::custom("WARP ▸ MAJU")
+        }
+    }
+
+    fn tint(&self) -> Option<(u8, u8, u8)> {
+        if self.triggered {
+            Some(gui::colours::GREEN)
+        } else {
+            Some(gui::colours::BLUE)
+        }
+    }
+
+    fn handle_tap(&mut self) -> bool {
+        crate::game::player::queue_action(crate::game::player::PlayerAction::WarpForward);
+        self.triggered = true;
+        true
+    }
+}
+
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum CheatCategory {
     All,
@@ -840,6 +878,11 @@ pub fn tab_data() -> TabData {
             detail: "Menghapus seluruh kendaraan dan objek sampah yang berserakan/dispawn sebelumnya di map (kecuali mobil yang sedang dinaiki)",
             triggered: false,
         }));
+        rows.push(Box::new(WarpForwardRow {
+            title: "WARP FORWARD (TEMBUS DEPAN)",
+            detail: "Warp beberapa langkah ke depan menembus rintangan & pagar (jalan kaki / berkendara)",
+            triggered: false,
+        }));
     } else if current_cat == CheatCategory::Vehicles {
         rows.push(Box::new(VehicleRepairRow {
             title: "SERVIS MOBIL AKTIF (INSTAN)",
@@ -856,6 +899,11 @@ pub fn tab_data() -> TabData {
             action: crate::game::player::PlayerAction::ClearWorldGarbage,
             title: "BERSIHKAN MAP (CLEAR SAMPAH)",
             detail: "Menghapus seluruh kendaraan dan objek sampah yang berserakan/dispawn sebelumnya di map (kecuali mobil yang sedang dinaiki)",
+            triggered: false,
+        }));
+        rows.push(Box::new(WarpForwardRow {
+            title: "WARP FORWARD (TEMBUS DEPAN)",
+            detail: "Warp beberapa langkah ke depan menembus rintangan & pagar (jalan kaki / berkendara)",
             triggered: false,
         }));
     }

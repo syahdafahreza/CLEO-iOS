@@ -32,6 +32,7 @@ pub enum PlayerAction {
     RepairCurrentVehicle,
     ClearWorldGarbage,
     AdvanceTimeHours(u8),
+    WarpForward,
 }
 
 /// Returns the pointer to Claude (`CPed*`).
@@ -533,6 +534,192 @@ pub unsafe fn repair_vehicle(veh: *mut u8) {
     *(veh.add(0x1fd) as *mut u8) &= !1;
 }
 
+/// Teleports / warps player forward by a few steps to bypass barriers, gates, fences,
+/// and impenetrable obstacles in the game.
+///
+/// Supports both ON FOOT (`CPed*`) and IN VEHICLE (`CVehicle*`).
+///
+/// Features complete terrain-slope compensation, boat sea-level protection, tunnel
+/// elevation fallback, roof-climbing clamp, overturned vehicle auto-uprighting,
+/// and momentum neutralization.
+pub unsafe fn execute_warp_forward() {
+    #[cfg(target_pointer_width = "32")]
+    {
+        let current_veh = find_player_vehicle();
+        let ped = find_player_ped();
+
+        let is_in_veh = !current_veh.is_null();
+        let entity = if is_in_veh { current_veh } else { ped };
+
+        if entity.is_null() {
+            return;
+        }
+
+        // 1. Read current entity position from embedded CMatrix at entity + 0x34..0x3C
+        let px = *(entity.add(0x34) as *const f32);
+        let py = *(entity.add(0x38) as *const f32);
+        let pz = *(entity.add(0x3c) as *const f32);
+
+        // 2. Read forward direction vector from embedded CMatrix at entity + 0x14..0x1C
+        let fx = *(entity.add(0x14) as *const f32);
+        let fy = *(entity.add(0x18) as *const f32);
+        let fz = *(entity.add(0x1c) as *const f32);
+
+        let len2d = (fx * fx + fy * fy).sqrt();
+        let (dir_x, dir_y) = if len2d > 0.001 {
+            (fx / len2d, fy / len2d)
+        } else {
+            (0.0, 1.0)
+        };
+
+        // 3. Determine warp distance:
+        //    - On foot: 4.5m (~5-6 steps) to completely clear standard barriers & fences.
+        //    - In vehicle: 8.5m to allow full vehicle chassis (4.5-5.5m) to clear cleanly.
+        let dist = if is_in_veh { 8.5f32 } else { 4.5f32 };
+        let target_x = px + dir_x * dist;
+        let target_y = py + dir_y * dist;
+
+        // 4. Check if vehicle is a boat (bIsBoat flag or boat vehicle type == 1)
+        let is_boat = if is_in_veh {
+            let veh_type = *(current_veh.add(0x288) as *const i32);
+            let b_is_boat = (*(current_veh.add(0x1fb) as *const u8) & 4) != 0;
+            veh_type == 1 || b_is_boat
+        } else {
+            false
+        };
+
+        // 5. Calculate target Z with slope compensation & edge-case guards:
+        let target_z = if is_boat {
+            // Boat on water: do NOT snap to seabed! Maintain current water elevation.
+            pz
+        } else {
+            // Query ground Z using native CWorld::FindGroundZForCoord (0x00038B48)
+            let cur_gz_bits = hook::slide_fn::<extern "C" fn(u32, u32) -> u32>(0x00038b48)(
+                px.to_bits(),
+                py.to_bits(),
+            );
+            let cur_ground_z = f32::from_bits(cur_gz_bits);
+
+            let tgt_gz_bits = hook::slide_fn::<extern "C" fn(u32, u32) -> u32>(0x00038b48)(
+                target_x.to_bits(),
+                target_y.to_bits(),
+            );
+            let tgt_ground_z = f32::from_bits(tgt_gz_bits);
+
+            let cur_gz_valid = !cur_ground_z.is_nan() && (cur_ground_z - pz).abs() < 5.0;
+            let tgt_gz_valid = !tgt_ground_z.is_nan() && (tgt_ground_z - pz).abs() < 12.0;
+
+            if cur_gz_valid && tgt_gz_valid {
+                let ground_delta = tgt_ground_z - cur_ground_z;
+
+                // Guard against tall walls / building rooftops (Delta Z > 3.5m over 4.5m warp distance):
+                // If ground_delta > 3.5m, raycast hit a rooftop or tall wall, NOT a walkable slope.
+                // In that case clamp the rise to normal walking/driving slope (max +2.5m).
+                let clamped_delta = if ground_delta > 3.5 {
+                    2.5f32
+                } else if ground_delta < -6.0 {
+                    // Guard against cliff drops (don't instantly snap down to canyon floor)
+                    -2.0f32
+                } else {
+                    ground_delta
+                };
+
+                let slope_adjusted_z = pz + clamped_delta;
+
+                if is_in_veh {
+                    // Vehicle clearance: read height from base of model
+                    let mut valid_height = 0.85f32;
+                    let h_bits = hook::slide_fn::<extern "C" fn(*mut u8) -> u32>(0x0002c970)(current_veh);
+                    let h = f32::from_bits(h_bits);
+                    if !h.is_nan() && h > 0.0 && h < 5.0 {
+                        valid_height = h;
+                    }
+                    let min_clearance_z = tgt_ground_z + valid_height + 0.25f32;
+                    // Ensure wheels are safely at or above ground on slopes
+                    slope_adjusted_z.max(min_clearance_z)
+                } else {
+                    // Claude origin is at waist height (~1.0m above ground).
+                    // Ensure feet touch or slightly clear ground surface (+0.1m cushion)
+                    let min_clearance_z = tgt_ground_z + 1.0f32;
+                    slope_adjusted_z.max(min_clearance_z) + 0.1f32
+                }
+            } else {
+                // Fallback for tunnels, subways, multi-level bridges, or interior:
+                // Use forward pitch vector component fz to follow the tunnel/ramp incline safely!
+                let pitch_z = fz * dist;
+                let z_cushion = if is_in_veh { 0.25f32 } else { 0.15f32 };
+                pz + pitch_z + z_cushion
+            }
+        };
+
+        // 6. If in vehicle: handle overturned vehicle (auto-upright ala Pay N Spray)
+        if is_in_veh {
+            let up_z = *(current_veh.add(0x2c) as *const f32);
+            if up_z < 0.2 {
+                // Up vector points downwards or sideways; right it upright
+                *(current_veh.add(0x24) as *mut f32) = 0.0;
+                *(current_veh.add(0x28) as *mut f32) = 0.0;
+                *(current_veh.add(0x2c) as *mut f32) = 1.0;
+                // Forward vector horizontal
+                *(current_veh.add(0x14) as *mut f32) = dir_x;
+                *(current_veh.add(0x18) as *mut f32) = dir_y;
+                *(current_veh.add(0x1c) as *mut f32) = 0.0;
+                // Right vector perpendicular: (dir_y, -dir_x, 0)
+                *(current_veh.add(0x04) as *mut f32) = dir_y;
+                *(current_veh.add(0x08) as *mut f32) = -dir_x;
+                *(current_veh.add(0x0c) as *mut f32) = 0.0;
+            }
+
+            // Neutralize collision bounce / wild angular spin so car doesn't rebound into fence
+            // m_vecTurnSpeed is at current_veh + 0x54 (3 floats)
+            *(current_veh.add(0x54) as *mut f32) = 0.0;
+            *(current_veh.add(0x58) as *mut f32) = 0.0;
+            *(current_veh.add(0x5c) as *mut f32) = 0.0;
+
+            // Align move speed forward if moving (m_vecMoveSpeed at current_veh + 0x44)
+            let vx = *(current_veh.add(0x44) as *const f32);
+            let vy = *(current_veh.add(0x48) as *const f32);
+            let speed = (vx * vx + vy * vy).sqrt();
+            if speed > 0.05 {
+                // Preserve moderate forward speed in the direction of the warp
+                let forward_speed = speed.min(0.5f32);
+                *(current_veh.add(0x44) as *mut f32) = dir_x * forward_speed;
+                *(current_veh.add(0x48) as *mut f32) = dir_y * forward_speed;
+                *(current_veh.add(0x4c) as *mut f32) = 0.0;
+            }
+        }
+
+        // 7. Unregister from current spatial sector list: CEntity::PruneFromSectorList (0x0003A508)
+        hook::slide_fn::<extern "C" fn(*mut u8)>(0x0003a508)(entity);
+
+        // 8. Write new coordinates into embedded CMatrix translation vector (entity + 0x34..0x3C)
+        *(entity.add(0x34) as *mut f32) = target_x;
+        *(entity.add(0x38) as *mut f32) = target_y;
+        *(entity.add(0x3c) as *mut f32) = target_z;
+
+        // 9. Synchronize RenderWare matrix & entity frames
+        hook::slide_fn::<extern "C" fn(*mut u8)>(0x0005abe0)(entity.add(0x04)); // CMatrix::UpdateRW
+        hook::slide_fn::<extern "C" fn(*mut u8)>(0x0002cdd4)(entity);           // CEntity::UpdateRwFrame
+
+        // 10. Re-register into new spatial sector: CWorld::Add (0x0003B090)
+        hook::slide_fn::<extern "C" fn(*mut u8)>(0x0003b090)(entity);
+
+        // 11. If vehicle: clear dynamic traffic & objects around the landing zone
+        if is_in_veh {
+            let target_pos = [target_x, target_y, target_z];
+            hook::slide_fn::<extern "C" fn(*const f32, *mut u8)>(0x000c5064)(target_pos.as_ptr(), current_veh);
+        }
+
+        log::info!(
+            "WarpForward: {} warped from ({:.2}, {:.2}, {:.2}) to ({:.2}, {:.2}, {:.2}) [dist={:.1}m]",
+            if is_in_veh { "Vehicle" } else { "Ped" },
+            px, py, pz,
+            target_x, target_y, target_z,
+            dist
+        );
+    }
+}
+
 /// Called per frame inside `script_tick` / `script_update` on the game thread.
 pub fn tick() {
     #[cfg(target_pointer_width = "32")]
@@ -682,6 +869,11 @@ pub fn tick() {
                                     hours_to_add, cur_h, cur_m, new_h, cur_m
                                 );
                             }
+                        }
+                    }
+                    PlayerAction::WarpForward => {
+                        unsafe {
+                            execute_warp_forward();
                         }
                     }
                 }

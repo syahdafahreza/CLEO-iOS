@@ -230,6 +230,94 @@ pub fn deref_global<T: Copy>(address: usize) -> T {
     unsafe { *slid }
 }
 
+/// Patches executable code memory at the given unslid address.
+/// Automatically applies the game ASLR offset and uses MSHookMemory or mach vm_protect.
+pub unsafe fn patch_code_memory(address: usize, bytes: &[u8]) -> bool {
+    let aslr_offset = get_game_aslr_offset();
+    let target_addr = address + aslr_offset;
+
+    // 1. Try Substrate's MSHookMemory
+    type MSHookMemoryFn = fn(*mut std::ffi::c_void, *const std::ffi::c_void, usize);
+    if let Ok(mshook_mem) = get_single_symbol::<MSHookMemoryFn>(
+        "/Library/Frameworks/CydiaSubstrate.framework/CydiaSubstrate",
+        "MSHookMemory",
+    )
+    .or_else(|_| {
+        get_single_symbol::<MSHookMemoryFn>(
+            "/usr/lib/libsubstrate.dylib",
+            "MSHookMemory",
+        )
+    }) {
+        mshook_mem(
+            target_addr as *mut std::ffi::c_void,
+            bytes.as_ptr() as *const std::ffi::c_void,
+            bytes.len(),
+        );
+        log::info!(
+            "patch_code_memory: applied {} bytes via MSHookMemory at {:#x}",
+            bytes.len(),
+            target_addr
+        );
+        return true;
+    }
+
+    // 2. Fallback to Mach vm_protect on iOS / Darwin
+    #[cfg(target_pointer_width = "32")]
+    {
+        extern "C" {
+            fn mach_task_self() -> u32;
+            fn vm_protect(
+                target_task: u32,
+                address: usize,
+                size: usize,
+                set_maximum: u32,
+                new_protection: i32,
+            ) -> i32;
+        }
+
+        const VM_PROT_READ: i32 = 1;
+        const VM_PROT_WRITE: i32 = 2;
+        const VM_PROT_EXECUTE: i32 = 4;
+        const VM_PROT_COPY: i32 = 0x10;
+
+        let page_size = 4096;
+        let page_start = target_addr & !(page_size - 1);
+        let page_len = ((target_addr + bytes.len() - page_start + page_size - 1) / page_size) * page_size;
+
+        let ret = vm_protect(
+            mach_task_self(),
+            page_start,
+            page_len,
+            0,
+            VM_PROT_READ | VM_PROT_WRITE | VM_PROT_COPY,
+        );
+        if ret == 0 {
+            std::ptr::copy_nonoverlapping(bytes.as_ptr(), target_addr as *mut u8, bytes.len());
+            vm_protect(
+                mach_task_self(),
+                page_start,
+                page_len,
+                0,
+                VM_PROT_READ | VM_PROT_EXECUTE,
+            );
+            log::info!(
+                "patch_code_memory: applied {} bytes via vm_protect at {:#x}",
+                bytes.len(),
+                target_addr
+            );
+            return true;
+        } else {
+            log::error!(
+                "patch_code_memory: vm_protect failed with error {} at {:#x}",
+                ret,
+                target_addr
+            );
+        }
+    }
+
+    false
+}
+
 /// Returns `true` if CLEO is able to hook functions.
 pub fn can_hook() -> bool {
     // note: `test_function` and `hooked_impl` cannot simply return a single value, because this

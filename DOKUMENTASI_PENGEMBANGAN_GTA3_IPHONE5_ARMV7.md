@@ -386,4 +386,49 @@
 4. **Integrasi Menu Cheat**:
    - Ditambahkan ke tab **SEMUA** (`CheatCategory::All`) dan tab **KARAKTER & STATUS** (`CheatCategory::Player`) sebagai toggle `PlayerToggleRow` yang menampilkan teks hijau saat aktif dan memberikan toast pesan native GTA III.
 
+---
+
+### M. Fitur Baru: Cheat Hapus Batas Map (Remove Edge Map Barrier)
+
+1. **Latar Belakang Masalah (Gaya Tolak Engine di Laut Lepas)**:
+   - Ketika pemain menaiki perahu (Speeder, Reefer, Predator) atau menggunakan cheat warp melaju jauh ke arah laut lepas di tepi map (*edge of the map*), engine game tiba-tiba memberikan gaya tolak balik (*repulsive force*) yang memukul mundur perahu ke arah daratan.
+   - Meskipun pemain menginjak pedal gas penuh atau men-trigger teleport maju, perahu tertahan dan terpelanting mundur oleh kalkulasi batasan dunia internal game.
+
+2. **Analisis Reverse Engineering Binary GTA III iOS ARMv7**:
+   - **Pada Perahu (`CBoat::ProcessControl`, `0x00099D9C`)**:
+     - Pada rentang alamat **`0x0009B1C4` – `0x0009B24C`**, engine melakukan pemeriksaan koordinat posisi perahu terhadap 4 batas peta:
+       - Batas Timur: `X > 1900.0f`
+       - Batas Barat: `X < -1515.0f`
+       - Batas Utara: `Y > 600.0f`
+       - Batas Selatan: `Y < -1900.0f`
+     - Jika posisi perahu melewati batas koordinat tersebut, engine mengeksekusi:
+       ```cpp
+       m_vecMoveSpeed.x = Min(m_vecMoveSpeed.x, -(GetPosition().x - 1900.0f) * 0.01f);
+       m_vecMoveSpeed.x = Max(m_vecMoveSpeed.x, -(GetPosition().x - -1515.0f) * 0.01f);
+       m_vecMoveSpeed.y = Min(m_vecMoveSpeed.y, -(GetPosition().y - 600.0f) * 0.01f);
+       m_vecMoveSpeed.y = Max(m_vecMoveSpeed.y, -(GetPosition().y - -1900.0f) * 0.01f);
+       ```
+     - Rumus ini menghasilkan vektor kecepatan bernilai negatif secara agresif, memaksa perahu terlempar mundur setiap frame.
+   - **Pada Mobil & Pesawat Dodo (`CAutomobile::ProcessControl`, `0x00068346` – `0x0006850A`)**:
+     - Pada koordinat $|X| > 1900.0$ atau $|Y| > 1900.0$, engine membalikkan arah kecepatan ($v \times -1.0$) dan memutar haluan kendaraan 180 derajat ke belakang.
+
+3. **Implementasi Patch Memori Dinamis (`patch_code_memory`)**:
+   - Disediakan helper `crate::hook::patch_code_memory` yang menggunakan `MSHookMemory` dari Substrate (dengan fallback Darwin `vm_protect` + Copy-on-Write) untuk menembus proteksi `__TEXT` segment.
+   - **Patch Perahu (`0x0009B1C4`)**:
+     - Byte Asli: `[0x0A, 0x98, 0x1F, 0xED]` (`ldr r0, [sp, #0x28] ; vldr s0, [pc, #-0x268]`)
+     - Byte Patch: `[0x12, 0x98, 0x42, 0xE0]` (`ldr r0, [sp, #0x48] ; b #0x9b24e`)
+     - Mengisi parameter `onLand` pada `r0` secara valid dan melompati seluruh kalkulasi pembatasan kecepatan serta penulisan `vstr s6, [r4, #0x80]`. Kecepatan perahu tetap 100% utuh tanpa hambatan.
+   - **Patch Mobil/Pesawat (`0x00068346`)**:
+     - Byte Asli: `[0x9F, 0xED, 0xAE, 0x9A]` (`vldr s18, [pc, #0x2b8]`)
+     - Byte Patch: `[0xE0, 0xE0, 0x00, 0xBF]` (`b #0x6850a ; nop`)
+     - Melompati seluruh logika pembalikan arah dan rotasi paksa haluan.
+   - **Proteksi Jangkar (`m_bIsAnchored` di `+0x1EC`)**:
+     - Di dalam loop `tick()`, saat cheat aktif, jika perahu berada di perairan jauh, flag jangkar otomatis dibersihkan agar kapal tidak terkunci diam.
+
+4. **Integrasi Menu Cheat**:
+   - Kategori Menu: **LAIN-LAIN (`CheatCategory::Misc`)**, **SEMUA (`CheatCategory::All`)**, **SPAWN KENDARAAN (`CheatCategory::Vehicles`)**, dan **KARAKTER & STATUS (`CheatCategory::Player`)**.
+   - Judul Cheat: `"REMOVE EDGE MAP BARRIER (BEBAS JELAJAH)"`.
+   - Deskripsi: *"Disable pembatas & gaya tolak pinggiran map agar perahu/kendaraan bebas pergi ke lautan lepas tanpa terdorong mundur"*.
+
+
 

@@ -934,6 +934,32 @@ pub fn tab_data() -> TabData {
         }));
     }
 
+    if current_cat == CheatCategory::All
+        || current_cat == CheatCategory::Misc
+        || current_cat == CheatCategory::Vehicles
+        || current_cat == CheatCategory::Player
+    {
+        rows.push(Box::new(PlayerToggleRow {
+            atomic: &crate::game::player::REMOVE_MAP_BARRIER,
+            title: "REMOVE EDGE MAP BARRIER (BEBAS JELAJAH)",
+            detail: "Disable pembatas & gaya tolak pinggiran map agar perahu/kendaraan bebas pergi ke lautan lepas tanpa terdorong mundur",
+        }));
+    }
+
+    if current_cat == CheatCategory::Misc {
+        rows.push(Box::new(PlayerQuickActionRow {
+            action: crate::game::player::PlayerAction::ClearWorldGarbage,
+            title: "BERSIHKAN MAP (CLEAR SAMPAH)",
+            detail: "Menghapus seluruh kendaraan dan objek sampah yang berserakan/dispawn sebelumnya di map (kecuali mobil yang sedang dinaiki)",
+            triggered: false,
+        }));
+        rows.push(Box::new(WarpForwardRow {
+            title: "WARP FORWARD (TEMBUS DEPAN)",
+            detail: "Warp beberapa langkah ke depan menembus rintangan & pagar (jalan kaki / berkendara)",
+            triggered: false,
+        }));
+    }
+
     for cheat in filtered_cheats {
         rows.push(Box::new(CheatData::new(cheat)));
     }

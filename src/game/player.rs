@@ -13,6 +13,8 @@ pub static FAST_RELOAD: AtomicBool = AtomicBool::new(false);
 pub static NEVER_WANTED: AtomicBool = AtomicBool::new(false);
 pub static GOD_MODE_VEHICLE: AtomicBool = AtomicBool::new(false);
 pub static SUPER_JUMP: AtomicBool = AtomicBool::new(false);
+pub static REMOVE_MAP_BARRIER: AtomicBool = AtomicBool::new(false);
+static MAP_BARRIER_PATCHED: AtomicBool = AtomicBool::new(false);
 static JUMP_BOOSTED: AtomicBool = AtomicBool::new(false);
 static LAST_GOD_MODE_VEH: AtomicUsize = AtomicUsize::new(0);
 static QUEUED_VEHICLE_RETRIES: AtomicU32 = AtomicU32::new(0);
@@ -761,6 +763,55 @@ pub unsafe fn execute_warp_forward() {
     }
 }
 
+/// Applies or removes the world boundary patches for boats and land vehicles / aircraft.
+///
+/// GTA III iOS v1.3.2 ARMv7 32-bit:
+/// 1. CBoat::ProcessControl (0x0009B1C4 - 0x0009B24C):
+///    Original clamps m_vecMoveSpeed.x and m_vecMoveSpeed.y when crossing coordinates:
+///    X > 1900.0, X < -1515.0, Y > 600.0, Y < -1900.0 with -(pos - limit) * 0.01f.
+///    Patch (4 bytes at 0x0009B1C4):
+///      ldr r0, [sp, #0x48] (loads onLand boolean into r0)
+///      b   #0x9b24e        (jumps directly past all limits clamping and velocity overwrite)
+///    Original bytes: [0x0a, 0x98, 0x1f, 0xed]
+///    Patched bytes:  [0x12, 0x98, 0x42, 0xe0]
+///
+/// 2. CAutomobile::ProcessControl (0x00068346 - 0x0006850A):
+///    Original clamps and inverts vehicle speed/heading at +/-1900.0.
+///    Patch (4 bytes at 0x00068346):
+///      b   #0x6850a
+///      nop
+///    Original bytes: [0x9f, 0xed, 0xae, 0x9a]
+///    Patched bytes:  [0xe0, 0xe0, 0x00, 0xbf]
+pub fn update_map_barrier_patch(enable: bool) {
+    #[cfg(target_pointer_width = "32")]
+    unsafe {
+        const BOAT_LIMITS_ADDR: usize = 0x0009b1c4;
+        const BOAT_ORIG: [u8; 4] = [0x0a, 0x98, 0x1f, 0xed];
+        const BOAT_PATCH: [u8; 4] = [0x12, 0x98, 0x42, 0xe0];
+
+        const AUTO_LIMITS_ADDR: usize = 0x00068346;
+        const AUTO_ORIG: [u8; 4] = [0x9f, 0xed, 0xae, 0x9a];
+        const AUTO_PATCH: [u8; 4] = [0xe0, 0xe0, 0x00, 0xbf];
+
+        let (boat_data, auto_data) = if enable {
+            (&BOAT_PATCH[..], &AUTO_PATCH[..])
+        } else {
+            (&BOAT_ORIG[..], &AUTO_ORIG[..])
+        };
+
+        let boat_ok = crate::hook::patch_code_memory(BOAT_LIMITS_ADDR, boat_data);
+        let auto_ok = crate::hook::patch_code_memory(AUTO_LIMITS_ADDR, auto_data);
+
+        MAP_BARRIER_PATCHED.store(enable, Ordering::Relaxed);
+        log::info!(
+            "MapBarrier: updated patch state to {} (boat={}, auto={})",
+            enable,
+            boat_ok,
+            auto_ok
+        );
+    }
+}
+
 /// Called per frame inside `script_tick` / `script_update` on the game thread.
 pub fn tick() {
     #[cfg(target_pointer_width = "32")]
@@ -1255,6 +1306,28 @@ pub fn tick() {
             }
         } else {
             JUMP_BOOSTED.store(false, Ordering::Relaxed);
+        }
+
+        // Remove Edge Map Barrier (Bebas Jelajah Laut Lepas & Luar Map):
+        // Automatically syncs memory patch when toggle state changes,
+        // and guarantees Claude's boat is never stuck/anchored beyond world borders.
+        let barrier_disabled = REMOVE_MAP_BARRIER.load(Ordering::Relaxed);
+        if barrier_disabled != MAP_BARRIER_PATCHED.load(Ordering::Relaxed) {
+            update_map_barrier_patch(barrier_disabled);
+        }
+
+        if barrier_disabled {
+            let veh = find_player_vehicle();
+            if !veh.is_null() {
+                unsafe {
+                    // In CBoat, offset 0x1EC is m_bIsAnchored (u8).
+                    // Ensure the boat is not anchored when exploring open sea.
+                    let is_anchored_ptr = veh.add(0x1ec) as *mut u8;
+                    if *is_anchored_ptr != 0 {
+                        *is_anchored_ptr = 0;
+                    }
+                }
+            }
         }
     }
 }

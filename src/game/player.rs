@@ -683,28 +683,38 @@ pub unsafe fn execute_warp_forward() {
                 }
             }
 
-            // c. Extra hardening: Ensure all suspension and wheel contact pointers are completely zeroed
-            // to eliminate any dangling surface references in CAutomobile::ProcessControl (0x000669D0 crash prevention).
-            for i in 0..6 {
-                *(current_veh.add(0x7c + i * 4) as *mut usize) = 0;
-            }
-            std::ptr::write_bytes(current_veh.add(0x470), 0, 16);
-            for i in 0..12 {
-                *(current_veh.add(0x490 + i * 4) as *mut usize) = 0;
-            }
-            for i in 0..4 {
-                *(current_veh.add(0x59c + i * 4) as *mut usize) = 0;
+            // c. Ensure suspension spring compression is 1.0f (fully extended / in the air).
+            // Teleport initializes +0x470 to [1.0f, 1.0f, 1.0f, 1.0f] so ProcessControl knows wheels are in the air.
+            // If this is ever 0.0f, ProcessControl assumes wheels are compressed on the ground and tries to dereference
+            // surface polygon pointers at [surface + 0x18], causing a fatal SIGSEGV at 0x000669D0!
+            let veh_type = *(current_veh.add(0x288) as *const u32);
+            if veh_type == 0 {
+                // Automobile: enforce 1.0f suspension spring extension on all 4 wheels
+                for i in 0..4 {
+                    *(current_veh.add(0x470 + i * 4) as *mut f32) = 1.0f32;
+                }
             }
 
             // d. Restore vehicle heading (Teleport defaults rotation to 0)
+            // Prune from sector list before updating matrix (matches native SET_CAR_Z_ANGLE 0x000487D0..0x00048824)
+            hook::slide_fn::<extern "C" fn(*mut u8)>(0x0003a508)(current_veh);
+
             hook::slide_fn::<extern "C" fn(*mut u8, u32)>(0x0005aab0)(
                 current_veh.add(0x04),
                 heading.to_bits(),
             );
 
+            // Re-write translation coordinates into CMatrix
+            *(current_veh.add(0x34) as *mut f32) = target_x;
+            *(current_veh.add(0x38) as *mut f32) = target_y;
+            *(current_veh.add(0x3c) as *mut f32) = target_z;
+
             // Synchronize RenderWare matrix & clump
             hook::slide_fn::<extern "C" fn(*mut u8)>(0x0005abe0)(current_veh.add(0x04)); // CMatrix::UpdateRW
             hook::slide_fn::<extern "C" fn(*mut u8)>(0x0002cdd4)(current_veh);           // CEntity::UpdateRwFrame
+
+            // Re-register into spatial sector list (CWorld::Add)
+            hook::slide_fn::<extern "C" fn(*mut u8)>(0x0003b090)(current_veh);
 
             // e. Neutralize collision bounce / wild angular spin so car doesn't rebound into fence
             *(current_veh.add(0x54) as *mut f32) = 0.0;

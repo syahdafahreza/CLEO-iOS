@@ -319,16 +319,23 @@
      - Hierarki RenderWare diperbarui seketika sehingga Claude dapat langsung berdiri di posisi baru tanpa glitch pose.
 
 4. **Analisis & Perbaikan Crash Kendaraan (SIGSEGV di `0x000669D0`)**:
-   - **Analisis Crash Dump IPS (`gta3-2026-10-04-145142.ips`)**:
-     - Thread 9 (Game Thread) mengalami `EXC_BAD_ACCESS (SIGSEGV)` pada alamat `0x0009A9D0` (unslid: `0x000669D0`) di dalam `CAutomobile::ProcessControl()`.
-     - Register `r0` bernilai `0x18`, menyebabkan dereferensi `[r0]` membaca `0x00000018` (NULL pointer crash).
-   - **Akar Masalah**:
-     - Berbeda dengan `CPed` yang hanya berupa bodi tunggal, `CAutomobile` menyimpan array kontak tabrakan roda `m_aWheelColPoints` pada offset `+0x470` dan pointer kontak suspensi aktif pada `+0x7C..0x94`, `+0x490..0x4B8`, dan `+0x59C..0x5A8`.
-     - Ketika koordinat mobil dipindah secara langsung tanpa membersihkan state suspensi lama, fungsi `ProcessControl` pada frame berikutnya mengira roda mobil masih menempel pada permukaan tabrakan lama yang kini telah invalid, berujung pada SIGSEGV seketika.
+   - **Analisis Crash Dump IPS (`gta3-2026-10-04-152915.ips`)**:
+     - Thread 12 mengalami `EXC_BAD_ACCESS (SIGSEGV)` pada alamat `0x001099D0` (unslid: `0x000669D0`) di dalam loop 4 roda `CAutomobile::ProcessControl()`.
+     - Register `r0` bernilai `0x18`, dari instruksi:
+       `0x669be: ldr r0, [r1, #0x44]`
+       `0x669c0: add r0, r8` (r8 = 0x18)
+       `0x669d0: vldr s0, [r0]` (membaca `[0x18]`)
+   - **Akar Masalah Fundamental**:
+     - Pada offset `veh + 0x470` terdapat 4 nilai float `fWheelsSuspensionCompression[4]` yang merepresentasikan rasio panjang pegas suspensi ke-4 roda.
+     - Nilai `1.0f` berarti roda sedang di udara (suspensi terentang bebas).
+     - Pada instruksi `0x66970..0x6697C`:
+       `vcmpe.f32 s0, 1.0f; bpl #0x66a26;`
+       Jika rasio suspensi $\ge 1.0\text{f}$ (di udara), engine **melompati (skip)** kalkulasi kompresi permukaan tanah pada `0x669D0`.
+     - Namun jika bernilai `0.0f` (bottomed out), engine mengira roda menabrak poligon tanah dan mencoba membaca pointer poligon tanah pada `[r1 + 0x44]`. Karena mobil baru diteleport dan pointer poligon masih null/dangling, operasi membaca `[0 + 0x18]` memicu SIGSEGV seketika!
    - **Solusi yang Diterapkan**:
-     1. Memanggil fungsi virtual native `vtable[12]` (`Teleport`) pada `0x00061DD8` (`CAutomobile::Teleport`) atau `0x00099D0C` (`CBoat::Teleport`) persis seperti yang dilakukan oleh native script opcode `SET_CAR_COORDINATES` (`0x00045A3C`).
-     2. Menambahkan *hardening* nol-kan seluruh pointer `m_aWheelColPoints` dan kontak suspensi (`+0x7C..0x94`, `+0x470`, `+0x490..0x4B8`, `+0x59C..0x5A8`).
-     3. Memulihkan arah rotasi mobil (`heading`) melalui `CMatrix::RotateZ` (`0x0005AAB0`) dan sinkronisasi RenderWare.
+     1. Memanggil fungsi virtual native `vtable[12]` (`Teleport`) pada `0x00061DD8` (`CAutomobile::Teleport`) atau `0x00099D0C` (`CBoat::Teleport`) persis seperti native script opcode `SET_CAR_COORDINATES` (`0x00045A3C`). Fungsi ini secara otomatis menginisialisasi `fWheelsSuspensionCompression[0..4]` ke `1.0f` dan mereset pointer kontak suspensi.
+     2. Menjaga nilai `veh + 0x470` tetap bernilai `1.0f32` (suspensi di udara) sehingga engine game melakukan raycast baru secara mulus di frame berikutnya.
+     3. Untuk rotasi arah hadap mobil (`heading`), memanggil `CEntity::PruneFromSectorList` (`0x0003A508`), memutar matriks dengan `CMatrix::SetRotateZOnly` (`0x0005AAB0`), memperbarui clump RenderWare (`0x0005ABE0` & `0x0002CDD4`), dan mendaftarkan kembali ke sektor dunia dengan `CWorld::Add` (`0x0003B090`) persis seperti opcode native `SET_CAR_Z_ANGLE` (`0x000487D0`).
      4. Membersihkan area pendaratan mobil via `CCarCtrl::ClearAreaAroundVehicle` (`0x000C5064`).
 
 5. **Peningkatan Engine Logging Real-time & Crash Handler**:

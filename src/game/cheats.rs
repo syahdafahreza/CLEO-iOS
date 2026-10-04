@@ -852,6 +852,11 @@ pub fn tab_data() -> TabData {
             detail: "Claude bisa berlari tanpa batas tanpa kelelahan",
         }));
         rows.push(Box::new(PlayerToggleRow {
+            atomic: &crate::game::player::SUPER_JUMP,
+            title: "LOMPAT TINGGI (SUPER JUMP)",
+            detail: "Claude melompat tinggi melewati rintangan & pagar (dilengkapi pelindung jatuh)",
+        }));
+        rows.push(Box::new(PlayerToggleRow {
             atomic: &crate::game::player::FAST_RELOAD,
             title: "RELOAD KILAT (FAST RELOAD)",
             detail: "Animasi reload senjata berlangsung instan",

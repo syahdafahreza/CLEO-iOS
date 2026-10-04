@@ -12,6 +12,8 @@ pub static INFINITE_SPRINT: AtomicBool = AtomicBool::new(false);
 pub static FAST_RELOAD: AtomicBool = AtomicBool::new(false);
 pub static NEVER_WANTED: AtomicBool = AtomicBool::new(false);
 pub static GOD_MODE_VEHICLE: AtomicBool = AtomicBool::new(false);
+pub static SUPER_JUMP: AtomicBool = AtomicBool::new(false);
+static JUMP_BOOSTED: AtomicBool = AtomicBool::new(false);
 static LAST_GOD_MODE_VEH: AtomicUsize = AtomicUsize::new(0);
 static QUEUED_VEHICLE_RETRIES: AtomicU32 = AtomicU32::new(0);
 
@@ -717,19 +719,19 @@ pub unsafe fn execute_warp_forward() {
             hook::slide_fn::<extern "C" fn(*mut u8)>(0x0003b090)(current_veh);
 
             // e. Neutralize collision bounce / wild angular spin so car doesn't rebound into fence
-            *(current_veh.add(0x54) as *mut f32) = 0.0;
-            *(current_veh.add(0x58) as *mut f32) = 0.0;
-            *(current_veh.add(0x5c) as *mut f32) = 0.0;
+            *(current_veh.add(0x88) as *mut f32) = 0.0;
+            *(current_veh.add(0x8c) as *mut f32) = 0.0;
+            *(current_veh.add(0x90) as *mut f32) = 0.0;
 
-            // Align move speed forward if moving (m_vecMoveSpeed at current_veh + 0x44)
-            let vx = *(current_veh.add(0x44) as *const f32);
-            let vy = *(current_veh.add(0x48) as *const f32);
+            // Align move speed forward if moving (m_vecMoveSpeed at current_veh + 0x7C)
+            let vx = *(current_veh.add(0x7c) as *const f32);
+            let vy = *(current_veh.add(0x80) as *const f32);
             let speed = (vx * vx + vy * vy).sqrt();
             if speed > 0.05 {
                 let forward_speed = speed.min(0.5f32);
-                *(current_veh.add(0x44) as *mut f32) = dir_x * forward_speed;
-                *(current_veh.add(0x48) as *mut f32) = dir_y * forward_speed;
-                *(current_veh.add(0x4c) as *mut f32) = 0.0;
+                *(current_veh.add(0x7c) as *mut f32) = dir_x * forward_speed;
+                *(current_veh.add(0x80) as *mut f32) = dir_y * forward_speed;
+                *(current_veh.add(0x84) as *mut f32) = 0.0;
             }
 
             // f. Clear dynamic traffic & objects around the landing zone
@@ -1202,6 +1204,57 @@ pub fn tick() {
                     *(info.add(0x115) as *mut u8) = 1;
                 }
             }
+        }
+
+        // Super Jump / Lompat Tinggi:
+        // Claude jumps 4-5x higher (vz = 0.36f, ~5 meters) with forward momentum boost
+        // and safe soft-landing fall protection (vz clamped to >= -0.22f).
+        if SUPER_JUMP.load(Ordering::Relaxed) && !ped.is_null() {
+            unsafe {
+                let in_vehicle = *(ped.add(0x318) as *const u8) != 0;
+                if !in_vehicle {
+                    // m_ePedState is at ped + 0x228 (u32). State 35 = PEDSTATE_JUMP
+                    let ped_state = *(ped.add(0x228) as *const u32);
+                    let vz = *(ped.add(0x84) as *const f32);
+
+                    if ped_state == 35 {
+                        if !JUMP_BOOSTED.load(Ordering::Relaxed) {
+                            // Apply high jump vertical impulse
+                            *(ped.add(0x84) as *mut f32) = 0.36f32;
+
+                            // If player has horizontal motion, boost forward momentum
+                            let vx = *(ped.add(0x7c) as *const f32);
+                            let vy = *(ped.add(0x80) as *const f32);
+                            let horiz_speed = (vx * vx + vy * vy).sqrt();
+                            if horiz_speed > 0.02 {
+                                let scale = (horiz_speed * 1.35f32).min(0.30f32) / horiz_speed;
+                                *(ped.add(0x7c) as *mut f32) = vx * scale;
+                                *(ped.add(0x80) as *mut f32) = vy * scale;
+                            }
+
+                            JUMP_BOOSTED.store(true, Ordering::Relaxed);
+                            log::info!(
+                                "SuperJump: High jump impulse triggered! (vz=0.36, horiz_speed={:.2})",
+                                horiz_speed
+                            );
+                        }
+                    } else {
+                        // Reset boost flag when Claude is not jumping (e.g. idle, running, falling, landed)
+                        JUMP_BOOSTED.store(false, Ordering::Relaxed);
+
+                        // Soft-landing protection: clamp downward fall speed to prevent fatal impact / fall damage.
+                        // In GTA III, normal landing threshold is vz > -0.26f.
+                        // Clamping to -0.22f guarantees smooth landing without losing any HP.
+                        if vz < -0.22f32 {
+                            *(ped.add(0x84) as *mut f32) = -0.22f32;
+                        }
+                    }
+                } else {
+                    JUMP_BOOSTED.store(false, Ordering::Relaxed);
+                }
+            }
+        } else {
+            JUMP_BOOSTED.store(false, Ordering::Relaxed);
         }
     }
 }

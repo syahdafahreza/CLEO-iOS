@@ -349,3 +349,41 @@
    - **Tab Senjata (Weapon Arsenal)**: Setiap pemilihan paket senjata atau senjata satuan mencatat bundle ID atau weapon ID beserta jumlah amunisi yang diberikan.
    - **Tab Skrip (Scripts)**: Setiap eksekusi skrip CSI atau pergantian status skrip CSA dicatat secara eksplisit ke dalam log.
 
+---
+
+### L. Fitur Baru: Cheat Lompat Tinggi (Super Jump / Mega Jump)
+
+1. **Latar Belakang & Kebutuhan Fitur**:
+   - Di GTA III, kemampuan melompat Claude sangat terbatas (hanya setinggi ~1.0 s/d 1.2 meter dengan impuls vertikal standar $v_z \approx 0.12\text{f}$). Ketinggian ini tidak cukup untuk melompati pagar besi, kawat berduri, pintu gerbang pelabuhan, atau pembatas misi.
+   - Terinspirasi dari cheat lompat tinggi legendaris GTA San Andreas (`cjphonehome` / `kangaroo`), cheat **"LOMPAT TINGGI (SUPER JUMP)"** memungkinkan Claude melompat 4-5 kali lebih tinggi (~4.5 s/d 5.5 meter) saat tombol loncat touchscreen ditekan.
+   - Pemain dapat dengan mudah melompati pagar tinggi dan barrier yang mengunci area tertentu tanpa terjebak atau terhalang fisik collider.
+
+2. **Analisis Reverse Engineering Binary GTA III iOS ARMv7**:
+   - **State Mesin Animasi Karakter (`m_ePedState`)**:
+     - Terletak pada offset **`ped + 0x228`** (`uint32`).
+     - Saat pemain menekan tombol loncat di layar touchscreen (`es2/jump.png`), engine mengeksekusi `CPed::SetJump` di alamat **`0x000D71C0`**.
+     - Fungsi ini mengatur `m_ePedState = 35` (`0x23` = `PEDSTATE_JUMP`) dan memicu animasi `ANIM_STD_JUMP_LAUNCH` (`148` / `0x94`).
+   - **Vektor Kecepatan Fisika Entitas (`m_vecMoveSpeed` di `CPhysical`)**:
+     - Dibuktikan langsung dari pembongkaran fungsi native `CPhysical::GetSpeed(CVector const &offset)` di **`0x00137A6C`**:
+       - `m_vecMoveSpeed.x`: `+0x7C`
+       - `m_vecMoveSpeed.y`: `+0x80`
+       - `m_vecMoveSpeed.z`: `+0x84`
+     - Kecepatan sudut putaran (`m_vecTurnSpeed`) berada di `+0x88`, `+0x8C`, `+0x90`.
+     - Kecepatan gesekan (`m_vecMoveFriction`) berada di `+0x94`, `+0x98`, `+0x9C`.
+
+3. **Implementasi & Penanganan Fisika Lompat**:
+   - **Impuls Loncat Vertikal (Upward Impulse Boost)**:
+     - Di dalam loop `player::tick()`, jika `SUPER_JUMP` aktif dan Claude terdeteksi memulai state `PEDSTATE_JUMP` (`35`):
+       - Nilai vertikal `m_vecMoveSpeed.z` diatur ke **`0.36f`** (mencapai puncak lompatan sekitar 5 meter di udara).
+       - Menggunakan *single-boost guard flag* (`JUMP_BOOSTED`) agar impuls hanya diberikan sekali pada frame awal inisiasi lompatan.
+   - **Dorongan Momentum Maju (Forward Propulsion)**:
+     - Jika Claude melompat sambil berlari atau berjalan maju ($v_x^2 + v_y^2 > 0.02$), kecepatan horizontal dikalikan faktor $1.35\times$ (dibatasi maksimal $0.30\text{f}$) sehingga Claude memiliki trayektori parabola yang anggun melewati ketebalan pagar tanpa terbentur di tepi atas.
+   - **Proteksi Pendaratan Lembut (Soft Landing / Anti Fall Damage)**:
+     - Di GTA III, pendaratan dengan kecepatan jatuh $v_z < -0.26\text{f}$ normalnya memicu *fall damage* (darah berkurang bahkan tewas seketika).
+     - Saat Claude berada di udara dan mulai jatuh ($v_z < 0.0$), nilai $v_z$ dikunci (clamped) pada batas aman **`-0.22f`**.
+     - Efek ini memberikan pendaratan *superhero glide* yang mulus dan nyaman, di mana Claude dapat melompat dari tempat tinggi tanpa kehilangan darah sedikit pun.
+
+4. **Integrasi Menu Cheat**:
+   - Ditambahkan ke tab **SEMUA** (`CheatCategory::All`) dan tab **KARAKTER & STATUS** (`CheatCategory::Player`) sebagai toggle `PlayerToggleRow` yang menampilkan teks hijau saat aktif dan memberikan toast pesan native GTA III.
+
+

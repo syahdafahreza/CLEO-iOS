@@ -944,6 +944,11 @@ pub fn tab_data() -> TabData {
             title: "REMOVE EDGE MAP BARRIER (BEBAS JELAJAH)",
             detail: "Disable pembatas & gaya tolak pinggiran map agar perahu/kendaraan bebas pergi ke lautan lepas tanpa terdorong mundur",
         }));
+        rows.push(Box::new(PlayerToggleRow {
+            atomic: &crate::game::player::EASY_DODO_FLIGHT,
+            title: "TERBANG DODO MUDAH (EASY FLIGHT)",
+            detail: "Dodo mudah lepas landas, terbang stabil & auto-leveling, bebas terbang tinggi tanpa batas",
+        }));
     }
 
     if current_cat == CheatCategory::Misc {

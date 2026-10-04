@@ -14,7 +14,9 @@ pub static NEVER_WANTED: AtomicBool = AtomicBool::new(false);
 pub static GOD_MODE_VEHICLE: AtomicBool = AtomicBool::new(false);
 pub static SUPER_JUMP: AtomicBool = AtomicBool::new(false);
 pub static REMOVE_MAP_BARRIER: AtomicBool = AtomicBool::new(false);
+pub static EASY_DODO_FLIGHT: AtomicBool = AtomicBool::new(false);
 static MAP_BARRIER_PATCHED: AtomicBool = AtomicBool::new(false);
+static DODO_CEILING_PATCHED: AtomicBool = AtomicBool::new(false);
 static JUMP_BOOSTED: AtomicBool = AtomicBool::new(false);
 static LAST_GOD_MODE_VEH: AtomicUsize = AtomicUsize::new(0);
 static QUEUED_VEHICLE_RETRIES: AtomicU32 = AtomicU32::new(0);
@@ -812,6 +814,157 @@ pub fn update_map_barrier_patch(enable: bool) {
     }
 }
 
+/// Updates memory patch to remove the native 100m ceiling clamp in CVehicle::FlyingControl.
+///
+/// GTA III iOS v1.3.2 ARMv7 32-bit:
+/// At 0x00138BEA in CVehicle::FlyingControl (FLIGHT_MODEL_DODO):
+///   Original: ble #0x138bfc (2 bytes: [0x07, 0xdd])
+///   Patch:    b   #0x138bfc (2 bytes: [0x07, 0xe0])
+/// Bypasses the hardcoded clamp `if (GetPosition().z > 100.0f) impulse = 0.9f * GRAVITY * m_fMass`,
+/// allowing the Dodo to climb infinitely into the sky without forced downward drag.
+pub fn update_dodo_ceiling_patch(enable: bool) {
+    #[cfg(target_pointer_width = "32")]
+    unsafe {
+        const DODO_CEILING_ADDR: usize = 0x00138bea;
+        const DODO_ORIG: [u8; 2] = [0x07, 0xdd];
+        const DODO_PATCH: [u8; 2] = [0x07, 0xe0];
+
+        let data = if enable { &DODO_PATCH[..] } else { &DODO_ORIG[..] };
+        let ok = crate::hook::patch_code_memory(DODO_CEILING_ADDR, data);
+        DODO_CEILING_PATCHED.store(enable, Ordering::Relaxed);
+        log::info!("EasyDodo: updated ceiling patch to {} (ok={})", enable, ok);
+    }
+}
+
+/// Applies active flight physics to the Dodo plane when Easy Dodo Flight cheat is active.
+/// Provides continuous forward thrust, aerodynamic lift without stall, auto-leveling wings/pitch,
+/// and smooth responsive touchscreen controls.
+pub unsafe fn process_dodo_easy_flight(veh: *mut u8) {
+    #[cfg(target_pointer_width = "32")]
+    {
+        // 1. Read vehicle orientation matrix (embedded CMatrix at veh + 0x04)
+        // Right vector (X axis): veh + 0x04
+        let rx = *(veh.add(0x04) as *const f32);
+        let ry = *(veh.add(0x08) as *const f32);
+        let rz = *(veh.add(0x0c) as *const f32);
+
+        // Forward vector (Y axis): veh + 0x14
+        let fx = *(veh.add(0x14) as *const f32);
+        let fy = *(veh.add(0x18) as *const f32);
+        let fz = *(veh.add(0x1c) as *const f32);
+
+        // Up vector (Z axis): veh + 0x24
+        let ux = *(veh.add(0x24) as *const f32);
+        let uy = *(veh.add(0x28) as *const f32);
+        let uz = *(veh.add(0x2c) as *const f32);
+
+        // Current velocities:
+        let vx = *(veh.add(0x7c) as *const f32);
+        let vy = *(veh.add(0x80) as *const f32);
+        let vz = *(veh.add(0x84) as *const f32);
+
+        // Current rotational velocities:
+        let wx = *(veh.add(0x88) as *const f32); // pitch rate
+        let wy = *(veh.add(0x8c) as *const f32); // roll rate
+        let wz = *(veh.add(0x90) as *const f32); // yaw rate
+
+        // Current altitude:
+        let pz = *(veh.add(0x3c) as *const f32);
+
+        // 2. Read player touch/pad inputs via CPad(0)
+        let pad = hook::slide_fn::<extern "C" fn(i32) -> *mut u8>(0x000bef40)(0);
+        let (accel, brake, steer_ud, steer_lr) = if !pad.is_null() {
+            let a = hook::slide_fn::<extern "C" fn(*mut u8) -> u8>(0x000bf45c)(pad) as f32 / 255.0;
+            let b = hook::slide_fn::<extern "C" fn(*mut u8) -> u8>(0x000bf34c)(pad) as f32 / 255.0;
+            let ud = hook::slide_fn::<extern "C" fn(*mut u8) -> i16>(0x000befac)(pad) as f32 / 128.0;
+            let lr = hook::slide_fn::<extern "C" fn(*mut u8) -> i16>(0x000bef5c)(pad) as f32 / 128.0;
+            (a, b, ud, lr)
+        } else {
+            (1.0, 0.0, 0.0, 0.0)
+        };
+
+        // Forward component of speed:
+        let cur_fwd_speed = vx * fx + vy * fy + vz * fz;
+
+        // 3. Engine Propulsion & Cruise Control:
+        // Ensures Dodo never loses forward momentum while airborne and accelerates quickly on runway.
+        let target_fwd_speed = if brake > 0.15 {
+            0.35f32 // Controlled braking for landing
+        } else if accel > 0.10 {
+            0.95f32 // Fast cruising & climbing thrust
+        } else {
+            0.75f32 // Steady default cruise glide
+        };
+
+        let fwd_accel_rate = if cur_fwd_speed < target_fwd_speed {
+            0.030f32
+        } else {
+            -0.012f32
+        };
+
+        let new_fwd_speed = (cur_fwd_speed + fwd_accel_rate).clamp(0.20, 1.25);
+
+        // 4. Pitch & Altitude Control (Unlimited Climbing):
+        // In GTA III touchscreen:
+        // steer_ud < -0.15 = Pull Up (Nose Up / Climb)
+        // steer_ud > +0.15 = Push Down (Nose Down / Dive)
+        let climb_rate = if steer_ud < -0.15 {
+            // Active climb: strong upward vertical velocity without 100m ceiling limit
+            (-steer_ud) * 0.38f32
+        } else if steer_ud > 0.15 {
+            // Controlled dive
+            (-steer_ud) * 0.30f32
+        } else {
+            // Level cruise: track nose pitch angle + anti-gravity glide
+            (fz * 0.6f32).clamp(-0.08, 0.08)
+        };
+
+        // Combine forward direction with aerodynamic lift:
+        let new_vx = fx * new_fwd_speed;
+        let new_vy = fy * new_fwd_speed;
+
+        // Anti-gravity compensation: cancel gravity pull during cruise so plane doesn't sink
+        let mut new_vz = vz * 0.75f32 + climb_rate * 0.25f32 + (fz * new_fwd_speed * 0.15f32);
+        if steer_ud.abs() < 0.15 && fz > -0.05 && new_vz < 0.0 {
+            // Float steady in level flight
+            new_vz = 0.01f32;
+        }
+
+        *(veh.add(0x7c) as *mut f32) = new_vx;
+        *(veh.add(0x80) as *mut f32) = new_vy;
+        *(veh.add(0x84) as *mut f32) = new_vz.clamp(-0.45, 0.65);
+
+        // 5. Flight Stability & Auto-Leveling:
+        // Roll Auto-Leveling (stabilizes wings horizontal):
+        if steer_lr.abs() < 0.15 {
+            // Dampen roll spin and gently restore right wing Z to 0.0 (horizontal wings)
+            let roll_restore = -rz * 0.12f32;
+            *(veh.add(0x8c) as *mut f32) = wy * 0.60f32 + roll_restore;
+        } else {
+            // Responsive banking while turning
+            let bank_target = -steer_lr * 0.035f32;
+            *(veh.add(0x8c) as *mut f32) = bank_target;
+        }
+
+        // Pitch Auto-Leveling:
+        if steer_ud.abs() < 0.15 {
+            // Dampen nose wobble
+            *(veh.add(0x88) as *mut f32) = wx * 0.60f32;
+        } else {
+            let pitch_target = (-steer_ud) * 0.035f32;
+            *(veh.add(0x88) as *mut f32) = pitch_target;
+        }
+
+        // Yaw Turning (steer left / right):
+        if steer_lr.abs() > 0.10 {
+            let yaw_target = -steer_lr * 0.035f32;
+            *(veh.add(0x90) as *mut f32) = yaw_target;
+        } else {
+            *(veh.add(0x90) as *mut f32) = wz * 0.70f32;
+        }
+    }
+}
+
 /// Called per frame inside `script_tick` / `script_update` on the game thread.
 pub fn tick() {
     #[cfg(target_pointer_width = "32")]
@@ -1325,6 +1478,25 @@ pub fn tick() {
                     let is_anchored_ptr = veh.add(0x1ec) as *mut u8;
                     if *is_anchored_ptr != 0 {
                         *is_anchored_ptr = 0;
+                    }
+                }
+            }
+        }
+
+        // Easy Dodo Flight (Terbang Dodo Mudah, Stabil, & Bebas Tinggi):
+        let dodo_flight_active = EASY_DODO_FLIGHT.load(Ordering::Relaxed);
+        if dodo_flight_active != DODO_CEILING_PATCHED.load(Ordering::Relaxed) {
+            update_dodo_ceiling_patch(dodo_flight_active);
+        }
+
+        if dodo_flight_active {
+            let veh = find_player_vehicle();
+            if !veh.is_null() {
+                unsafe {
+                    // Check if current vehicle is the Dodo (model ID 126 / 0x7E at veh + 0x5E)
+                    let model_id = *(veh.add(0x5e) as *const u16) as u32;
+                    if model_id == 126 {
+                        process_dodo_easy_flight(veh);
                     }
                 }
             }

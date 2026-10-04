@@ -430,5 +430,47 @@
    - Judul Cheat: `"REMOVE EDGE MAP BARRIER (BEBAS JELAJAH)"`.
    - Deskripsi: *"Disable pembatas & gaya tolak pinggiran map agar perahu/kendaraan bebas pergi ke lautan lepas tanpa terdorong mundur"*.
 
+---
+
+### N. Fitur Baru: Cheat Terbang Dodo Mudah & Stabil (Easy Dodo Flight)
+
+1. **Latar Belakang & Masalah Fisika Dodo Bawaan GTA III**:
+   - Pesawat Dodo (Model ID 126) di GTA III sangat terkenal sulit dikendalikan karena memiliki sayap yang terpotong (*clipped wings*).
+   - Di engine game:
+     - Ketika mengudara, roda terangkat dari aspal sehingga gaya dorong mesin mobil menghilang (tidak ada dorongan baling-baling / *propulsion* di udara).
+     - Gaya angkat (*lift*) dihitung dari kuadrat kecepatan maju `fwdSpeed^2`. Begitu hidung pesawat dinaikkan sedikit saja, kecepatan maju turun drastis, gaya angkat seketika lenyap (*aerodynamic stall*), dan pesawat langsung terjun bebas menukik ke tanah/laut.
+     - Di fungsi `CVehicle::FlyingControl`, terdapat batas ketinggian keras (*altitude ceiling*) pada koordinat $Z > 100\text{m}$. Jika pesawat mencapai tinggi di atas 100 meter, engine secara paksa memangkas gaya angkat menjadi $0.9 \times \text{GRAVITY}$, sehingga pemain tidak akan pernah bisa terbang tinggi melintasi gedung pencakar langit.
+     - Dodo tidak memiliki stabilisasi guling (*roll auto-leveling*), sehingga sedikit saja menyenggol belokan di layar sentuh, sayap miring permanen dan pesawat berputar tak terkendali.
+
+2. **Analisis Reverse Engineering Binary GTA III iOS ARMv7**:
+   - **Fungsi Kendali Terbang (`CVehicle::FlyingControl`)**:
+     - Terletak di alamat **`0x0013891C`**.
+     - Pemanggilan dari `CAutomobile::ProcessControl` di alamat **`0x00067BA0`** dengan parameter `r1 = 0` (`FLIGHT_MODEL_DODO`).
+   - **Bypass Batas Ketinggian 100 Meter (`0x00138BEA`)**:
+     - Pada alamat **`0x00138BEA`**, instruksi asli adalah `ble #0x138bfc` (bytes `[0x07, 0xDD]`) yang memeriksa apakah $Z > 100.0\text{f}$.
+     - Dengan melakukan patch menjadi branch tanpa syarat `b #0x138bfc` (bytes `[0x07, 0xE0]`), kalkulasi pemangkasan gaya angkat di atas 100 meter berhasil di-bypass 100%. Pesawat bebas membubung tinggi ke awan tanpa batas.
+
+3. **Implementasi Model Aerodinamika Asistif (`process_dodo_easy_flight`)**:
+   - Di dalam loop `tick()`, saat cheat aktif dan Claude menaiki pesawat Dodo (Model ID 126):
+     - **Dorongan Mesin Baling-Baling (Continuous Air Propulsion)**:
+       Menghasilkan daya dorong terarah sepanjang vektor depan `GetForward()`:
+       - Saat pedal gas ditekan / menanjak: kecepatan maju dipercepat hingga $0.95\text{f} - 1.15\text{f}$ (~150-180 km/jam).
+       - Saat lepas landas di landasan pacu (*runway*): Dodo langsung melesat dan terangkat ke udara hanya dalam 1-2 detik.
+       - Saat rem ditekan: kecepatan melambat terkendali hingga $0.35\text{f}$ untuk memudahkan pendaratan mulus.
+     - **Gaya Angkat & Pendakian Tanpa Batas (Lift & Unlimited Climbing)**:
+       Merespon input kemudi atas/bawah touchscreen (`steer_ud` dari `CPad::GetSteeringUpDown` di `0x000BEFAC`):
+       - Saat menarik hidung ke atas: memberikan impuls vertikal positif $+0.38\text{f}$ yang stabil dan kuat untuk mendaki setinggi apa pun melampaui gedung tertinggi Liberty City.
+       - Mengimbangi gravitasi bumi saat terbang datar agar pesawat tidak ambles atau menukik sendiri.
+     - **Stabilisasi & Auto-Leveling (Anti-Stall & Anti-Spin)**:
+       - Ketika pemain melepas kontrol belok: sayap secara otomatis disejajarkan mendatar (*horizontal auto-leveling*) dengan meredam laju guling $w_y$ dan mengoreksi kemiringan sayap $r_z \to 0$.
+       - Menghilangkan guncangan hidung liar (*pitch damping*) sehingga pesawat terbang stabil bagaikan autopilot.
+       - Belok kiri/kanan menghasilkan kombinasi *yaw* dan *bank* yang proporsional dan responsif khas pesawat modern.
+
+4. **Integrasi Menu Cheat**:
+   - Kategori Menu: **LAIN-LAIN (`CheatCategory::Misc`)**, **SEMUA (`CheatCategory::All`)**, **SPAWN KENDARAAN (`CheatCategory::Vehicles`)**, dan **KARAKTER & STATUS (`CheatCategory::Player`)**.
+   - Judul Cheat: `"TERBANG DODO MUDAH (EASY FLIGHT)"`.
+   - Deskripsi: *"Dodo mudah lepas landas, terbang stabil & auto-leveling, bebas terbang tinggi tanpa batas"*.
+
+
 
 
